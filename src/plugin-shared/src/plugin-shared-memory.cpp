@@ -64,7 +64,7 @@ D2RLOADER_PLUGIN_EXPORT void* PSh_AllocNear(void* hint, size_t size) noexcept
 	return nullptr;
 }
 
-D2RLOADER_PLUGIN_EXPORT void PSh_PatchBytes(uint32_t pluginId, const D2RLoaderPluginContext* context, uint64_t offset, uint32_t length, unsigned char* bytes) noexcept
+D2RLOADER_PLUGIN_EXPORT void PSh_PatchBytes(uint32_t pluginId, const D2RLoaderPluginContext* context, uint64_t offset, uint32_t length, const unsigned char* bytes) noexcept
 {
 	// TODO pool allocator
 	PSCodePointEntry newEntry = {
@@ -215,4 +215,48 @@ D2RLOADER_PLUGIN_EXPORT void PSh_RemoveHook(uint32_t pluginId, const D2RLoaderPl
 
 	VirtualFree(it->second.trampolinePage, 0, MEM_RELEASE);
 	g_registeredHooks.erase(it);
+}
+
+D2RLOADER_PLUGIN_EXPORT bool PSh_PatchCallSite(uint32_t pluginId, const D2RLoaderPluginContext* context,
+                                                uint64_t callOffset, void* hookFn) noexcept
+{
+	void* callSite = (void*)(ResolveExeBase(context) + callOffset);
+
+	void* stub = PSh_AllocNear(callSite, PSH_NEAR_ALLOC);
+	if (!stub)
+	{
+		D2RPluginLogErrorF(context, "Plugin %X: PSh_AllocNear failed for call site at %p: %d",
+			pluginId, callSite, GetLastError());
+		return false;
+	}
+
+	uint8_t* s = (uint8_t*)stub;
+	s[0] = 0xFF; s[1] = 0x25;
+	s[2] = 0x00; s[3] = 0x00; s[4] = 0x00; s[5] = 0x00;
+	*(uint64_t*)(s + 6) = (uint64_t)hookFn;
+
+	int32_t rel32 = (int32_t)((uintptr_t)stub - ((uintptr_t)callSite + 5));
+	uint8_t patch[5] = { 0xE8 };
+	memcpy(patch + 1, &rel32, 4);
+
+	PSHookEntry entry{};
+	entry.pluginId       = pluginId;
+	entry.hookSize       = 5;
+	entry.trampolinePage = stub;
+	memcpy(entry.originalBytes, callSite, 5);
+
+	DWORD oldProtect;
+	if (!VirtualProtect(callSite, 5, PAGE_EXECUTE_READWRITE, &oldProtect))
+	{
+		D2RPluginLogErrorF(context, "Plugin %X: VirtualProtect failed at %p: %d",
+			pluginId, callSite, GetLastError());
+		VirtualFree(stub, 0, MEM_RELEASE);
+		return false;
+	}
+	memcpy(callSite, patch, 5);
+	VirtualProtect(callSite, 5, oldProtect, &oldProtect);
+	FlushInstructionCache(GetCurrentProcess(), callSite, 5);
+
+	g_registeredHooks[(uint64_t)callSite] = entry;
+	return true;
 }

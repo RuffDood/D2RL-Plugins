@@ -1,20 +1,10 @@
 #include "plugin.h"
 #include "plugin-shared.h"
+#include "skills-private.h"
 #include <Windows.h>
 #include <cstdio>
 #include <cstring>
 #include <vector>
-
-static void DebugLog(const char* fmt, ...) noexcept {
-	char buf[512];
-	va_list args;
-	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
-	va_end(args);
-
-	FILE* f = fopen("C:\\Users\\Nick\\Documents\\plugin-skills-debug.log", "a");
-	if (f) { fputs(buf, f); fputc('\n', f); fclose(f); }
-}
 
 // ── D2R function type aliases ─────────────────────────────────────────────────
 
@@ -26,11 +16,12 @@ using Consume_t       = int64_t(__fastcall*)(int64_t unit, int* playerUnit,
                                              int skillId, int skillLevel);
 using AuraConsume_t   = int64_t(__fastcall*)(int* playerUnit, int manaCost);
 using DrainStat_t     = void(__fastcall*)(void* unit, int statId, int delta);
-using GetStat_t       = int(__fastcall*)(int64_t statContainer, uint64_t statCode, int64_t unused);
 using GetManaCost_t   = int(__fastcall*)(uint8_t unitType, int skillId, int skillLevel);
 using CheckStat_t     = bool(__fastcall*)(int* playerUnit, int64_t* skillStruct,
                                           int param3, int currentMana);
 using ClientPredict_t = void(__fastcall*)(int* playerUnit, int skillId, int skillLevel);
+using ConsumeWeaponCharge_t = int64_t(__fastcall*)(int64_t unit, int* playerUnit,
+                                                    int64_t chargeItem, int skillId);
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -39,37 +30,46 @@ static constexpr uint64_t OFF_CompileTxt       = 0x21c680; // DATATBLS_CompileTx
 static constexpr uint64_t OFF_Consume          = 0x30e7a0; // D2GAME_SKILLMANA_Consume
 static constexpr uint64_t OFF_AuraConsume      = 0x30e850; // D2GAME_SKILLMANA_AuraConsume
 static constexpr uint64_t OFF_DrainStat        = 0x227470; // FUN_140227470
-static constexpr uint64_t OFF_GetStat          = 0x224720; // FUN_140224720 (read a stat value)
 static constexpr uint64_t OFF_GetManaCost      = 0x268da0; // D2Common_SKILLMANA_GetManaCost
 static constexpr uint64_t OFF_CheckStat        = 0x264990; // D2Common_SKILLMANA_CheckStat (use-state mana check)
 static constexpr uint64_t OFF_ClientPredict    = 0x197080; // FUN_140197080 (client-side mana prediction)
+static constexpr uint64_t OFF_ConsumeWeaponCharge = 0x30e550; // D2GAME_SKILLMANA_ConsumeWeaponCharge
+static constexpr uint64_t OFF_GetUseState      = 0x264590; // SKILLS_GetUseState_6FDB0B70
+static constexpr uint64_t OFF_GetUseState_Call = 0x1a2580; // call site inside D2CLIENT_GetUnusableUseState
+static constexpr uint64_t OFF_ClassicWW        = 0x41A49D;
+static constexpr uint64_t OFF_EnableWWCtC      = 0x40AA35;
+static constexpr uint64_t OFF_Telekinesis      = 0x426991;
 
 // skills.txt record layout constants
 static constexpr uint64_t SKILLS_RECORD_STRIDE = 0x2EC;  // bytes per record
 static constexpr uint64_t SKILLS_FLAGS_OFFSET  = 0x24;   // uint64_t flags QWORD
-static constexpr int      MANA_COSTS_LIFE_BIT  = 47;     // first free bit
+static constexpr uint32_t SKILLSRECORD_TYPE_BOOL = 29;
+static constexpr int      MANA_COSTS_LIFE_BIT    = 47;   // first free bit
+static constexpr int      MANA_COSTS_STAMINA_BIT = 48;   // second free bit
 
 // ── Plugin state ──────────────────────────────────────────────────────────────
 
+static SkillPluginOptions            g_skillPluginOptions {};
+static constexpr const wchar_t*      SkillPluginSection = L"PluginPack.Skills";
 static uintptr_t                     g_ExeBase  = 0;
 static const D2RLoaderPluginContext* g_Context  = nullptr;
-
-// Near stubs and patched offsets for each redirected CALL inside DATATBLS_CompileSkillsTxt.
-static std::vector<void*>    g_NearStubs;
-static std::vector<uint64_t> g_PatchedCallOffsets;
 
 // Compiled skills.txt records (game-owned memory — do not free).
 static void*    g_SkillsRecords = nullptr;
 static uint64_t g_SkillsCount  = 0;
 
-// Type code for bit-field columns; detected at runtime from existing descriptors.
-static uint32_t g_BoolFieldType = 0;
-static bool     g_BoolTypeKnown = false;
+using GetUseState_t    = int(__fastcall*)(int* playerUnit, int64_t* pSkill);
+using NeedManaSound_t  = int(__fastcall*)(int* skillEntity, uint32_t* outPriority);
+using DiagB2300_t      = void(__fastcall*)(void* param_1, void* param_2);
+using DiagDaf0_t       = void(__fastcall*)(int* param_1, void* param_2, uint8_t param_3, char param_4, uint32_t* param_5);
+using PlaySoundEffect_t = int64_t(__fastcall*)(int soundId, int* entity, int param3, int param4, int param5);
 
 static Consume_t       Original_Consume       = nullptr;
 static AuraConsume_t   Original_AuraConsume   = nullptr;
 static CheckStat_t     Original_CheckStat     = nullptr;
 static ClientPredict_t Original_ClientPredict = nullptr;
+static ConsumeWeaponCharge_t Original_ConsumeWeaponCharge = nullptr;
+static void* Original_CanBePickedUpWithTelekinesis = nullptr;
 
 // Thread-local carries skillId from Hook_Consume into Hook_AuraConsume.
 thread_local int g_currentSkillId = -1;
@@ -86,9 +86,9 @@ static uint32_t DetectBoolType(D2TxtFieldDesc* origFields) {
 	return 0;
 }
 
-// Our ManaCostsLife descriptor — filled in once we know g_BoolFieldType.
-static char g_ManaCostsLifeName[] = "ManaCostsLife";
-static D2TxtFieldDesc g_ManaCostsLifeDesc = {};
+// Descriptors for ManaCostsLife and ManaCostsStamina — filled in once we know g_BoolFieldType.
+static D2TxtFieldDesc g_ManaCostsLifeDesc = { "ManaCostsLife", SKILLSRECORD_TYPE_BOOL, MANA_COSTS_LIFE_BIT, SKILLS_FLAGS_OFFSET, 0 };
+static D2TxtFieldDesc g_ManaCostsStaminaDesc = { "ManaCostsStamina", SKILLSRECORD_TYPE_BOOL, MANA_COSTS_STAMINA_BIT, SKILLS_FLAGS_OFFSET, 0 };
 
 // ── Hook: replacement for DATATBLS_CompileTxt call inside CompileSkillsTxt ───
 //
@@ -103,44 +103,8 @@ void __fastcall Hook_CompileTxt_Call(uint8_t context, const char* txtName,
 {
 	auto RealCompileTxt = (CompileTxt_t)(g_ExeBase + OFF_CompileTxt);
 
-	uint8_t compileTxtFlag = *reinterpret_cast<const uint8_t*>(g_ExeBase + 0x1D8BDB0);
-	DebugLog("Hook_CompileTxt_Call: txtName=%s binName=%s param4=%s compileTxtFlag=%d",
-	         txtName  ? txtName  : "(null)",
-	         binName  ? binName  : "(null)",
-	         param4   ? param4   : "(null)",
-	         compileTxtFlag);
-
 	if (std::strcmp(txtName, "skills") != 0) {
 		// Not the skills table (e.g. skilldesc) — pass through unchanged.
-		RealCompileTxt(context, txtName, binName, param4, origFields, recordSize, output);
-		return;
-	}
-
-	// Detect bool type from existing descriptors on first call.
-	if (!g_BoolTypeKnown) {
-		g_BoolFieldType = DetectBoolType(origFields);
-		// Log first 8 entries at offset 0x24 so we can verify type/count semantics.
-		int logged = 0;
-		for (int i = 0; origFields[i].pName && logged < 8; ++i) {
-			if (origFields[i].offset == SKILLS_FLAGS_OFFSET) {
-				DebugLog("  boolField[%d]: name=%s type=%u count=%u offset=0x%llX",
-				         i, origFields[i].pName, origFields[i].type, origFields[i].count,
-				         (unsigned long long)origFields[i].offset);
-				++logged;
-			}
-		}
-		if (g_BoolFieldType != 0) {
-			g_ManaCostsLifeDesc = { g_ManaCostsLifeName, g_BoolFieldType,
-			                        MANA_COSTS_LIFE_BIT, SKILLS_FLAGS_OFFSET, 0 };
-			g_BoolTypeKnown = true;
-		}
-	}
-
-	if (!g_BoolTypeKnown) {
-		// Could not detect bool type — fall back to unmodified compilation.
-		D2RPluginLogWarnF(g_Context,
-			"plugin-skills: could not detect bool field type in skills.txt descriptor; "
-			"ManaCostsLife column will not be available");
 		RealCompileTxt(context, txtName, binName, param4, origFields, recordSize, output);
 		return;
 	}
@@ -151,7 +115,8 @@ void __fastcall Hook_CompileTxt_Call(uint8_t context, const char* txtName,
 	while (origFields[n].pName && std::strcmp(origFields[n].pName, "end") != 0) ++n;
 
 	std::vector<D2TxtFieldDesc> extended(origFields, origFields + n);
-	extended.push_back(g_ManaCostsLifeDesc);
+	if (g_skillPluginOptions.bEnableManaCostsLife)    extended.push_back(g_ManaCostsLifeDesc);
+	if (g_skillPluginOptions.bEnableManaCostsStamina) extended.push_back(g_ManaCostsStaminaDesc);
 	extended.push_back(origFields[n]);   // preserve the "end" sentinel
 
 	RealCompileTxt(context, txtName, binName, param4,
@@ -162,8 +127,11 @@ void __fastcall Hook_CompileTxt_Call(uint8_t context, const char* txtName,
 		g_SkillsRecords = output->pData->pRecords;
 		g_SkillsCount   = output->pData->nCount;
 	}
-	DebugLog("Hook_CompileTxt_Call: skills compiled, %llu records, boolType=%u, records=%p",
-	         (unsigned long long)g_SkillsCount, g_BoolFieldType, g_SkillsRecords);
+}
+
+static bool SkillRecManaCostsLife(const uint8_t* rec)
+{
+	return ((*reinterpret_cast<const uint64_t*>(rec + SKILLS_FLAGS_OFFSET)) >> MANA_COSTS_LIFE_BIT) & 1;
 }
 
 static bool SkillManaCostsLife(int skillId) noexcept {
@@ -171,15 +139,27 @@ static bool SkillManaCostsLife(int skillId) noexcept {
 		return false;
 	const uint8_t* rec = static_cast<const uint8_t*>(g_SkillsRecords)
 	                     + static_cast<uint64_t>(skillId) * SKILLS_RECORD_STRIDE;
-	return ((*reinterpret_cast<const uint64_t*>(rec + SKILLS_FLAGS_OFFSET)) >> MANA_COSTS_LIFE_BIT) & 1;
+	return SkillRecManaCostsLife(rec);
+	
+}
+
+static bool SkillRecManaCostsStamina(const uint8_t* rec)
+{
+	return ((*reinterpret_cast<const uint64_t*>(rec + SKILLS_FLAGS_OFFSET)) >> MANA_COSTS_STAMINA_BIT) & 1;
+}
+
+static bool SkillManaCostsStamina(int skillId) noexcept {
+	if (!g_SkillsRecords || skillId < 0 || static_cast<uint64_t>(skillId) >= g_SkillsCount)
+		return false;
+	const uint8_t* rec = static_cast<const uint8_t*>(g_SkillsRecords)
+	                     + static_cast<uint64_t>(skillId) * SKILLS_RECORD_STRIDE;
+	return SkillRecManaCostsStamina(rec);
 }
 
 // ── Hook: D2Common_SKILLMANA_CheckStat ───────────────────────────────────────
 // Called by GetUseState to decide if the skill can be cast (returns false → red orb).
 // param_4 is normally the current mana; we swap it for current life when ManaCostsLife=1.
-// param_1+0x88 (== *(int64_t*)(playerUnit+0x22)) is the stat container pointer.
-// GetStat(container, 0x60000) returns life; GetStat(container, 0x80000) returns mana.
-// Both values are in fixed-point (×256), matching the units GetManaCost uses.
+// Life and mana values are in fixed-point (×256), matching the units GetManaCost uses.
 
 bool __fastcall Hook_CheckStat(int* playerUnit, int64_t* skillStruct,
                                 int param3, int currentMana)
@@ -191,13 +171,14 @@ bool __fastcall Hook_CheckStat(int* playerUnit, int64_t* skillStruct,
         if (recPtr >= base && byteOff < g_SkillsCount * SKILLS_RECORD_STRIDE
                            && byteOff % SKILLS_RECORD_STRIDE == 0) {
             int skillId = static_cast<int>(byteOff / SKILLS_RECORD_STRIDE);
-            if (SkillManaCostsLife(skillId)) {
-                auto statCont = *reinterpret_cast<int64_t*>(
-                    reinterpret_cast<char*>(playerUnit) + 0x88);
-                if (statCont) {
-                    auto GetStat    = reinterpret_cast<GetStat_t>(g_ExeBase + OFF_GetStat);
-                    int currentLife = GetStat(statCont, 0x60000, 0);
-                    return Original_CheckStat(playerUnit, skillStruct, param3, currentLife);
+            int altStatId = 0;
+            if      (SkillManaCostsLife(skillId))    altStatId = 6;  // life
+            else if (SkillManaCostsStamina(skillId)) altStatId = 10; // stamina
+            if (altStatId) {
+                auto* unitStrc = reinterpret_cast<D2UnitStrc*>(playerUnit);
+                if (unitStrc->statList) {
+                    int currentAlt = PSh_GetStat(g_ExeBase, unitStrc->statList, altStatId);
+                    return Original_CheckStat(playerUnit, skillStruct, param3, currentAlt);
                 }
             }
         }
@@ -217,25 +198,63 @@ bool __fastcall Hook_CheckStat(int* playerUnit, int64_t* skillStruct,
 
 void __fastcall Hook_ClientPredict(int* playerUnit, int skillId, int skillLevel)
 {
-    if (*playerUnit == 0 && g_SkillsRecords && SkillManaCostsLife(skillId)) {
-        uint8_t unitType = *reinterpret_cast<uint8_t*>(
-            reinterpret_cast<char*>(playerUnit) + 0x1bd);
-        auto GetManaCost = reinterpret_cast<GetManaCost_t>(g_ExeBase + OFF_GetManaCost);
-        int manaCost = GetManaCost(unitType, skillId, skillLevel);
-        if (manaCost >= 1) {
-            auto GetStat  = reinterpret_cast<GetStat_t>(g_ExeBase + OFF_GetStat);
-            auto DrainStat = reinterpret_cast<DrainStat_t>(g_ExeBase + OFF_DrainStat);
-            auto statCont  = *reinterpret_cast<int64_t*>(
-                reinterpret_cast<char*>(playerUnit) + 0x88);
-            if (statCont) {
-                int currentLife = GetStat(statCont, 0x60000, 0);
-                if (currentLife >= manaCost)
-                    DrainStat(playerUnit, 6, -manaCost);
+    if (*playerUnit == 0 && g_SkillsRecords) {
+        int altStatId = 0;
+        if      (SkillManaCostsLife(skillId))    altStatId = 6;
+        else if (SkillManaCostsStamina(skillId)) altStatId = 10;
+
+        if (altStatId) {
+            auto* unitStrc   = reinterpret_cast<D2UnitStrc*>(playerUnit);
+            auto GetManaCost = reinterpret_cast<GetManaCost_t>(g_ExeBase + OFF_GetManaCost);
+            int manaCost = GetManaCost(unitStrc->itemTableEntry, skillId, skillLevel);
+            if (manaCost >= 1 && unitStrc->statList) {
+                auto DrainStat = reinterpret_cast<DrainStat_t>(g_ExeBase + OFF_DrainStat);
+                int currentAlt = PSh_GetStat(g_ExeBase, unitStrc->statList, altStatId);
+                if (currentAlt >= manaCost)
+                    DrainStat(playerUnit, altStatId, -manaCost);
             }
+            return;
         }
-        return;
     }
     Original_ClientPredict(playerUnit, skillId, skillLevel);
+}
+
+// ── Hook: D2GAME_SKILLMANA_ConsumeWeaponCharge ───────────────────────────────
+// Gives a percent chance (read from the player's ChargedPctDrainStat stat,
+// value 0-100) to skip draining a charge when a charged item's skill is cast.
+//
+// statCode encoding matches D2MOO's D2SLayerStatIdStrc::MakeFromStatId: low
+// 16 bits = layer (0), high 16 bits = stat ID — i.e. statId << 16. The 3rd
+// arg to GetStat is normally an ItemStatCost record used only to apply a
+// per-stat minimum-value floor; passing 0 skips that and returns the raw
+// stat value, which is what we want for a plain percent stat.
+//
+// Rolls via PSh_RollUnit, the same per-unit LCG the engine itself uses for
+// other rolls (see SKILLS_FindPotion_DropPotion @ 0x140417018), rather than
+// an unrelated RNG stream.
+//
+// Safe to skip the drain entirely: Consume (and thus this function) is only
+// called to pay the resource cost *after* the skill has already executed
+// (see callers of D2GAME_SKILLMANA_Consume) and its return value isn't even
+// checked by the caller — so returning 1 without decrementing/broadcasting
+// the charge has no other effect than leaving the charge count untouched.
+
+int64_t __fastcall Hook_ConsumeWeaponCharge(int64_t unit, int* playerUnit,
+                                             int64_t chargeItem, int skillId)
+{
+	if (g_skillPluginOptions.bEnableChargedPctDrainStat && playerUnit) {
+		auto* unitStrc = reinterpret_cast<D2UnitStrc*>(playerUnit);
+		if (unitStrc->statList) {
+			int pct = PSh_GetStat(g_ExeBase, unitStrc->statList, g_skillPluginOptions.ChargedPctDrainStat);
+			if (pct > 0) {
+				if (pct > 100) pct = 100;
+				uint32_t roll = static_cast<uint32_t>(PSh_RollUnit(unitStrc)) % 100;
+				if (static_cast<int>(roll) < pct)
+					return 1; // proc: charge is not drained, skill still casts normally
+			}
+		}
+	}
+	return Original_ConsumeWeaponCharge(unit, playerUnit, chargeItem, skillId);
 }
 
 // ── Hook: D2GAME_SKILLMANA_Consume ───────────────────────────────────────────
@@ -253,35 +272,46 @@ int64_t __fastcall Hook_Consume(int64_t unit, int* playerUnit, int skillId, int 
 // Mirrors D2GAME_SKILLS_BloodMana: no pre-check, kills player if life < cost.
 
 int64_t __fastcall Hook_AuraConsume(int* playerUnit, int manaCost) {
-	// Dump raw flags QWORD to diagnose bit layout
-	uint64_t rawFlags = 0;
-	if (g_SkillsRecords && g_currentSkillId >= 0 && static_cast<uint64_t>(g_currentSkillId) < g_SkillsCount) {
-		const uint8_t* rec = static_cast<const uint8_t*>(g_SkillsRecords)
-		                     + static_cast<uint64_t>(g_currentSkillId) * SKILLS_RECORD_STRIDE;
-		rawFlags = *reinterpret_cast<const uint64_t*>(rec + SKILLS_FLAGS_OFFSET);
-	}
-	DebugLog("Hook_AuraConsume: skillId=%d manaCost=%d manaCostsLife=%d rawFlags=0x%016llX",
-	         g_currentSkillId, manaCost, SkillManaCostsLife(g_currentSkillId),
-	         (unsigned long long)rawFlags);
-	if (g_currentSkillId >= 0 && SkillManaCostsLife(g_currentSkillId)) {
-		if (!playerUnit || *playerUnit != 0)
+	if (g_currentSkillId >= 0) {
+		int altStatId = 0;
+		if      (SkillManaCostsLife(g_currentSkillId))    altStatId = 6;
+		else if (SkillManaCostsStamina(g_currentSkillId)) altStatId = 10;
+		if (altStatId) {
+			if (!playerUnit || *playerUnit != 0)
+				return 1;
+			auto DrainStat = (DrainStat_t)(g_ExeBase + OFF_DrainStat);
+			DrainStat(playerUnit, altStatId, -manaCost);
 			return 1;
-		auto DrainStat = (DrainStat_t)(g_ExeBase + OFF_DrainStat);
-		DrainStat(playerUnit, 6, -manaCost);
-		return 1;
+		}
 	}
 	return Original_AuraConsume(playerUnit, manaCost);
 }
 
-// ── Call-site patching inside DATATBLS_CompileSkillsTxt ──────────────────────
-//
-// Scans the body of DATATBLS_CompileSkillsTxt for every E8 rel32 CALL that
-// resolves to DATATBLS_CompileTxt. For each one, allocates a near stub (within
-// ±2 GB) that abs-jumps to Hook_CompileTxt_Call, then patches the 5-byte CALL
-// to target the stub instead.
+// ── Hook: SKILLS_GetUseState call site inside D2CLIENT_GetUnusableUseState ───
+// Intercepts the single CALL at 0x1401a2580; all other callers of GetUseState
+// are unaffected.
 
-// The four E8 call sites inside DATATBLS_CompileSkillsTxt that target DATATBLS_CompileTxt.
-// Found via Ghidra; all use E8 rel32 encoding.
+int __fastcall Hook_GetUseState(int* playerUnit, int64_t* pSkill)
+{
+    auto Original = reinterpret_cast<GetUseState_t>(g_ExeBase + OFF_GetUseState);
+	int value = Original(playerUnit, pSkill);
+	if (value == 1 &&
+		(SkillRecManaCostsLife((const uint8_t*)*pSkill) || SkillRecManaCostsStamina((const uint8_t*)*pSkill)))
+	{
+		return 2;
+	}
+	return value;
+}
+
+// Hook: SKILLS_CanBePickedUpWithTelekinesis. Original function located at 140268e30
+int __fastcall Hook_CanBePickedUpWithTelekinesis(D2UnitStrc* ItemUnit)
+{
+	// ITEMS_CheckItemTypeId(ItemUnit, ITEM_TYPE_XXX) --> 140245230 if you want to check this yourself
+	return ItemUnit != nullptr && ItemUnit->dwUnitType == D2UnitType::Item;
+}
+
+// E8 call sites inside DATATBLS_CompileSkillsTxt that target DATATBLS_CompileTxt.
+// Patched via PSh_PatchCallSite; removed via PSh_RemoveHook.
 static constexpr uint64_t COMPILE_TXT_CALL_OFFSETS[] = {
 	0x2190AD,
 	0x21921F,
@@ -289,47 +319,16 @@ static constexpr uint64_t COMPILE_TXT_CALL_OFFSETS[] = {
 	0x2194B2,
 };
 
-static void PatchOneCallSite(const D2RLoaderPluginContext* ctx, uint64_t callOffset) {
-	void* callSite = reinterpret_cast<void*>(g_ExeBase + callOffset);
+// ── INI loading ───────────────────────────────────────────────────────────────
 
-	void* stub = PSh_AllocNear(callSite, 32);
-	if (!stub) {
-		DebugLog("InstallCompileSkillsTxtPatches: PSh_AllocNear failed for offset 0x%llX",
-		         (unsigned long long)callOffset);
-		return;
-	}
-
-	uint8_t* s = static_cast<uint8_t*>(stub);
-	s[0] = 0xFF; s[1] = 0x25;
-	s[2] = 0x00; s[3] = 0x00; s[4] = 0x00; s[5] = 0x00;
-	*reinterpret_cast<uint64_t*>(s + 6) = reinterpret_cast<uint64_t>(Hook_CompileTxt_Call);
-
-	intptr_t newRel  = reinterpret_cast<uint8_t*>(stub)
-	                   - (static_cast<uint8_t*>(callSite) + 5);
-	int32_t  newRel32 = static_cast<int32_t>(newRel);
-	uint8_t  patch[5] = { 0xE8, 0,0,0,0 };
-	std::memcpy(patch + 1, &newRel32, 4);
-
-	PSh_PatchBytes(PLUGINID_SKILLS, ctx, callOffset, 5, patch);
-	g_NearStubs.push_back(stub);
-	g_PatchedCallOffsets.push_back(callOffset);
-	DebugLog("InstallCompileSkillsTxtPatches: patched 0x%llX -> stub %p",
-	         (unsigned long long)callOffset, stub);
-}
-
-static void InstallCompileSkillsTxtPatches(const D2RLoaderPluginContext* ctx) {
-	for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
-		PatchOneCallSite(ctx, off);
-}
-
-static void RemoveCompileSkillsTxtPatches(const D2RLoaderPluginContext* ctx) {
-	for (uint64_t off : g_PatchedCallOffsets)
-		PSh_UnpatchBytes(PLUGINID_SKILLS, ctx, off);
-	g_PatchedCallOffsets.clear();
-
-	for (void* stub : g_NearStubs)
-		VirtualFree(stub, 0, MEM_RELEASE);
-	g_NearStubs.clear();
+void SkillPluginOptions::Load(const D2RLoaderPluginContext* context, const wchar_t* section) {
+	bEnableManaCostsLife          = PSh_Ini_GetInt(context, section, L"EnableManaCostsLife",    0) != 0;
+	bEnableManaCostsStamina       = PSh_Ini_GetInt(context, section, L"EnableManaCostsStamina", 0) != 0;
+	bEnableClassicWW              = PSh_Ini_GetInt(context, section, L"EnableClassicWW", 0) != 0;
+	bEnableWWCtc                  = PSh_Ini_GetInt(context, section, L"EnableWWCtC", 0) != 0;
+	bTelekinesisPicksUpEverything = PSh_Ini_GetInt(context, section, L"EnableTelekinesisPicksUpEverything", 0) != 0;
+	bEnableChargedPctDrainStat    = PSh_Ini_GetInt(context, section, L"EnableChargedPctDrainStat", 0) != 0;
+	ChargedPctDrainStat           = PSh_Ini_GetInt(context, section, L"ChargedPctDrainStat", 0);
 }
 
 // ── Plugin exports ────────────────────────────────────────────────────────────
@@ -351,52 +350,92 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 	if (!context || context->apiVersion < D2RLOADER_PLUGIN_API_VERSION)
 		return false;
 
+	g_skillPluginOptions.Load(context, SkillPluginSection);
 	g_ExeBase = context->exeBase;
 	g_Context = context;
 
-	// Redirect all DATATBLS_CompileTxt calls within DATATBLS_CompileSkillsTxt.
-	InstallCompileSkillsTxtPatches(context);
+	if (g_skillPluginOptions.bEnableManaCostsLife || g_skillPluginOptions.bEnableManaCostsStamina) {
+		// Redirect all DATATBLS_CompileTxt calls within DATATBLS_CompileSkillsTxt.
+		for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
+			PSh_PatchCallSite(PLUGINID_SKILLS, context, off, reinterpret_cast<void*>(Hook_CompileTxt_Call));
 
-	// Hook Consume to propagate skillId to AuraConsume via thread-local.
-	if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_Consume,
-	                     reinterpret_cast<void*>(Hook_Consume),
-	                     reinterpret_cast<void**>(&Original_Consume))) {
-		D2RPluginLogErrorF(context, "plugin-skills: failed to hook Consume");
-		RemoveCompileSkillsTxtPatches(context);
-		return false;
+		// Hook Consume to propagate skillId to AuraConsume via thread-local.
+		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_Consume,
+		                     reinterpret_cast<void*>(Hook_Consume),
+		                     reinterpret_cast<void**>(&Original_Consume))) {
+			D2RPluginLogErrorF(context, "plugin-skills: failed to hook Consume");
+			for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
+				PSh_RemoveHook(PLUGINID_SKILLS, context, off);
+			return false;
+		}
+
+		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_AuraConsume,
+		                     reinterpret_cast<void*>(Hook_AuraConsume),
+		                     reinterpret_cast<void**>(&Original_AuraConsume))) {
+			D2RPluginLogErrorF(context, "plugin-skills: failed to hook AuraConsume");
+			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_Consume);
+			for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
+				PSh_RemoveHook(PLUGINID_SKILLS, context, off);
+			return false;
+		}
+
+		// Hook CheckStat so the skill orb turns red when life (not mana) is too low.
+		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_CheckStat,
+		                     reinterpret_cast<void*>(Hook_CheckStat),
+		                     reinterpret_cast<void**>(&Original_CheckStat))) {
+			D2RPluginLogErrorF(context, "plugin-skills: failed to hook CheckStat");
+			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_AuraConsume);
+			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_Consume);
+			for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
+				PSh_RemoveHook(PLUGINID_SKILLS, context, off);
+			return false;
+		}
+
+		// Hook client-side mana prediction to drain life instead (prevents rubber-banding).
+		// First 6 bytes: push rbx (2) + sub rsp,0x20 (4) — requires hookSize=6.
+		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_ClientPredict,
+		                     reinterpret_cast<void*>(Hook_ClientPredict),
+		                     reinterpret_cast<void**>(&Original_ClientPredict), 6)) {
+			D2RPluginLogErrorF(context, "plugin-skills: failed to hook ClientPredict");
+			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_CheckStat);
+			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_AuraConsume);
+			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_Consume);
+			for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
+				PSh_RemoveHook(PLUGINID_SKILLS, context, off);
+			return false;
+		}
+
+		// Redirect the single CALL at 0x1401a2580 inside D2CLIENT_GetUnusableUseState.
+		PSh_PatchCallSite(PLUGINID_SKILLS, context, OFF_GetUseState_Call,
+		                  reinterpret_cast<void*>(Hook_GetUseState));
 	}
 
-	if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_AuraConsume,
-	                     reinterpret_cast<void*>(Hook_AuraConsume),
-	                     reinterpret_cast<void**>(&Original_AuraConsume))) {
-		D2RPluginLogErrorF(context, "plugin-skills: failed to hook AuraConsume");
-		PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_Consume);
-		RemoveCompileSkillsTxtPatches(context);
-		return false;
+	if (g_skillPluginOptions.bEnableClassicWW)
+	{
+		uint8_t classicWWBytes[] = { 0xB8, 0x01, 0x00, 0x00, 0x00 };
+		PSh_PatchBytes(PLUGINID_SKILLS, context, OFF_ClassicWW, 5, classicWWBytes);
 	}
 
-	// Hook CheckStat so the skill orb turns red when life (not mana) is too low.
-	if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_CheckStat,
-	                     reinterpret_cast<void*>(Hook_CheckStat),
-	                     reinterpret_cast<void**>(&Original_CheckStat))) {
-		D2RPluginLogErrorF(context, "plugin-skills: failed to hook CheckStat");
-		PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_AuraConsume);
-		PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_Consume);
-		RemoveCompileSkillsTxtPatches(context);
-		return false;
+	if (g_skillPluginOptions.bEnableWWCtc)
+	{
+		uint8_t ctcWWBytes[] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
+		PSh_PatchBytes(PLUGINID_SKILLS, context, OFF_EnableWWCtC, 6, ctcWWBytes);
 	}
 
-	// Hook client-side mana prediction to drain life instead (prevents rubber-banding).
-	// First 6 bytes: push rbx (2) + sub rsp,0x20 (4) — requires hookSize=6.
-	if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_ClientPredict,
-	                     reinterpret_cast<void*>(Hook_ClientPredict),
-	                     reinterpret_cast<void**>(&Original_ClientPredict), 6)) {
-		D2RPluginLogErrorF(context, "plugin-skills: failed to hook ClientPredict");
-		PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_CheckStat);
-		PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_AuraConsume);
-		PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_Consume);
-		RemoveCompileSkillsTxtPatches(context);
-		return false;
+	if (g_skillPluginOptions.bTelekinesisPicksUpEverything)
+	{
+		PSh_PatchCallSite(PLUGINID_SKILLS, context, OFF_Telekinesis,
+			reinterpret_cast<void*>(Hook_CanBePickedUpWithTelekinesis));
+	}
+
+	if (g_skillPluginOptions.bEnableChargedPctDrainStat)
+	{
+		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_ConsumeWeaponCharge,
+		                     reinterpret_cast<void*>(Hook_ConsumeWeaponCharge),
+		                     reinterpret_cast<void**>(&Original_ConsumeWeaponCharge))) {
+			D2RPluginLogErrorF(context, "plugin-skills: failed to hook ConsumeWeaponCharge");
+			return false;
+		}
 	}
 
 	return true;
@@ -404,11 +443,14 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 
 D2RLOADER_PLUGIN_EXPORT void __cdecl D2RLoaderUnload() noexcept {
 	// Pass nullptr so ResolveExeBase uses g_CachedExeBase — g_Context is stale by this point.
+	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_ConsumeWeaponCharge);
+	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_GetUseState_Call);
 	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_ClientPredict);
 	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_CheckStat);
 	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_AuraConsume);
 	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_Consume);
-	RemoveCompileSkillsTxtPatches(nullptr);
+	for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
+		PSh_RemoveHook(PLUGINID_SKILLS, nullptr, off);
 	g_SkillsRecords = nullptr;
 	g_SkillsCount   = 0;
 	g_Context       = nullptr;
