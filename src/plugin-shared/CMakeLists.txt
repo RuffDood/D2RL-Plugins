@@ -10,6 +10,7 @@ target_include_directories(plugin-shared
 )
 
 set_target_properties(plugin-shared PROPERTIES
+	OUTPUT_NAME "00pluginpack-shared"
 	RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 	LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 	ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"

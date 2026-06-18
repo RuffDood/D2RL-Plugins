@@ -1,7 +1,7 @@
 ﻿#include "plugin.h"
 #include <plugin-shared.h>
 #include "quests-private.h"
-#include <cwchar>
+#include <plugin-shared-json.h>
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -42,7 +42,6 @@ static QuestPluginOptions g_questPluginOptions;
 using GiveQuestItemFn_t = int* (__fastcall*)(const D2GameStrc* pGame, void* pPlayer, uint32_t itemCode, int param4, uint32_t quality, int param6);
 static GiveQuestItemFn_t g_GiveQuestItemFn = nullptr;
 static uintptr_t g_exeBase = 0;
-static constexpr const wchar_t* QuestPluginSection = L"PluginPack.Quests";
 
 // ── DifferentPerDifficulty call-site hooks ────────────────────────────────────
 static int* __fastcall Hook_AkaraCainRingDiffReward(const D2GameStrc* pGame, void* pPlayer, uint32_t, int param4, uint32_t, int param6)
@@ -69,75 +68,117 @@ static int* __fastcall Hook_QualKehkRuneDiffReward(const D2GameStrc* pGame, void
 {
 	const uint8_t di = static_cast<uint8_t>(pGame->difficultyLevel) <= 2 ? static_cast<uint8_t>(pGame->difficultyLevel) : 0;
 	const auto* tbl = reinterpret_cast<const uint32_t*>(g_exeBase + OFF_QualKehkItem1);
-	uint32_t newItem;
-	if (itemCode == tbl[0])
-		newItem = g_questPluginOptions.QualKehkRuneItem1.RewardPerDifficulty[di];
-	else if (itemCode == tbl[1])
-		newItem = g_questPluginOptions.QualKehkRuneItem2.RewardPerDifficulty[di];
-	else
-		newItem = g_questPluginOptions.QualKehkRuneItem3.RewardPerDifficulty[di];
+	int slot = (itemCode == tbl[0]) ? 0 : (itemCode == tbl[1]) ? 1 : 2;
+	uint32_t newItem = g_questPluginOptions.QualKehkRuneItems[slot].RewardPerDifficulty[di];
 	return g_GiveQuestItemFn(pGame, pPlayer, newItem, param4, quality, param6);
 }
 
-// ── INI loading ───────────────────────────────────────────────────────────────
+// ── JSON loading ──────────────────────────────────────────────────────────────
 
-// Reads all four per-difficulty variants of an item-code key from the INI.
-// Keys follow the pattern: baseKey, baseKey+"Normal", baseKey+"Nightmare", baseKey+"Hell".
-static ItemQuestReward<uint32_t> ReadItemCodeReward(
-	const D2RLoaderPluginContext* ctx, const wchar_t* section,
-	const wchar_t* baseKey, const wchar_t* def)
+static RewardType ParseRewardMode(const nlohmann::json& obj)
 {
-	wchar_t key[128];
+	std::string mode = obj.value("mode", "disabled");
+	if (mode == "same")      return RewardType::SamePerDifficulty;
+	if (mode == "different") return RewardType::DifferentPerDifficulty;
+	return RewardType::Disabled;
+}
+
+// Encode a JSON string item code (e.g. "rin", "r07") to a little-endian uint32_t.
+// Defaults to the provided fallback string if the key is absent.
+static uint32_t ParseItemCode(const nlohmann::json& obj, const char* key, const char* fallback)
+{
+	std::string code = obj.value(key, fallback);
+	return PSh_EncodeItemCode(code.c_str());
+}
+
+static ItemQuestReward<uint32_t> ReadItemCodeReward(const nlohmann::json& obj,
+                                                     const char* itemKey, const char* fallback)
+{
 	ItemQuestReward<uint32_t> r;
-	r.Reward                 = PSh_Ini_GetItemCode(ctx, section, baseKey, def);
-	swprintf_s(key, L"%ls%ls", baseKey, L"Normal");    r.RewardPerDifficulty[0] = PSh_Ini_GetItemCode(ctx, section, key, def);
-	swprintf_s(key, L"%ls%ls", baseKey, L"Nightmare"); r.RewardPerDifficulty[1] = PSh_Ini_GetItemCode(ctx, section, key, def);
-	swprintf_s(key, L"%ls%ls", baseKey, L"Hell");      r.RewardPerDifficulty[2] = PSh_Ini_GetItemCode(ctx, section, key, def);
+	r.Reward = ParseItemCode(obj, itemKey, fallback);
+
+	auto pd = obj.value("perDifficulty", nlohmann::json::array());
+	for (int i = 0; i < 3; i++) {
+		if (i < static_cast<int>(pd.size()) && pd[i].is_object())
+			r.RewardPerDifficulty[i] = ParseItemCode(pd[i], "item", fallback);
+		else
+			r.RewardPerDifficulty[i] = r.Reward;
+	}
 	return r;
 }
 
-// Reads all four per-difficulty variants of a quality (uint8_t) key from the INI.
-static ItemQuestReward<uint8_t> ReadQualityReward(
-	const D2RLoaderPluginContext* ctx, const wchar_t* section,
-	const wchar_t* baseKey, int def)
+static ItemQuestReward<uint8_t> ReadQualityReward(const nlohmann::json& obj,
+                                                   const char* qualKey, uint8_t fallback)
 {
-	wchar_t key[128];
 	ItemQuestReward<uint8_t> r;
-	r.Reward                 = static_cast<uint8_t>(PSh_Ini_GetInt(ctx, section, baseKey, def));
-	swprintf_s(key, L"%ls%ls", baseKey, L"Normal");    r.RewardPerDifficulty[0] = static_cast<uint8_t>(PSh_Ini_GetInt(ctx, section, key, def));
-	swprintf_s(key, L"%ls%ls", baseKey, L"Nightmare"); r.RewardPerDifficulty[1] = static_cast<uint8_t>(PSh_Ini_GetInt(ctx, section, key, def));
-	swprintf_s(key, L"%ls%ls", baseKey, L"Hell");      r.RewardPerDifficulty[2] = static_cast<uint8_t>(PSh_Ini_GetInt(ctx, section, key, def));
+	r.Reward = static_cast<uint8_t>(obj.value(qualKey, static_cast<int>(fallback)));
+
+	auto pd = obj.value("perDifficulty", nlohmann::json::array());
+	for (int i = 0; i < 3; i++) {
+		if (i < static_cast<int>(pd.size()) && pd[i].is_object())
+			r.RewardPerDifficulty[i] = static_cast<uint8_t>(pd[i].value("quality", static_cast<int>(fallback)));
+		else
+			r.RewardPerDifficulty[i] = r.Reward;
+	}
 	return r;
 }
 
-void QuestPluginOptions::Load(const D2RLoaderPluginContext* context, const wchar_t* section) {
-	DenOfEvilRewardEnabled    = static_cast<RewardType>(PSh_Ini_GetInt(context, section, L"EnableDenOfEvilRewardChange", 0));
-	DenOfEvilSkillPointReward = static_cast<uint8_t>(PSh_Ini_GetInt(context, section, L"DenOfEvilSkillPointReward", 1));
-	IzualRewardEnabled        = static_cast<RewardType>(PSh_Ini_GetInt(context, section, L"EnableIzualRewardChange", 0));
-	IzualSkillPointReward     = static_cast<uint8_t>(PSh_Ini_GetInt(context, section, L"IzualSkillPointReward", 2));
-	BlackBookRewardEnabled    = static_cast<RewardType>(PSh_Ini_GetInt(context, section, L"EnableBlackBookRewardChange", 0));
-	BlackBookStatPointReward  = static_cast<uint8_t>(PSh_Ini_GetInt(context, section, L"BlackBookStatPointReward", 5));
-	GoldenBirdRewardEnabled = static_cast<RewardType>(PSh_Ini_GetInt(context, section, L"EnableGoldenBirdRewardChange", 0));
-	GoldenBirdRewardStat = static_cast<uint8_t>(PSh_Ini_GetInt(context, section, L"GoldenBirdRewardStat", 7));
-	GoldenBirdRewardAmount = static_cast<uint16_t>(PSh_Ini_GetInt(context, section, L"GoldenBirdRewardAmount", 0x1400)); // note: on HP/MP this is in 256ths
-	SkillBookRewardEnabled = static_cast<RewardType>(PSh_Ini_GetInt(context, section, L"EnableRadamentSkillBookRewardChange", 0));
-	SkillBookRewardStat = static_cast<uint8_t>(PSh_Ini_GetInt(context, section, L"RadamentSkillBookRewardStat", 5));
-	SkillBookRewardAmount = static_cast<uint8_t>(PSh_Ini_GetInt(context, section, L"RadamentSkillBookRewardAmount", 1));
+void QuestPluginOptions::Load(const D2RLoaderPluginContext* /*context*/, const nlohmann::json& cfg)
+{
+	auto doe = cfg.value("denOfEvil", nlohmann::json::object());
+	DenOfEvilRewardEnabled    = ParseRewardMode(doe);
+	DenOfEvilSkillPointReward = static_cast<uint8_t>(doe.value("skillPoints", 1));
 
-	AkaraCainRingRewardEnabled = static_cast<RewardType>(PSh_Ini_GetInt(context, section, L"EnableAkaraCainRewardChange", 0));
-	AkaraCainRingItem          = ReadItemCodeReward(context, section, L"AkaraCainRewardItem", L" nir");
-	AkaraCainRingQuality       = ReadQualityReward(context, section, L"AkaraCainRewardItemQuality", 6);
+	auto iz = cfg.value("izual", nlohmann::json::object());
+	IzualRewardEnabled    = ParseRewardMode(iz);
+	IzualSkillPointReward = static_cast<uint8_t>(iz.value("skillPoints", 2));
 
-	OrmusGidbinnRingRewardEnabled = static_cast<RewardType>(PSh_Ini_GetInt(context, section, L"EnableOrmusGidbinnRewardChange", 0));
-	OrmusGidbinnRingItem          = ReadItemCodeReward(context, section, L"OrmusGidbinnRewardItem", L" nir");
-	OrmusGidbinnRingQuality       = ReadQualityReward(context, section, L"OrmusGidbinnRewardItemQuality", 6);
+	auto bb = cfg.value("blackBook", nlohmann::json::object());
+	BlackBookRewardEnabled   = ParseRewardMode(bb);
+	BlackBookStatPointReward = static_cast<uint8_t>(bb.value("statPoints", 5));
 
-	QualKehkRuneRewardEnabled     = static_cast<RewardType>(PSh_Ini_GetInt(context, section, L"EnableQualKehkRewardChange", 0));
-	QualKehkRuneItem1             = ReadItemCodeReward(context, section, L"QualKehkRewardItem1", L" 70r");
-	QualKehkRuneItem2             = ReadItemCodeReward(context, section, L"QualKehkRewardItem2", L" 80r");
-	QualKehkRuneItem3             = ReadItemCodeReward(context, section, L"QualKehkRewardItem3", L" 90r");
+	auto gb = cfg.value("goldenBird", nlohmann::json::object());
+	GoldenBirdRewardEnabled = ParseRewardMode(gb);
+	GoldenBirdRewardStat    = static_cast<uint8_t>(gb.value("stat", 7));
+	GoldenBirdRewardAmount  = static_cast<uint32_t>(gb.value("amount", 0x1400)); // in 256ths for HP/MP
 
-	ImbueAllowSockets             = PSh_Ini_GetInt(context, section, L"ImbueAllowSocketedItems", 0);
+	auto sb = cfg.value("radamentSkillBook", nlohmann::json::object());
+	SkillBookRewardEnabled = ParseRewardMode(sb);
+	SkillBookRewardStat    = static_cast<uint8_t>(sb.value("stat", 5));
+	SkillBookRewardAmount  = static_cast<uint8_t>(sb.value("amount", 1));
+
+	auto akara = cfg.value("akaraCainRing", nlohmann::json::object());
+	AkaraCainRingRewardEnabled = ParseRewardMode(akara);
+	AkaraCainRingItem          = ReadItemCodeReward(akara, "item", "rin");
+	AkaraCainRingQuality       = ReadQualityReward(akara, "quality", 6);
+
+	auto ormus = cfg.value("ormusGidbinnRing", nlohmann::json::object());
+	OrmusGidbinnRingRewardEnabled = ParseRewardMode(ormus);
+	OrmusGidbinnRingItem          = ReadItemCodeReward(ormus, "item", "rin");
+	OrmusGidbinnRingQuality       = ReadQualityReward(ormus, "quality", 6);
+
+	auto qk = cfg.value("qualKehkRunes", nlohmann::json::object());
+	QualKehkRuneRewardEnabled = ParseRewardMode(qk);
+	static const char* runeDefaults[3] = { "r07", "r08", "r09" };
+	auto items = qk.value("items", nlohmann::json::array());
+	auto perDiff = qk.value("perDifficulty", nlohmann::json::array());
+	for (int slot = 0; slot < 3; slot++) {
+		const char* def = runeDefaults[slot];
+		std::string sameCode = (slot < static_cast<int>(items.size()) && items[slot].is_string())
+		                       ? items[slot].get<std::string>() : def;
+		QualKehkRuneItems[slot].Reward = PSh_EncodeItemCode(sameCode.c_str());
+		for (int di = 0; di < 3; di++) {
+			uint32_t code = QualKehkRuneItems[slot].Reward;
+			if (di < static_cast<int>(perDiff.size()) && perDiff[di].is_array()) {
+				auto& row = perDiff[di];
+				if (slot < static_cast<int>(row.size()) && row[slot].is_string())
+					code = PSh_EncodeItemCode(row[slot].get<std::string>().c_str());
+			}
+			QualKehkRuneItems[slot].RewardPerDifficulty[di] = code;
+		}
+	}
+
+	ImbueAllowSockets = cfg.value("imbueAllowSockets", false) ? 1 : 0;
 }
 
 // ── Plugin exports ────────────────────────────────────────────────────────────
@@ -162,7 +203,8 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 		return false;
 	}
 
-	g_questPluginOptions.Load(context, QuestPluginSection);
+	auto cfg = PSh_Json_LoadConfig(context);
+	g_questPluginOptions.Load(context, PSh_Json_GetSection(cfg, "quests"));
 
 	if (g_questPluginOptions.DenOfEvilRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty
@@ -225,9 +267,9 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 
 	if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_QualKehkItem1, 3, (unsigned char*)&g_questPluginOptions.QualKehkRuneItem1.Reward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_QualKehkItem2, 3, (unsigned char*)&g_questPluginOptions.QualKehkRuneItem2.Reward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_QualKehkItem3, 3, (unsigned char*)&g_questPluginOptions.QualKehkRuneItem3.Reward);
+		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_QualKehkItem1, 3, (unsigned char*)&g_questPluginOptions.QualKehkRuneItems[0].Reward);
+		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_QualKehkItem2, 3, (unsigned char*)&g_questPluginOptions.QualKehkRuneItems[1].Reward);
+		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_QualKehkItem3, 3, (unsigned char*)&g_questPluginOptions.QualKehkRuneItems[2].Reward);
 	}
 	else if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::DifferentPerDifficulty)
 	{

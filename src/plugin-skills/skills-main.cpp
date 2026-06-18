@@ -50,7 +50,6 @@ static constexpr int      MANA_COSTS_STAMINA_BIT = 48;   // second free bit
 // ── Plugin state ──────────────────────────────────────────────────────────────
 
 static SkillPluginOptions            g_skillPluginOptions {};
-static constexpr const wchar_t*      SkillPluginSection = L"PluginPack.Skills";
 static uintptr_t                     g_ExeBase  = 0;
 static const D2RLoaderPluginContext* g_Context  = nullptr;
 
@@ -321,14 +320,16 @@ static constexpr uint64_t COMPILE_TXT_CALL_OFFSETS[] = {
 
 // ── INI loading ───────────────────────────────────────────────────────────────
 
-void SkillPluginOptions::Load(const D2RLoaderPluginContext* context, const wchar_t* section) {
-	bEnableManaCostsLife          = PSh_Ini_GetInt(context, section, L"EnableManaCostsLife",    0) != 0;
-	bEnableManaCostsStamina       = PSh_Ini_GetInt(context, section, L"EnableManaCostsStamina", 0) != 0;
-	bEnableClassicWW              = PSh_Ini_GetInt(context, section, L"EnableClassicWW", 0) != 0;
-	bEnableWWCtc                  = PSh_Ini_GetInt(context, section, L"EnableWWCtC", 0) != 0;
-	bTelekinesisPicksUpEverything = PSh_Ini_GetInt(context, section, L"EnableTelekinesisPicksUpEverything", 0) != 0;
-	bEnableChargedPctDrainStat    = PSh_Ini_GetInt(context, section, L"EnableChargedPctDrainStat", 0) != 0;
-	ChargedPctDrainStat           = PSh_Ini_GetInt(context, section, L"ChargedPctDrainStat", 0);
+void SkillPluginOptions::Load(const D2RLoaderPluginContext* /*context*/, const nlohmann::json& cfg) {
+	bEnableManaCostsLife          = cfg.value("manaCostsLife", false);
+	bEnableManaCostsStamina       = cfg.value("manaCostsStamina", false);
+	bEnableClassicWW              = cfg.value("classicWhirlwind", false);
+	bEnableWWCtc                  = cfg.value("whirlwindCtC", false);
+	bTelekinesisPicksUpEverything = cfg.value("telekinesisPicksUpEverything", false);
+
+	auto drain = cfg.value("chargedPctDrainStat", nlohmann::json::object());
+	bEnableChargedPctDrainStat = drain.value("enabled", false);
+	ChargedPctDrainStat        = drain.value("statId", 0);
 }
 
 // ── Plugin exports ────────────────────────────────────────────────────────────
@@ -350,7 +351,8 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 	if (!context || context->apiVersion < D2RLOADER_PLUGIN_API_VERSION)
 		return false;
 
-	g_skillPluginOptions.Load(context, SkillPluginSection);
+	auto cfg = PSh_Json_LoadConfig(context);
+	g_skillPluginOptions.Load(context, PSh_Json_GetSection(cfg, "skills"));
 	g_ExeBase = context->exeBase;
 	g_Context = context;
 

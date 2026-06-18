@@ -10,11 +10,11 @@ static constexpr uint64_t OFF_DisableAct1DirtPath2 = 0x2D8789;
 
 static LevelPluginOptions g_pluginOptions;
 
-// ── INI loading ───────────────────────────────────────────────────────────────
+// ── JSON loading ──────────────────────────────────────────────────────────────
 
-void LevelPluginOptions::Load(const D2RLoaderPluginContext* context, const wchar_t* section)
+void LevelPluginOptions::Load(const D2RLoaderPluginContext* /*context*/, const nlohmann::json& cfg)
 {
-	bDisableAct1Path = PSh_Ini_GetInt(context, section, L"DisableAct1DirtPath", 0) != 0;
+	bDisableAct1Path = cfg.value("disableAct1Path", false);
 }
 
 // ── Plugin exports ────────────────────────────────────────────────────────────
@@ -37,7 +37,8 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 		return false;
 	}
 
-	g_pluginOptions.Load(context, L"PluginPack.Levels");
+	auto cfg = PSh_Json_LoadConfig(context);
+	g_pluginOptions.Load(context, PSh_Json_GetSection(cfg, "levels"));
 
 	if (g_pluginOptions.bDisableAct1Path)
 	{

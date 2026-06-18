@@ -389,15 +389,6 @@ D2RLOADER_PLUGIN_EXPORT uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept;
 D2RLOADER_PLUGIN_EXPORT int PSh_GetStat(uintptr_t exeBase, D2StatListStrc* statList,
                                          int statId, int64_t minOverride = 0) noexcept;
 
-// ── INI helpers ───────────────────────────────────────────────────────────────
-// All functions check the mod-local INI (mods/<mod>/<mod>.mpq/D2RLoader.ini)
-// first, then fall back to the base D2RLoader.ini, then to defaultValue.
-
-D2RLOADER_PLUGIN_EXPORT const wchar_t* PSh_Ini_GetString(const D2RLoaderPluginContext* context, const wchar_t* sectionName, const wchar_t* optionName, const wchar_t* defaultValue);
-D2RLOADER_PLUGIN_EXPORT int            PSh_Ini_GetInt(const D2RLoaderPluginContext* context, const wchar_t* sectionName, const wchar_t* optionName, int defaultValue);
-D2RLOADER_PLUGIN_EXPORT uint32_t       PSh_Ini_GetItemCode(const D2RLoaderPluginContext* context, const wchar_t* sectionName, const wchar_t* optionName, const wchar_t* defaultValue);
-D2RLOADER_PLUGIN_EXPORT uint32_t       PSh_Ini_GetItemTypeCode(const D2RLoaderPluginContext* context, const wchar_t* sectionName, const wchar_t* optionName, const wchar_t* defaultValue);
-
 // ── Utilities ─────────────────────────────────────────────────────────────────
 constexpr uint32_t PSh_EncodeItemCode(const char* itemCode)
 {

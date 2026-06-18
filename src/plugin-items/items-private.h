@@ -1,6 +1,7 @@
 #pragma once
 
 #include <plugin-shared.h>
+#include <plugin-shared-json.h>
 
 enum class GoldOption {
 	Disabled,
@@ -58,5 +59,5 @@ struct ItemPluginOptions {
 	bool bEnableAbsorbCapChange; // one byte patch at 0x3b3346
 	uint8_t MaxAbsorbPct;
 
-	void Load(const D2RLoaderPluginContext* context, const wchar_t* section);
+	void Load(const D2RLoaderPluginContext* context, const nlohmann::json& cfg);
 };

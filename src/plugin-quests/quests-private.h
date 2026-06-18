@@ -1,6 +1,7 @@
 #pragma once
 
 #include <plugin-shared.h>
+#include <plugin-shared-json.h>
 
 enum class RewardType : uint8_t {
 	Disabled,
@@ -35,12 +36,10 @@ struct QuestPluginOptions {
 	ItemQuestReward<uint32_t> OrmusGidbinnRingItem;
 	ItemQuestReward<uint8_t>  OrmusGidbinnRingQuality;
 	RewardType                QualKehkRuneRewardEnabled;
-	ItemQuestReward<uint32_t> QualKehkRuneItem1;
-	ItemQuestReward<uint32_t> QualKehkRuneItem2;
-	ItemQuestReward<uint32_t> QualKehkRuneItem3;
+	ItemQuestReward<uint32_t> QualKehkRuneItems[3];
 
 	uint8_t ImbueAllowSockets;	// NOP two bytes at 0x140246597 and 0x1402468b6
 
 
-	void Load(const D2RLoaderPluginContext* context, const wchar_t* section);
+	void Load(const D2RLoaderPluginContext* context, const nlohmann::json& cfg);
 };

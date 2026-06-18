@@ -1,5 +1,6 @@
 #include "plugin.h"
 #include <plugin-shared.h>
+#include <plugin-shared-json.h>
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -17,8 +18,6 @@ using PlayersAtoi_t    = int  (__fastcall*)(const char* str);
 using SetPlayerCount_t = void (__fastcall*)(void* session, int count);
 
 // ── Plugin state ──────────────────────────────────────────────────────────────
-
-static constexpr const wchar_t* MiscPluginSection = L"PluginPack.Misc";
 
 static int                 g_PlayersCommandLimit = 8;
 static int                 g_LastPlayersArg      = 1;
@@ -65,7 +64,9 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 		return false;
 	}
 
-	g_PlayersCommandLimit = PSh_Ini_GetInt(context, MiscPluginSection, L"PlayersCommandLimit", 8);
+	auto cfg = PSh_Json_LoadConfig(context);
+	auto misc = PSh_Json_GetSection(cfg, "misc");
+	g_PlayersCommandLimit = misc.value("playersCommandLimit", 8);
 
 	if (g_PlayersCommandLimit > 8) {
 		Real_PlayersAtoi    = reinterpret_cast<PlayersAtoi_t>(context->exeBase + OFF_Players_Atoi);

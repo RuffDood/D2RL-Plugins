@@ -88,9 +88,10 @@ using CreateCompiledTCStruct_t = void*(__fastcall*)(uint8_t expansion, const voi
 using TCDropFunction_t         = void(__fastcall*)(void* p1, void* p2, uint32_t p3, void* damageEvent);
 using ConditionGate_t          = int(__fastcall*)(void* gameCtx, void* compiledTCStruct, D2UnitStrc* unit, uint8_t pickFlag);
 using ConditionCalcEval_t      = int(__fastcall*)(uint8_t expansion, D2UnitStrc* unit, uint32_t exprIdx);
-// RCX=pNpc RDX=dwCode R8=pGame R9=nQuality [RSP+20]=nItemLevel [RSP+28]=nPlayerLevel
+// RCX=pNpc RDX=dwCode R8=pGame R9=unused [RSP+28]=nQuality [RSP+30]=nItemLevel [RSP+38]=nPlayerLevel
+// (quality is 5th arg on the stack, NOT R9 — verified by disassembly at 0x1403e74bc)
 using GenerateStoreItem_t      = D2UnitStrc*(*)(D2UnitStrc* pNpc, uint32_t dwCode, D2GameStrc* pGame,
-                                                 int nQuality, int nItemLevel, int nPlayerLevel);
+                                                 int nUnused, int nQuality, int nItemLevel, int nPlayerLevel);
 using ComputeItemLevel_t       = int(*)(D2GameStrc* pGame, D2UnitStrc* pNpc);
 using GetItemIdFromCode_t      = int(*)(void* itemsTxtArr, uint32_t dwCode);
 using SetUnitStat_t            = void(*)(D2UnitStrc* pItem, int statId, int value, int layer);
@@ -308,7 +309,7 @@ static void Hook_FillStoreInventory(D2GameStrc* pGame, D2UnitStrc* pPlayer, D2Un
 				quality = D2ItemQuality::Superior;
 			}
 
-			if (!Fn_GenerateStoreItem(pNpc, ci.dwCode, pGame, (int)quality, itemLevel, playerLevel)) {
+			if (!Fn_GenerateStoreItem(pNpc, ci.dwCode, pGame, 0, (int)quality, itemLevel, playerLevel)) {
 				++nSpawned;
 			}
 			if (nSpawned > 32) return;
@@ -328,7 +329,7 @@ static void Hook_FillStoreInventory(D2GameStrc* pGame, D2UnitStrc* pPlayer, D2Un
 				D2ItemQuality quality = g_pluginOptions.bEnableVOHRandomRareVendorItems &&
 					roll < g_pluginOptions.VOHRareItemChance ? D2ItemQuality::Rare : D2ItemQuality::Magic;
 
-				if (!Fn_GenerateStoreItem(pNpc, ci.dwCode, pGame, (int)quality, itemLevel, playerLevel)) {
+				if (!Fn_GenerateStoreItem(pNpc, ci.dwCode, pGame, 0, (int)quality, itemLevel, playerLevel)) {
 					++nSpawned;
 				}
 			}
@@ -338,7 +339,7 @@ static void Hook_FillStoreInventory(D2GameStrc* pGame, D2UnitStrc* pPlayer, D2Un
 	// ── Perm items loop ───────────────────────────────────────────────────────
 	for (uint64_t i = 0; i < entry->nPerms; ++i) {
 		uint32_t code = entry->pPermCache[i];
-		D2UnitStrc* pStoreItem = Fn_GenerateStoreItem(pNpc, code, pGame, (int)D2ItemQuality::Normal, itemLevel, playerLevel);
+		D2UnitStrc* pStoreItem = Fn_GenerateStoreItem(pNpc, code, pGame, 0, (int)D2ItemQuality::Normal, itemLevel, playerLevel);
 		if (pStoreItem) {
 			const D2ItemsTxt* rec = GetItemRecord(dataTbl, code);
 			if (rec) {
@@ -439,58 +440,74 @@ static int __fastcall Hook_GetInventoryGoldLimit(int64_t unitPtr)
 
 // ── INI loading ───────────────────────────────────────────────────────────────
 
-void ItemPluginOptions::Load(const D2RLoaderPluginContext* context, const wchar_t* section)
+void ItemPluginOptions::Load(const D2RLoaderPluginContext* context, const nlohmann::json& cfg)
 {
-	bMagicItemsSpawnIdentified = PSh_Ini_GetInt(context, section, L"EnableMagicItemsSpawnIdentified", 0);
-	bRareItemsSpawnIdentified = PSh_Ini_GetInt(context, section, L"EnableRareItemsSpawnIdentified", 0);
-	bDisableGoldPenalty = PSh_Ini_GetInt(context, section, L"DisableGoldPenalty", 0) != 0;
+	bMagicItemsSpawnIdentified = cfg.value("magicItemsSpawnIdentified", false);
+	bRareItemsSpawnIdentified  = cfg.value("rareItemsSpawnIdentified", false);
+	bDisableGoldPenalty        = cfg.value("disableGoldPenalty", false);
 
-	InventoryGoldLimitChange = static_cast<GoldOption>(PSh_Ini_GetInt(context, section, L"EnableInventoryGoldLimitChange", 0));
-	InventoryGoldLimit = PSh_Ini_GetInt(context, section, L"InventoryGoldLimit", 10000);
-
-	// Index 0=Magic 1=Set 2=Rare 3=Unique 4=Crafted 5=Tempered
-	static const wchar_t* runewordQualityKeys[] = {
-		L"RunewordQualityMagic",
-		L"RunewordQualitySet",
-		L"RunewordQualityRare",
-		L"RunewordQualityUnique",
-		L"RunewordQualityCrafted",
-		L"RunewordQualityTempered",
-	};
-	for (int i = 0; i < 6; i++) {
-		bRunewordQualities[i] = PSh_Ini_GetInt(context, section, runewordQualityKeys[i], 0) != 0;
+	{
+		auto goldLimit = cfg.value("inventoryGoldLimit", nlohmann::json::object());
+		std::string mode = goldLimit.value("mode", "disabled");
+		if      (mode == "perLevel") InventoryGoldLimitChange = GoldOption::PerLevel;
+		else if (mode == "flat")     InventoryGoldLimitChange = GoldOption::Flat;
+		else                         InventoryGoldLimitChange = GoldOption::Disabled;
+		InventoryGoldLimit = goldLimit.value("value", 10000u);
 	}
 
-	GambleFilter = static_cast<GambleOption>(PSh_Ini_GetInt(context, section, L"GambleFilter", 0));
-	GambleBitfield = PSh_Ini_GetInt(context, section, L"GambleBitfield", 4);
+	// Index 0=Magic 1=Set 2=Rare 3=Unique 4=Crafted 5=Tempered
+	{
+		auto rq = cfg.value("runewordQualities", nlohmann::json::object());
+		static const char* keys[] = { "magic", "set", "rare", "unique", "crafted", "tempered" };
+		for (int i = 0; i < 6; i++)
+			bRunewordQualities[i] = rq.value(keys[i], false);
+	}
 
-	bEnableVendorOverhaul = PSh_Ini_GetInt(context, section, L"EnableVendorOverhaul", 0) != 0;
-	VOHNormalItemLevelMaxThreshold = PSh_Ini_GetInt(context, section, L"VendorOverhaulNormalItemLevelMaxLevelThreshold", 25);
-	VOHMagicMinLevelThreshold = PSh_Ini_GetInt(context, section, L"VendorOverhaulMagicMinLevelThreshold", 0);
-	VOHSuperiorLevelMinLevelThreshold = PSh_Ini_GetInt(context, section, L"VendorOverhaulSuperiorLevelMinLevelThreshold", 5);
-	VOHLowQualityMaxLevelThreshold = PSh_Ini_GetInt(context, section, L"VendorOverhaulLowQualityMaxLevelThreshold", 5);
-	VOHSuperiorUpgradeChance = PSh_Ini_GetInt(context, section, L"VendorOverhaulSuperiorUpgradeChance", 25);
-	VOHLowQualityDowngradeChance = PSh_Ini_GetInt(context, section, L"VendorOverhaulLowQualityDowngradeChance", 10);
-	bEnableVOHRandomRareVendorItems = PSh_Ini_GetInt(context, section, L"VendorOverhaulEnableRandomRareItems", 0) != 0;
-	VOHRareItemChance = PSh_Ini_GetInt(context, section, L"VendorOverhaulRareItemChance", 0);
+	{
+		auto gamble = cfg.value("gambleFilter", nlohmann::json::object());
+		std::string mode = gamble.value("mode", "disabled");
+		if      (mode == "noRingAmuletGuarantee") GambleFilter = GambleOption::NoRingAmuletGuarantee;
+		else if (mode == "bitfield")              GambleFilter = GambleOption::Bitfield;
+		else                                      GambleFilter = GambleOption::Disabled;
+		GambleBitfield = gamble.value("bitfield", 4);
+	}
 
+	{
+		auto voh = cfg.value("vendorOverhaul", nlohmann::json::object());
+		bEnableVendorOverhaul             = voh.value("enabled", false);
+		VOHNormalItemLevelMaxThreshold    = voh.value("normalItemLevelMaxThreshold", 25u);
+		VOHMagicMinLevelThreshold         = voh.value("magicMinLevelThreshold", 0u);
+		VOHSuperiorLevelMinLevelThreshold = voh.value("superiorMinLevelThreshold", 5u);
+		VOHLowQualityMaxLevelThreshold    = voh.value("lowQualityMaxLevelThreshold", 5u);
+		VOHSuperiorUpgradeChance          = voh.value("superiorUpgradeChance", 25u);
+		VOHLowQualityDowngradeChance      = voh.value("lowQualityDowngradeChance", 10u);
+		bEnableVOHRandomRareVendorItems   = voh.value("randomRareItems", false);
+		VOHRareItemChance                 = voh.value("rareItemChance", 1024u);
+		VendorNightmareUpgradeBaseChance  = voh.value("nightmareBaseChance", 4000);
+		VendorHellUberUpgradeBaseChance   = voh.value("hellUberBaseChance", 5000);
+		VendorHellUpgradeBaseChance       = voh.value("hellBaseChance", 1000);
+		VendorNightmareUpgradeLevelScale  = voh.value("nightmareLevelScale", 64);
+		VendorHellUberUpgradeLevelScale   = voh.value("hellUberLevelScale", 128);
+		VendorHellUpgradeLevelScale       = voh.value("hellLevelScale", 16);
+	}
 
-	VendorNightmareUpgradeBaseChance = PSh_Ini_GetInt(context, section, L"VendorNightmareUpgradeBaseChance", 4000);
-	VendorHellUberUpgradeBaseChance = PSh_Ini_GetInt(context, section, L"VendorHellUberUpgradeBaseChance", 5000);
-	VendorHellUpgradeBaseChance = PSh_Ini_GetInt(context, section, L"VendorHellUpgradeBaseChance", 1000);
-	VendorNightmareUpgradeLevelScale = PSh_Ini_GetInt(context, section, L"VendorNightmareUpgradeLevelScale", 64);
-	VendorHellUberUpgradeLevelScale = PSh_Ini_GetInt(context, section, L"VendorHellUberUpgradeLevelScale", 128);
-	VendorHellUpgradeLevelScale = PSh_Ini_GetInt(context, section, L"VendorHellUpgradeLevelScale", 16);
+	bEnablePlayerConditionCalc = cfg.value("playerConditionCalc", false);
 
-
-	bEnablePlayerConditionCalc = PSh_Ini_GetInt(context, section, L"EnablePlayerConditionCalc", 0) != 0;
-
-	bEnablePhysResistMaxChange = PSh_Ini_GetInt(context, section, L"EnablePhysResistMaxChange", 0) != 0;
-	MaxPhysResist = PSh_Ini_GetInt(context, section, L"MaxPhysResist", 50);
-	bEnableElementalResistMaxChange = PSh_Ini_GetInt(context, section, L"EnableElementalResistMaxChange", 0) != 0;
-	MaxElementalResist = PSh_Ini_GetInt(context, section, L"MaxElementalResist", 95);
-	bEnableAbsorbCapChange = PSh_Ini_GetInt(context, section, L"EnableAbsorbCapChange", 0) != 0;
-	MaxAbsorbPct = PSh_Ini_GetInt(context, section, L"MaxAbsorbCapPct", 40);
+	{
+		auto physCap = cfg.value("physResistCap", nlohmann::json::object());
+		bEnablePhysResistMaxChange = physCap.value("enabled", false);
+		MaxPhysResist              = physCap.value("max", 50);
+	}
+	{
+		auto elemCap = cfg.value("elementalResistCap", nlohmann::json::object());
+		bEnableElementalResistMaxChange = elemCap.value("enabled", false);
+		MaxElementalResist              = elemCap.value("max", 95);
+	}
+	{
+		auto absorbCap = cfg.value("absorbCap", nlohmann::json::object());
+		bEnableAbsorbCapChange = absorbCap.value("enabled", false);
+		MaxAbsorbPct           = absorbCap.value("max", 40);
+	}
 }
 
 // Returns the SHL shift count for a given power-of-2 multiplier (floor log2).
@@ -521,7 +538,8 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 		return false;
 	}
 
-	g_pluginOptions.Load(context, L"PluginPack.Items");
+	auto cfg = PSh_Json_LoadConfig(context);
+	g_pluginOptions.Load(context, PSh_Json_GetSection(cfg, "items"));
 	g_exeBase = context->exeBase;
 
 	// Resolve internal function pointers used by both hooks.
