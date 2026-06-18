@@ -2,8 +2,8 @@
     // ── Items ─────────────────────────────────────────────────────────────────
     "items": {
         // Spawn magic/rare items pre-identified.
-        "magicItemsSpawnIdentified": true,
-        "rareItemsSpawnIdentified": true,
+        "magicItemsSpawnIdentified": false,
+        "rareItemsSpawnIdentified": false,
 
         // Remove the gold-penalty formula that reduces gold picked up at high levels.
         "disableGoldPenalty": false,
@@ -38,7 +38,7 @@
 
         // Vendor overhaul: replaces the vanilla random-item generator for shops.
         "vendorOverhaul": {
-            "enabled": true,
+            "enabled": false,
 
             // Item level below which vendor items spawn as Normal quality.
             "normalItemLevelMaxThreshold": 25,
@@ -55,7 +55,7 @@
             "lowQualityDowngradeChance": 10,
 
             // Allow vendors to occasionally sell Rare items.
-            "randomRareItems": true,
+            "randomRareItems": false,
             // Denominator for the rare-item chance (1-in-N per slot). Default 1024.
             "rareItemChance": 1024,
 
