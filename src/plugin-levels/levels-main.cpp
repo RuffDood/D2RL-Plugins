@@ -23,7 +23,7 @@ static constexpr D2RLoaderPluginInfo PluginInfo {
 	.apiVersion = D2RLOADER_PLUGIN_API_VERSION,
 	.id         = "plugin-levels",
 	.name       = "Levels Plugin",
-	.version    = "1.0.0",
+	.version    = "0.0.1",
 	.author     = "eezstreet",
 	.flags      = D2RLoaderPluginFlag_None,
 };
