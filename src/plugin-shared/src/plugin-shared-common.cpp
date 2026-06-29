@@ -10,9 +10,17 @@ D2RLOADER_PLUGIN_EXPORT int PSh_GetStat(uintptr_t exeBase, D2StatListStrc* statL
     return GetStat(reinterpret_cast<int64_t>(statList), static_cast<uint64_t>(statId) << 16, minOverride);
 }
 
-D2RLOADER_PLUGIN_EXPORT uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept {
-	uint64_t next = static_cast<uint64_t>(unit->seedLow) * 0x6AC690C5ULL + unit->seedHigh;
-	unit->seedLow  = static_cast<uint32_t>(next);
-	unit->seedHigh = static_cast<uint32_t>(next >> 32);
+static uint64_t PSh_RollSeed(uint32_t& seedLow, uint32_t& seedHigh) noexcept {
+	uint64_t next = static_cast<uint64_t>(seedLow) * 0x6AC690C5ULL + seedHigh;
+	seedLow = static_cast<uint32_t>(next);
+	seedHigh = static_cast<uint32_t>(next >> 32);
 	return next;
+}
+
+D2RLOADER_PLUGIN_EXPORT uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept {
+	return PSh_RollSeed(unit->seedLow, unit->seedHigh);
+}
+
+D2RLOADER_PLUGIN_EXPORT uint64_t PSh_RollGame(D2GameStrc* game) noexcept {
+	return PSh_RollSeed(game->rngSeedLow, game->rngSeedHigh);
 }

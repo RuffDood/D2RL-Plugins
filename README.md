@@ -30,6 +30,7 @@ Open the project with CMake (the root `CMakeLists.txt`) and build with the MSVC 
 | `plugin-misc.dll` | `[PluginPack.Misc]` | Miscellaneous tweaks (e.g. `/players` command limit) |
 | `plugin-quests.dll` | `[PluginPack.Quests]` | Quest reward overrides — skill/stat point counts, ring and rune rewards, per-difficulty variants |
 | `plugin-skills.dll` | `[PluginPack.Skills]` | Skill mana system extensions — life/stamina costs, classic Whirlwind, CtC on WW, Telekinesis pickup, charged item drain chance |
+| `plugin-script.dll` | `[PluginPack.Script]` | Embedded JavaScript scripting engine — override missile, skill, object, and pSpells dispatch functions from TypeScript. See [Scripting API](docs/SCRIPTING-API.md) |
 
 ## Configuration
 

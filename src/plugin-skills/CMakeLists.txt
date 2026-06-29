@@ -1,4 +1,4 @@
-file(GLOB PLUGIN_SOURCES CONFIGURE_DEPENDS *.cpp)
+file(GLOB PLUGIN_SOURCES CONFIGURE_DEPENDS *.cpp *.h)
 
 add_library(plugin-skills SHARED ${PLUGIN_SOURCES})
 

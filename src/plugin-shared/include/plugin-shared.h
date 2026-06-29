@@ -3,11 +3,12 @@
 #include <cstddef>
 #include <cstdint>
 
-#define PLUGINID_ITEMS	0xEE000001
-#define PLUGINID_LEVELS 0xEE000002
-#define PLUGINID_MISC   0xEE000003
-#define PLUGINID_QUESTS 0xEE000004
-#define PLUGINID_SKILLS 0xEE000005
+#define PLUGINID_ITEMS	 0xEE000001
+#define PLUGINID_LEVELS  0xEE000002
+#define PLUGINID_MISC    0xEE000003
+#define PLUGINID_QUESTS  0xEE000004
+#define PLUGINID_SKILLS  0xEE000005
+#define PLUGINID_SCRIPT  0xEE000006
 
 // ── D2R types ───────────────────────────────────────────────────────
 
@@ -221,6 +222,172 @@ struct D2ItemsTxt
 	uint8_t  pad0x1BE[2];                  // 0x1BE  padding to 0x1C0
 };
 static_assert(sizeof(D2ItemsTxt) == 0x1C0, "D2ItemsTxt size mismatch");
+
+struct D2ObjectsTxt
+{
+	uint8_t nunk0[0x15c];
+	uint8_t InitFn;
+	uint8_t PopulateFn;
+	uint8_t OperateFn;
+	uint8_t nunk1[0x09];
+};
+static_assert(sizeof(D2ObjectsTxt) == 0x168, "D2ObjectsTxt size mismatch");
+
+struct D2SkillsTxt
+{
+    uint16_t wSkillId;                  // 0x000
+    uint8_t  unk_002[34];               // 0x002  unknown
+    uint32_t dwFlags;                   // 0x024
+    uint8_t  pad_028[4];                // 0x028
+    uint8_t  bCharclass;                // 0x02C
+    uint8_t  pad_02d[3];                // 0x02D
+    uint8_t  b_unk_030;                 // 0x030
+    uint8_t  bMonanim;                  // 0x031
+    uint8_t  bSeqtrans;                 // 0x032
+    uint8_t  bSeqnum;                   // 0x033
+    uint8_t  bRange;                    // 0x034
+    uint8_t  bSelectProc;               // 0x035
+    uint8_t  bSeqinput;                 // 0x036
+    uint8_t  pad_037;                   // 0x037
+    int16_t  nItypea[3];                // 0x038  itypea1,a2,a3
+    int16_t  nItypeb[3];                // 0x03E  itypeb1,b2,b3
+    int16_t  nEtypea[2];                // 0x044  etypea1,a2
+    int16_t  nEtypeb[2];                // 0x048  etypeb1,b2
+    int16_t  nSrvstfunc;                // 0x04C
+    int16_t  nSrvdofunc;                // 0x04E
+    int16_t  nSrvprgfunc[3];            // 0x050  srvprgfunc1,2,3
+    uint8_t  pad_056[2];                // 0x056
+    int32_t  nPrgcalc[3];               // 0x058  prgcalc1,2,3
+    uint8_t  bPrgdam;                   // 0x064
+    uint8_t  pad_065;                   // 0x065
+    int16_t  nSrvmissile;               // 0x066
+    int16_t  nSrvmissilea;              // 0x068
+    int16_t  nSrvmissileb;              // 0x06A
+    int16_t  nSrvmissilec;              // 0x06C
+    int16_t  nSrvoverlay;               // 0x06E
+    int32_t  nAuraFilter;               // 0x070
+    int16_t  nAuraStat[6];              // 0x074  aurastat1-6
+    int32_t  nAuraLenCalc;              // 0x080
+    int32_t  nAuraRangeCalc;            // 0x084
+    int32_t  nAuraStatCalc[6];          // 0x088  aurastatcalc1-6
+    int16_t  nAurastate;                // 0x0A0
+    int16_t  nAuraTargetState;          // 0x0A2
+    int16_t  nAuraevent[4];             // 0x0A4  auraevent1-4
+    int16_t  nAuraeventfunc[4];         // 0x0AC  auraeventfunc1-4
+    int16_t  nPassivestate;             // 0x0B4
+    int16_t  nPassiveitype;             // 0x0B6
+    uint8_t  bPassivereqweaponcount;    // 0x0B8
+    uint8_t  pad_0b9;                   // 0x0B9
+    int16_t  nPassivestat[14];          // 0x0BA  passivestat1-14
+    uint8_t  pad_0d6[2];                // 0x0D6
+    int32_t  nPassivecalc[14];          // 0x0D8  passivecalc1-14
+    int16_t  nSummon;                   // 0x110
+    uint8_t  bPettype;                  // 0x112
+    uint8_t  bSummode;                  // 0x113
+    int32_t  nPetmax;                   // 0x114
+    int16_t  nSumskill[5];              // 0x118  sumskill1-5
+    uint8_t  pad_122[2];                // 0x122
+    int32_t  nSumsk_calc[5];            // 0x124  sumsk1calc-5
+    int32_t  nSumumod;                  // 0x138
+    int16_t  nSumoverlay;               // 0x13C
+    int16_t  nCltmissile;               // 0x13E
+    int16_t  nCltmissilea;              // 0x140
+    int16_t  nCltmissileb;              // 0x142
+    int16_t  nCltmissilec;              // 0x144
+    int16_t  nCltmissiled;              // 0x146
+    int16_t  nCltstfunc;                // 0x148
+    int16_t  nCltdofunc;                // 0x14A
+    int16_t  nCltprgfunc[3];            // 0x14C  cltprgfunc1-3
+    int16_t  nStsound;                  // 0x152
+    int16_t  nStsoundclass;             // 0x154
+    int16_t  nDosound;                  // 0x156
+    int16_t  nDosound_a;                // 0x158
+    int16_t  nDosound_b;                // 0x15A
+    int16_t  nCastoverlay;              // 0x15C
+    int16_t  nTgtoverlay;               // 0x15E
+    int16_t  nTgtsound;                 // 0x160
+    int16_t  nPrgoverlay;               // 0x162
+    int16_t  nPrgsound;                 // 0x164
+    int16_t  nCltoverlaya;              // 0x166
+    int16_t  nCltoverlayb;              // 0x168
+    uint8_t  pad_16a[2];                // 0x16A
+    int32_t  nCltcalc[3];               // 0x16C  cltcalc1-3
+    uint8_t  bItemTarget;               // 0x178
+    uint8_t  pad_179;                   // 0x179
+    int16_t  nItemCastSound;            // 0x17A
+    int16_t  nItemCastOverlay;          // 0x17C
+    uint8_t  pad_17e[2];                // 0x17E
+    int32_t  nPerdelay;                 // 0x180
+    int16_t  nMaxlvl;                   // 0x184
+    int16_t  nResultFlags;              // 0x186
+    int32_t  nHitFlags;                 // 0x188
+    int32_t  nHitClass;                 // 0x18C
+    int32_t  nCalc[10];                 // 0x190  calc1-10
+    int32_t  nParam[20];                // 0x1B8  param1-20
+    uint8_t  bWeapsel;                  // 0x208
+    uint8_t  pad_209;                   // 0x209
+    int16_t  nItemEffect;               // 0x20A
+    int16_t  nItemCltEffect;            // 0x20C
+    uint8_t  pad_20e[2];                // 0x20E
+    int32_t  nSkpoints;                 // 0x210
+    int16_t  nReqlevel;                 // 0x214
+    int16_t  nReqstr;                   // 0x216
+    int16_t  nReqdex;                   // 0x218
+    int16_t  nReqint;                   // 0x21A
+    int16_t  nReqvit;                   // 0x21C
+    int16_t  nReqskill[3];              // 0x21E  reqskill1-3
+    int16_t  nStartmana;                // 0x224
+    int16_t  nMinmana;                  // 0x226
+    int16_t  nManashift;                // 0x228
+    int16_t  nMana;                     // 0x22A
+    int16_t  nLvlmana;                  // 0x22C
+    uint8_t  bPrgchargestocast;         // 0x22E
+    uint8_t  bPrgchargesconsumed;       // 0x22F
+    uint8_t  bAttackrank;               // 0x230
+    uint8_t  bLineofsight;              // 0x231
+    uint8_t  pad_232[2];                // 0x232
+    int32_t  nGlobalDelay;              // 0x234
+    int32_t  nLocaldelay;               // 0x238
+    int16_t  nSkilldesc;                // 0x23C
+    uint8_t  pad_23e[2];                // 0x23E
+    int32_t  nToHit;                    // 0x240
+    int32_t  nLevToHit;                 // 0x244
+    int32_t  nToHitCalc;                // 0x248
+    uint8_t  bHitShift;                 // 0x24C
+    uint8_t  bSrcDam;                   // 0x24D
+    uint8_t  pad_24e[2];                // 0x24E
+    int32_t  nMinDam;                   // 0x250
+    int32_t  nMaxDam;                   // 0x254
+    int32_t  nMinLevDam[5];             // 0x258  minlevdam1-5
+    int32_t  nMaxLevDam[5];             // 0x26C  maxlevdam1-5
+    int32_t  nDmgSymPerCalc;            // 0x280
+    uint8_t  bEType;                    // 0x284
+    uint8_t  pad_285[3];                // 0x285
+    int32_t  nEMinDam;                  // 0x288
+    int32_t  nEMaxDam;                  // 0x28C
+    int32_t  nEMinLev[5];               // 0x290  eminlev1-5
+    int32_t  nEMaxLev[5];               // 0x2A4  emaxlev1-5
+    int32_t  nEDmgSymPerCalc;           // 0x2B8
+    int32_t  nELevLen;                  // 0x2BC
+    int32_t  nELevLen1;                 // 0x2C0
+    int32_t  nELevLen2;                 // 0x2C4
+    int32_t  nELevLen3;                 // 0x2C8
+    int32_t  nELenSymPerCalc;           // 0x2CC
+    uint8_t  bRestrict;                 // 0x2D0
+    uint8_t  pad_2d1;                   // 0x2D1
+    int16_t  nState[3];                 // 0x2D2  state1-3
+    uint8_t  bAitype;                   // 0x2D8
+    uint8_t  pad_2d9;                   // 0x2D9
+    int16_t  nAibonus;                  // 0x2DA
+    int32_t  nCost_mult;                // 0x2DC
+    int32_t  nCost_add;                 // 0x2E0
+    uint8_t  bUseServerMissilesOnRemoteClients; // 0x2E4
+    uint8_t  pad_2e5;                   // 0x2E5
+    int16_t  nSrvstopfunc;              // 0x2E6
+    int16_t  nCltstopfunc;              // 0x2E8
+    uint8_t  pad_2ea[2];                // 0x2EA
+};
+static_assert(sizeof(D2SkillsTxt) == 0x2EC, "D2SkillsTxt size mismatch");
 #pragma pack()
 
 // D2ItemDataTbl — lives at sgptDataTable[context*2] + offsets below
@@ -315,24 +482,44 @@ struct D2StatListStrc {
 static_assert(offsetof(D2StatListStrc, expireFrame) == 0x1c, "D2StatListStrc layout mismatch");
 static_assert(sizeof(D2StatListStrc) == 112, "D2StatListStrc must be 112 bytes");
 
+struct D2DynamicPathStrc {
+	uint8_t _pad0[112];	// +0x00
+	D2UnitStrc* pTargetUnit; // +0x70
+	D2UnitType targetType; // +0x78
+	uint32_t targetGuid; // +0x7c
+};
+
+union D2UnitData {
+	void* pPlayerData;
+	void* pMonsterData;
+	void* pItemData;
+	void* pObjectData;
+};
+
 // Mirrors the Ghidra-recovered D2UnitStrc layout (448 bytes). Only fields with
 // known uses are named; gaps are explicit padding so offsets stay correct.
 struct D2UnitStrc {
 	D2UnitType       dwUnitType;     // +0x00
 	uint32_t         unitFlags;      // +0x04
-	uint8_t          _pad0[31];      // +0x09..+0x27 (skips an unnamed byte at +0x08)
+	uint32_t		 dwUnitId;		 // +0x08
+	uint32_t         dwAnimMode;     // +0x0c
+	D2UnitData       unitData;       // +0x10
+	uint8_t          _pad0b[16];     // +0x18..+0x27
 	uint32_t         seedLow;        // +0x28
 	uint32_t         seedHigh;       // +0x2c
-	uint8_t          _pad1[88];      // +0x30..+0x87
+	uint8_t          _pad1[8];       // +0x30..+0x37
+	D2DynamicPathStrc* pDynamicPath; // +0x38
+	uint8_t          _pad2[0x48];    // +0x40
 	D2StatListStrc*  statList;       // +0x88
-	uint8_t          _pad2[112];     // +0x90..+0xff
+	uint8_t          _pad3[112];     // +0x90..+0xff
 	int64_t     _unk0x100;      // +0x100
-	uint8_t     _pad3[28];      // +0x108..+0x123
+	uint8_t     _pad4[28];      // +0x108..+0x123
 	uint32_t    dwFlags;        // +0x124
-	uint8_t     _pad4[149];     // +0x128..+0x1bc
+	uint8_t     _pad5[149];     // +0x128..+0x1bc
 	uint8_t     itemTableEntry; // +0x1bd
-	uint8_t     _pad5[2];       // +0x1be..+0x1bf
+	uint8_t     _pad6[2];       // +0x1be..+0x1bf
 };
+static_assert(offsetof(D2UnitStrc, dwAnimMode)      == 0x0c,  "D2UnitStrc layout mismatch");
 static_assert(offsetof(D2UnitStrc, seedLow)        == 0x28,  "D2UnitStrc layout mismatch");
 static_assert(offsetof(D2UnitStrc, seedHigh)       == 0x2c,  "D2UnitStrc layout mismatch");
 static_assert(offsetof(D2UnitStrc, statList)       == 0x88,  "D2UnitStrc layout mismatch");
@@ -377,6 +564,10 @@ D2RLOADER_PLUGIN_EXPORT bool PSh_PatchCallSite(uint32_t pluginId, const D2RLoade
 // SKILLS_FindPotion_DropPotion @ 0x140417018): next = seedLow * 0x6AC690C5 + seedHigh.
 // Callers reduce (uint32_t)result as needed (e.g. % 100 for a percent roll).
 D2RLOADER_PLUGIN_EXPORT uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept;
+
+// Advances game's RNG seed pair (seedLow/seedHigh) and returns the raw 64-bit
+// result, using the same LCG the engine uses for per-unit rolls.
+D2RLOADER_PLUGIN_EXPORT uint64_t PSh_RollGame(D2GameStrc* game) noexcept;
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 

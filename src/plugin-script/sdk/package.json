@@ -1,0 +1,13 @@
+{
+  "name": "my-d2r-mod",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=iife --outfile=dist/mymod.js --platform=neutral",
+    "watch": "esbuild src/index.ts --bundle --format=iife --outfile=dist/mymod.js --platform=neutral --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.0.0"
+  }
+}
