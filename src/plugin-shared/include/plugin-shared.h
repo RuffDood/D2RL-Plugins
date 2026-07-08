@@ -1,5 +1,5 @@
 #pragma once
-#include <plugin.h>
+#include <D2RLPlugin/version.h>
 #include <cstddef>
 #include <cstdint>
 
@@ -340,43 +340,13 @@ static_assert(offsetof(D2UnitStrc, dwFlags)        == 0x124, "D2UnitStrc layout 
 static_assert(offsetof(D2UnitStrc, itemTableEntry) == 0x1bd, "D2UnitStrc layout mismatch");
 static_assert(sizeof(D2UnitStrc) == 448, "D2UnitStrc must be 448 bytes");
 
-// ── Memory utilities ──────────────────────────────────────────────────────────
-
-// Allocates `size` bytes of PAGE_EXECUTE_READWRITE memory within ±2 GB of `hint`.
-// Required for near stubs that redirect 5-byte relative CALL/JMP instructions.
-// Returns nullptr on failure. Free with VirtualFree(ptr, 0, MEM_RELEASE).
-D2RLOADER_PLUGIN_EXPORT void* PSh_AllocNear(void* hint, size_t size) noexcept;
-
-// ── Byte patching ─────────────────────────────────────────────────────────────
-
-D2RLOADER_PLUGIN_EXPORT void PSh_PatchBytes(uint32_t pluginId, const D2RLoaderPluginContext* context, uint64_t offset, uint32_t length, const unsigned char* bytes) noexcept;
-D2RLOADER_PLUGIN_EXPORT void PSh_UnpatchBytes(uint32_t pluginId, const D2RLoaderPluginContext* context, uint64_t offset) noexcept;
-
-// ── Function hooks ────────────────────────────────────────────────────────────
-
-// Installs a 5-byte (default) or 6-byte E9 near-jmp hook at (exeBase + offset).
-// The first `hookSize` bytes at the target must be complete, relocatable instructions
-// (no RIP-relative addressing). Writes a near allocation containing the displaced
-// trampoline and an FF25 stub, then patches the target with E9 to the stub.
-// *originalOut is set to the trampoline — call it to execute the original function.
-// Use hookSize=6 when the first two instructions together span 6 bytes
-// (e.g. push rbx [2] + sub rsp,N [4]). Verify in Ghidra before changing.
-D2RLOADER_PLUGIN_EXPORT bool PSh_InstallHook(uint32_t pluginId, const D2RLoaderPluginContext* context, uint64_t offset, void* hookFn, void** originalOut, uint32_t hookSize = 5) noexcept;
-D2RLOADER_PLUGIN_EXPORT void PSh_RemoveHook(uint32_t pluginId, const D2RLoaderPluginContext* context, uint64_t offset) noexcept;
-
-// Redirects the 5-byte E8 CALL at (exeBase + callOffset) to hookFn via a near FF25 stub,
-// leaving the original callee function intact. Registered in g_registeredHooks so the
-// patch is removed with PSh_RemoveHook(pluginId, context, callOffset).
-// hookFn signature must match the callee's calling convention and parameters.
-D2RLOADER_PLUGIN_EXPORT bool PSh_PatchCallSite(uint32_t pluginId, const D2RLoaderPluginContext* context, uint64_t callOffset, void* hookFn) noexcept;
-
 // ── RNG ───────────────────────────────────────────────────────────────────────
 
 // Advances unit's RNG seed pair (seedLow/seedHigh) and returns the raw 64-bit
 // result, using the same LCG the engine uses for per-unit rolls (see
 // SKILLS_FindPotion_DropPotion @ 0x140417018): next = seedLow * 0x6AC690C5 + seedHigh.
 // Callers reduce (uint32_t)result as needed (e.g. % 100 for a percent roll).
-D2RLOADER_PLUGIN_EXPORT uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept;
+D2RL_PLUGIN_EXPORT uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept;
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
@@ -386,8 +356,8 @@ D2RLOADER_PLUGIN_EXPORT uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept;
 // a small set of internal min-value floors (see STATLIST_GetStat in Ghidra) that
 // plugin code doesn't need. Requires exeBase (context->exeBase) since the call
 // target lives in the game executable, not plugin-shared.
-D2RLOADER_PLUGIN_EXPORT int PSh_GetStat(uintptr_t exeBase, D2StatListStrc* statList,
-                                         int statId, int64_t minOverride = 0) noexcept;
+D2RL_PLUGIN_EXPORT int PSh_GetStat(uintptr_t exeBase, D2StatListStrc* statList,
+                                    int statId, int64_t minOverride = 0) noexcept;
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 constexpr uint32_t PSh_EncodeItemCode(const char* itemCode)

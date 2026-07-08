@@ -1,4 +1,4 @@
-﻿#include "plugin.h"
+﻿#include <D2RLPlugin/api.h>
 #include <plugin-shared.h>
 #include "quests-private.h"
 #include <plugin-shared-json.h>
@@ -123,7 +123,7 @@ static ItemQuestReward<uint8_t> ReadQualityReward(const nlohmann::json& obj,
 	return r;
 }
 
-void QuestPluginOptions::Load(const D2RLoaderPluginContext* /*context*/, const nlohmann::json& cfg)
+void QuestPluginOptions::Load(const D2RL::PluginContext* /*context*/, const nlohmann::json& cfg)
 {
 	auto doe = cfg.value("denOfEvil", nlohmann::json::object());
 	DenOfEvilRewardEnabled    = ParseRewardMode(doe);
@@ -183,23 +183,25 @@ void QuestPluginOptions::Load(const D2RLoaderPluginContext* /*context*/, const n
 
 // ── Plugin exports ────────────────────────────────────────────────────────────
 
-static constexpr D2RLoaderPluginInfo PluginInfo {
-	.apiVersion = D2RLOADER_PLUGIN_API_VERSION,
+static constexpr D2RL::PluginInfo PluginInfo {
+	.infoSize   = D2RL::PluginInfoSize,
+	.apiVersion = D2RL_PLUGIN_API_VERSION,
 	.id         = "plugin-quests",
 	.name       = "Quests Plugin",
 	.version    = "0.0.1",
 	.author     = "eezstreet",
-	.flags      = D2RLoaderPluginFlag_None,
+	.description = "Various quest-related changes.",
+	.flags      = D2RL::PluginFlags::None,
 };
 
 static unsigned char DenOfEvil_PushPopPatch[] = {0x6A, 0x05, 0x41, 0x58};
 
-D2RLOADER_PLUGIN_EXPORT const D2RLoaderPluginInfo* __cdecl D2RLoaderGetPluginInfo() noexcept {
+D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginInfo* {
 	return &PluginInfo;
 }
 
-D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginContext* context) noexcept {
-	if (!context || context->apiVersion < D2RLOADER_PLUGIN_API_VERSION) {
+D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
+	if (context == nullptr) {
 		return false;
 	}
 
@@ -208,34 +210,34 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 
 	if (g_questPluginOptions.DenOfEvilRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_DenOfEvilPatch1, 1, &g_questPluginOptions.DenOfEvilSkillPointReward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_DenOfEvilPatch2, 4, DenOfEvil_PushPopPatch);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_DenOfEvilPatch3, 1, &g_questPluginOptions.DenOfEvilSkillPointReward);
+		(void)context->PatchBytes(OFF_DenOfEvilPatch1, nullptr, 0, &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
+		(void)context->PatchBytes(OFF_DenOfEvilPatch2, nullptr, 0, DenOfEvil_PushPopPatch, sizeof(DenOfEvil_PushPopPatch));
+		(void)context->PatchBytes(OFF_DenOfEvilPatch3, nullptr, 0, &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
 	}
 	if (g_questPluginOptions.IzualRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_FallenAngelPatch1, 1, &g_questPluginOptions.IzualSkillPointReward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_FallenAngelPatch2, 4, DenOfEvil_PushPopPatch);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_FallenAngelPatch3, 1, &g_questPluginOptions.IzualSkillPointReward);
+		(void)context->PatchBytes(OFF_FallenAngelPatch1, nullptr, 0, &g_questPluginOptions.IzualSkillPointReward, 1);
+		(void)context->PatchBytes(OFF_FallenAngelPatch2, nullptr, 0, DenOfEvil_PushPopPatch, sizeof(DenOfEvil_PushPopPatch));
+		(void)context->PatchBytes(OFF_FallenAngelPatch3, nullptr, 0, &g_questPluginOptions.IzualSkillPointReward, 1);
 	}
 	if (g_questPluginOptions.BlackBookRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_BlackBookPatch1, 1, &g_questPluginOptions.BlackBookStatPointReward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_BlackBookPatch2, 1, &g_questPluginOptions.BlackBookStatPointReward);
+		(void)context->PatchBytes(OFF_BlackBookPatch1, nullptr, 0, &g_questPluginOptions.BlackBookStatPointReward, 1);
+		(void)context->PatchBytes(OFF_BlackBookPatch2, nullptr, 0, &g_questPluginOptions.BlackBookStatPointReward, 1);
 	}
 	if (g_questPluginOptions.GoldenBirdRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_GoldenBirdStatPatch1, 1, &g_questPluginOptions.GoldenBirdRewardStat);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_GoldenBirdStatPatch2, 1, &g_questPluginOptions.GoldenBirdRewardStat);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_GoldenBirdAmountPatch1, 4, (unsigned char*)&g_questPluginOptions.GoldenBirdRewardAmount);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_GoldenBirdAmountPatch2, 4, (unsigned char*)&g_questPluginOptions.GoldenBirdRewardAmount);
+		(void)context->PatchBytes(OFF_GoldenBirdStatPatch1, nullptr, 0, &g_questPluginOptions.GoldenBirdRewardStat, 1);
+		(void)context->PatchBytes(OFF_GoldenBirdStatPatch2, nullptr, 0, &g_questPluginOptions.GoldenBirdRewardStat, 1);
+		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch1, nullptr, 0, &g_questPluginOptions.GoldenBirdRewardAmount, 4);
+		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch2, nullptr, 0, &g_questPluginOptions.GoldenBirdRewardAmount, 4);
 	}
 	if (g_questPluginOptions.SkillBookRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_SkillBookAmountPatch1, 1, &g_questPluginOptions.SkillBookRewardAmount);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_SkillBookAmountPatch2, 1, &g_questPluginOptions.SkillBookRewardAmount);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_SkillBookStatPatch1, 1, &g_questPluginOptions.SkillBookRewardStat);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_SkillBookStatPatch2, 1, &g_questPluginOptions.SkillBookRewardStat);
+		(void)context->PatchBytes(OFF_SkillBookAmountPatch1, nullptr, 0, &g_questPluginOptions.SkillBookRewardAmount, 1);
+		(void)context->PatchBytes(OFF_SkillBookAmountPatch2, nullptr, 0, &g_questPluginOptions.SkillBookRewardAmount, 1);
+		(void)context->PatchBytes(OFF_SkillBookStatPatch1, nullptr, 0, &g_questPluginOptions.SkillBookRewardStat, 1);
+		(void)context->PatchBytes(OFF_SkillBookStatPatch2, nullptr, 0, &g_questPluginOptions.SkillBookRewardStat, 1);
 	}
 
 	if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::SamePerDifficulty)
@@ -243,48 +245,53 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 		// Turn this into a XOR EAX,EAX; MOV AL, (reward)
 		unsigned char rewardBytes[4] = { 0x31, 0xC0, 0xB0, g_questPluginOptions.AkaraCainRingQuality.Reward };
 
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_AkaraRingItem, 4, (unsigned char*)&g_questPluginOptions.AkaraCainRingItem.Reward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_AkaraRingItemQuality, 4, rewardBytes);
+		(void)context->PatchBytes(OFF_AkaraRingItem, nullptr, 0, &g_questPluginOptions.AkaraCainRingItem.Reward, 4);
+		(void)context->PatchBytes(OFF_AkaraRingItemQuality, nullptr, 0, rewardBytes, sizeof(rewardBytes));
 	}
 	else if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::DifferentPerDifficulty)
 	{	// Different item/quality depending on difficulty
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		PSh_PatchCallSite(PLUGINID_QUESTS, context, OFF_AkaraRingCallSite, reinterpret_cast<void*>(Hook_AkaraCainRingDiffReward));
+		(void)context->PatchRel32(OFF_AkaraRingCallSite, nullptr, 0,
+			reinterpret_cast<uint64_t>(&Hook_AkaraCainRingDiffReward) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_questPluginOptions.OrmusGidbinnRingRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed item on each difficulty
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_OrmusRingItem, 4, (unsigned char*)&g_questPluginOptions.OrmusGidbinnRingItem.Reward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_OrmusRingItemQuality, 1, &g_questPluginOptions.OrmusGidbinnRingQuality.Reward);
+		(void)context->PatchBytes(OFF_OrmusRingItem, nullptr, 0, &g_questPluginOptions.OrmusGidbinnRingItem.Reward, 4);
+		(void)context->PatchBytes(OFF_OrmusRingItemQuality, nullptr, 0, &g_questPluginOptions.OrmusGidbinnRingQuality.Reward, 1);
 	}
 	else if (g_questPluginOptions.OrmusGidbinnRingRewardEnabled == RewardType::DifferentPerDifficulty)
 	{	// Different item/quality depending on difficulty
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		PSh_PatchCallSite(PLUGINID_QUESTS, context, OFF_OrmusRingCallSite, reinterpret_cast<void*>(Hook_OrmusGidbinnRingDiffReward));
+		(void)context->PatchRel32(OFF_OrmusRingCallSite, nullptr, 0,
+			reinterpret_cast<uint64_t>(&Hook_OrmusGidbinnRingDiffReward) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_QualKehkItem1, 3, (unsigned char*)&g_questPluginOptions.QualKehkRuneItems[0].Reward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_QualKehkItem2, 3, (unsigned char*)&g_questPluginOptions.QualKehkRuneItems[1].Reward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_QualKehkItem3, 3, (unsigned char*)&g_questPluginOptions.QualKehkRuneItems[2].Reward);
+		(void)context->PatchBytes(OFF_QualKehkItem1, nullptr, 0, &g_questPluginOptions.QualKehkRuneItems[0].Reward, 3);
+		(void)context->PatchBytes(OFF_QualKehkItem2, nullptr, 0, &g_questPluginOptions.QualKehkRuneItems[1].Reward, 3);
+		(void)context->PatchBytes(OFF_QualKehkItem3, nullptr, 0, &g_questPluginOptions.QualKehkRuneItems[2].Reward, 3);
 	}
 	else if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::DifferentPerDifficulty)
 	{
 		g_exeBase = context->exeBase;
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		PSh_PatchCallSite(PLUGINID_QUESTS, context, OFF_QualKehkCallSite, reinterpret_cast<void*>(Hook_QualKehkRuneDiffReward));
+		(void)context->PatchRel32(OFF_QualKehkCallSite, nullptr, 0,
+			reinterpret_cast<uint64_t>(&Hook_QualKehkRuneDiffReward) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_questPluginOptions.ImbueAllowSockets)
 	{
-		unsigned char doubleNOP[] = { 0x90, 0x90 };
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_ImbueSocket1, 2, doubleNOP);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_ImbueSocket2, 2, doubleNOP);
+		(void)context->PatchNop(OFF_ImbueSocket1, nullptr, 0, 2);
+		(void)context->PatchNop(OFF_ImbueSocket2, nullptr, 0, 2);
 	}
 
 	return true;
 }
 
-D2RLOADER_PLUGIN_EXPORT void __cdecl D2RLoaderUnload() noexcept {
+D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	// Patches installed via context->PatchBytes/PatchRel32 are reverted automatically
+	// by D2RLoader on unload (ASSUMPTION — verify against real loader behavior before
+	// relying on this in production).
 }

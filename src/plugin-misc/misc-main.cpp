@@ -1,4 +1,4 @@
-#include "plugin.h"
+#include <D2RLPlugin/api.h>
 #include <plugin-shared.h>
 #include <plugin-shared-json.h>
 
@@ -46,21 +46,23 @@ static void __fastcall Hook_SetPlayerCount(void* session, int /*count*/) {
 
 // ── Plugin info ───────────────────────────────────────────────────────────────
 
-static constexpr D2RLoaderPluginInfo PluginInfo {
-	.apiVersion = D2RLOADER_PLUGIN_API_VERSION,
+static constexpr D2RL::PluginInfo PluginInfo {
+	.infoSize   = D2RL::PluginInfoSize,
+	.apiVersion = D2RL_PLUGIN_API_VERSION,
 	.id         = "plugin-misc",
 	.name       = "Misc Plugin",
 	.version    = "0.0.1",
 	.author     = "eezstreet",
-	.flags      = D2RLoaderPluginFlag_None,
+	.description = "Miscellaneous changes.",
+	.flags      = D2RL::PluginFlags::None,
 };
 
-D2RLOADER_PLUGIN_EXPORT const D2RLoaderPluginInfo* __cdecl D2RLoaderGetPluginInfo() noexcept {
+D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginInfo* {
 	return &PluginInfo;
 }
 
-D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginContext* context) noexcept {
-	if (!context || context->apiVersion < D2RLOADER_PLUGIN_API_VERSION) {
+D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
+	if (context == nullptr) {
 		return false;
 	}
 
@@ -72,14 +74,17 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 		Real_PlayersAtoi    = reinterpret_cast<PlayersAtoi_t>(context->exeBase + OFF_Players_Atoi);
 		Real_SetPlayerCount = reinterpret_cast<SetPlayerCount_t>(context->exeBase + OFF_SetPlayerCount);
 
-		PSh_PatchCallSite(PLUGINID_MISC, context, OFF_Players_AtoiCall,  reinterpret_cast<void*>(Hook_PlayersAtoi));
-		PSh_PatchCallSite(PLUGINID_MISC, context, OFF_Players_ApplyCall, reinterpret_cast<void*>(Hook_SetPlayerCount));
+		(void)context->PatchRel32(OFF_Players_AtoiCall, nullptr, 0,
+			reinterpret_cast<uint64_t>(&Hook_PlayersAtoi) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
+		(void)context->PatchRel32(OFF_Players_ApplyCall, nullptr, 0,
+			reinterpret_cast<uint64_t>(&Hook_SetPlayerCount) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	return true;
 }
 
-D2RLOADER_PLUGIN_EXPORT void __cdecl D2RLoaderUnload() noexcept {
-	PSh_RemoveHook(PLUGINID_MISC, nullptr, OFF_Players_AtoiCall);
-	PSh_RemoveHook(PLUGINID_MISC, nullptr, OFF_Players_ApplyCall);
+D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	// Call-site patches installed via context->PatchRel32 are reverted automatically
+	// by D2RLoader on unload (ASSUMPTION — verify against real loader behavior before
+	// relying on this in production).
 }

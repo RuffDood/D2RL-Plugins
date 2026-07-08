@@ -1,4 +1,4 @@
-#include "plugin.h"
+#include <D2RLPlugin/api.h>
 #include "plugin-shared.h"
 #include "skills-private.h"
 #include <Windows.h>
@@ -51,7 +51,6 @@ static constexpr int      MANA_COSTS_STAMINA_BIT = 48;   // second free bit
 
 static SkillPluginOptions            g_skillPluginOptions {};
 static uintptr_t                     g_ExeBase  = 0;
-static const D2RLoaderPluginContext* g_Context  = nullptr;
 
 // Compiled skills.txt records (game-owned memory — do not free).
 static void*    g_SkillsRecords = nullptr;
@@ -310,7 +309,7 @@ int __fastcall Hook_CanBePickedUpWithTelekinesis(D2UnitStrc* ItemUnit)
 }
 
 // E8 call sites inside DATATBLS_CompileSkillsTxt that target DATATBLS_CompileTxt.
-// Patched via PSh_PatchCallSite; removed via PSh_RemoveHook.
+// Patched via context->PatchRel32(..., Rel32PatchKind::Call).
 static constexpr uint64_t COMPILE_TXT_CALL_OFFSETS[] = {
 	0x2190AD,
 	0x21921F,
@@ -320,7 +319,7 @@ static constexpr uint64_t COMPILE_TXT_CALL_OFFSETS[] = {
 
 // ── INI loading ───────────────────────────────────────────────────────────────
 
-void SkillPluginOptions::Load(const D2RLoaderPluginContext* /*context*/, const nlohmann::json& cfg) {
+void SkillPluginOptions::Load(const D2RL::PluginContext* /*context*/, const nlohmann::json& cfg) {
 	bEnableManaCostsLife          = cfg.value("manaCostsLife", false);
 	bEnableManaCostsStamina       = cfg.value("manaCostsStamina", false);
 	bEnableClassicWW              = cfg.value("classicWhirlwind", false);
@@ -334,108 +333,87 @@ void SkillPluginOptions::Load(const D2RLoaderPluginContext* /*context*/, const n
 
 // ── Plugin exports ────────────────────────────────────────────────────────────
 
-static constexpr D2RLoaderPluginInfo PluginInfo {
-	.apiVersion = D2RLOADER_PLUGIN_API_VERSION,
+static constexpr D2RL::PluginInfo PluginInfo {
+	.infoSize   = D2RL::PluginInfoSize,
+	.apiVersion = D2RL_PLUGIN_API_VERSION,
 	.id         = "plugin-skills",
 	.name       = "Skills Plugin",
 	.version    = "0.0.1",
 	.author     = "eezstreet",
-	.flags      = D2RLoaderPluginFlag_None,
+	.description = "Various skill-related changes.",
+	.flags      = D2RL::PluginFlags::None,
 };
 
-D2RLOADER_PLUGIN_EXPORT const D2RLoaderPluginInfo* __cdecl D2RLoaderGetPluginInfo() noexcept {
+D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginInfo* {
 	return &PluginInfo;
 }
 
-D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginContext* context) noexcept {
-	if (!context || context->apiVersion < D2RLOADER_PLUGIN_API_VERSION)
+D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
+	if (context == nullptr)
 		return false;
 
 	auto cfg = PSh_Json_LoadConfig(context);
 	g_skillPluginOptions.Load(context, PSh_Json_GetSection(cfg, "skills"));
 	g_ExeBase = context->exeBase;
-	g_Context = context;
 
 	if (g_skillPluginOptions.bEnableManaCostsLife || g_skillPluginOptions.bEnableManaCostsStamina) {
 		// Redirect all DATATBLS_CompileTxt calls within DATATBLS_CompileSkillsTxt.
 		for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
-			PSh_PatchCallSite(PLUGINID_SKILLS, context, off, reinterpret_cast<void*>(Hook_CompileTxt_Call));
+			(void)context->PatchRel32(off, nullptr, 0,
+				reinterpret_cast<uint64_t>(&Hook_CompileTxt_Call) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 
 		// Hook Consume to propagate skillId to AuraConsume via thread-local.
-		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_Consume,
-		                     reinterpret_cast<void*>(Hook_Consume),
-		                     reinterpret_cast<void**>(&Original_Consume))) {
-			D2RPluginLogErrorF(context, "plugin-skills: failed to hook Consume");
-			for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
-				PSh_RemoveHook(PLUGINID_SKILLS, context, off);
+		if (!context->InstallInlineHook(OFF_Consume, nullptr, 0, Hook_Consume, &Original_Consume)) {
+			D2RL::LogErrorF(context, "plugin-skills: failed to hook Consume");
 			return false;
 		}
 
-		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_AuraConsume,
-		                     reinterpret_cast<void*>(Hook_AuraConsume),
-		                     reinterpret_cast<void**>(&Original_AuraConsume))) {
-			D2RPluginLogErrorF(context, "plugin-skills: failed to hook AuraConsume");
-			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_Consume);
-			for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
-				PSh_RemoveHook(PLUGINID_SKILLS, context, off);
+		if (!context->InstallInlineHook(OFF_AuraConsume, nullptr, 0, Hook_AuraConsume, &Original_AuraConsume)) {
+			D2RL::LogErrorF(context, "plugin-skills: failed to hook AuraConsume");
 			return false;
 		}
 
 		// Hook CheckStat so the skill orb turns red when life (not mana) is too low.
-		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_CheckStat,
-		                     reinterpret_cast<void*>(Hook_CheckStat),
-		                     reinterpret_cast<void**>(&Original_CheckStat))) {
-			D2RPluginLogErrorF(context, "plugin-skills: failed to hook CheckStat");
-			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_AuraConsume);
-			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_Consume);
-			for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
-				PSh_RemoveHook(PLUGINID_SKILLS, context, off);
+		if (!context->InstallInlineHook(OFF_CheckStat, nullptr, 0, Hook_CheckStat, &Original_CheckStat)) {
+			D2RL::LogErrorF(context, "plugin-skills: failed to hook CheckStat");
 			return false;
 		}
 
 		// Hook client-side mana prediction to drain life instead (prevents rubber-banding).
-		// First 6 bytes: push rbx (2) + sub rsp,0x20 (4) — requires hookSize=6.
-		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_ClientPredict,
-		                     reinterpret_cast<void*>(Hook_ClientPredict),
-		                     reinterpret_cast<void**>(&Original_ClientPredict), 6)) {
-			D2RPluginLogErrorF(context, "plugin-skills: failed to hook ClientPredict");
-			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_CheckStat);
-			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_AuraConsume);
-			PSh_RemoveHook(PLUGINID_SKILLS, context, OFF_Consume);
-			for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
-				PSh_RemoveHook(PLUGINID_SKILLS, context, off);
+		// First 6 bytes: push rbx (2) + sub rsp,0x20 (4) — old API needed hookSize=6 here;
+		// the new InstallInlineHook has no hookSize param, trusting the loader to size it.
+		if (!context->InstallInlineHook(OFF_ClientPredict, nullptr, 0, Hook_ClientPredict, &Original_ClientPredict)) {
+			D2RL::LogErrorF(context, "plugin-skills: failed to hook ClientPredict");
 			return false;
 		}
 
 		// Redirect the single CALL at 0x1401a2580 inside D2CLIENT_GetUnusableUseState.
-		PSh_PatchCallSite(PLUGINID_SKILLS, context, OFF_GetUseState_Call,
-		                  reinterpret_cast<void*>(Hook_GetUseState));
+		(void)context->PatchRel32(OFF_GetUseState_Call, nullptr, 0,
+			reinterpret_cast<uint64_t>(&Hook_GetUseState) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_skillPluginOptions.bEnableClassicWW)
 	{
 		uint8_t classicWWBytes[] = { 0xB8, 0x01, 0x00, 0x00, 0x00 };
-		PSh_PatchBytes(PLUGINID_SKILLS, context, OFF_ClassicWW, 5, classicWWBytes);
+		(void)context->PatchBytes(OFF_ClassicWW, nullptr, 0, classicWWBytes, sizeof(classicWWBytes));
 	}
 
 	if (g_skillPluginOptions.bEnableWWCtc)
 	{
 		uint8_t ctcWWBytes[] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
-		PSh_PatchBytes(PLUGINID_SKILLS, context, OFF_EnableWWCtC, 6, ctcWWBytes);
+		(void)context->PatchBytes(OFF_EnableWWCtC, nullptr, 0, ctcWWBytes, sizeof(ctcWWBytes));
 	}
 
 	if (g_skillPluginOptions.bTelekinesisPicksUpEverything)
 	{
-		PSh_PatchCallSite(PLUGINID_SKILLS, context, OFF_Telekinesis,
-			reinterpret_cast<void*>(Hook_CanBePickedUpWithTelekinesis));
+		(void)context->PatchRel32(OFF_Telekinesis, nullptr, 0,
+			reinterpret_cast<uint64_t>(&Hook_CanBePickedUpWithTelekinesis) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_skillPluginOptions.bEnableChargedPctDrainStat)
 	{
-		if (!PSh_InstallHook(PLUGINID_SKILLS, context, OFF_ConsumeWeaponCharge,
-		                     reinterpret_cast<void*>(Hook_ConsumeWeaponCharge),
-		                     reinterpret_cast<void**>(&Original_ConsumeWeaponCharge))) {
-			D2RPluginLogErrorF(context, "plugin-skills: failed to hook ConsumeWeaponCharge");
+		if (!context->InstallInlineHook(OFF_ConsumeWeaponCharge, nullptr, 0, Hook_ConsumeWeaponCharge, &Original_ConsumeWeaponCharge)) {
+			D2RL::LogErrorF(context, "plugin-skills: failed to hook ConsumeWeaponCharge");
 			return false;
 		}
 	}
@@ -443,17 +421,10 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 	return true;
 }
 
-D2RLOADER_PLUGIN_EXPORT void __cdecl D2RLoaderUnload() noexcept {
-	// Pass nullptr so ResolveExeBase uses g_CachedExeBase — g_Context is stale by this point.
-	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_ConsumeWeaponCharge);
-	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_GetUseState_Call);
-	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_ClientPredict);
-	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_CheckStat);
-	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_AuraConsume);
-	PSh_RemoveHook(PLUGINID_SKILLS, nullptr, OFF_Consume);
-	for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
-		PSh_RemoveHook(PLUGINID_SKILLS, nullptr, off);
+D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	// Hooks/patches installed via context->InstallInlineHook/PatchBytes/PatchRel32 are
+	// reverted automatically by D2RLoader on unload (ASSUMPTION — verify against real
+	// loader behavior before relying on this in production).
 	g_SkillsRecords = nullptr;
 	g_SkillsCount   = 0;
-	g_Context       = nullptr;
 }

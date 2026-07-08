@@ -41,5 +41,5 @@ struct QuestPluginOptions {
 	uint8_t ImbueAllowSockets;	// NOP two bytes at 0x140246597 and 0x1402468b6
 
 
-	void Load(const D2RLoaderPluginContext* context, const nlohmann::json& cfg);
+	void Load(const D2RL::PluginContext* context, const nlohmann::json& cfg);
 };

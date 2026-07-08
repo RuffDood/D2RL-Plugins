@@ -6,5 +6,5 @@
 struct LevelPluginOptions {
 	bool bDisableAct1Path;
 
-	void Load(const D2RLoaderPluginContext* context, const nlohmann::json& cfg);
+	void Load(const D2RL::PluginContext* context, const nlohmann::json& cfg);
 };

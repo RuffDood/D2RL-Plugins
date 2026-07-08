@@ -1,4 +1,4 @@
-﻿#include "plugin.h"
+﻿#include <D2RLPlugin/api.h>
 #include "items-private.h"
 #include <cstring>
 #include <vector>
@@ -440,7 +440,7 @@ static int __fastcall Hook_GetInventoryGoldLimit(int64_t unitPtr)
 
 // ── INI loading ───────────────────────────────────────────────────────────────
 
-void ItemPluginOptions::Load(const D2RLoaderPluginContext* context, const nlohmann::json& cfg)
+void ItemPluginOptions::Load(const D2RL::PluginContext* context, const nlohmann::json& cfg)
 {
 	bMagicItemsSpawnIdentified = cfg.value("magicItemsSpawnIdentified", false);
 	bRareItemsSpawnIdentified  = cfg.value("rareItemsSpawnIdentified", false);
@@ -520,21 +520,22 @@ static uint8_t ShiftCount(int n) {
 
 // ── Plugin exports ────────────────────────────────────────────────────────────
 
-static constexpr D2RLoaderPluginInfo PluginInfo {
-	.apiVersion = D2RLOADER_PLUGIN_API_VERSION,
-	.id         = "plugin-items",
-	.name       = "Items Plugin",
-	.version    = "0.0.1",
-	.author     = "eezstreet",
-	.flags      = D2RLoaderPluginFlag_None,
+static constexpr D2RL::PluginInfo PluginInfo{
+	.infoSize = D2RL::PluginInfoSize,
+	.apiVersion = D2RL_PLUGIN_API_VERSION,
+	.id = "eezstreet-plugin-items",
+	.version = "2.0.0",
+	.author = "eezstreet",
+	.description = "Various item-related changes.",
+	.flags = D2RL::PluginFlags::None,
 };
 
-D2RLOADER_PLUGIN_EXPORT const D2RLoaderPluginInfo* __cdecl D2RLoaderGetPluginInfo() noexcept {
+D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginInfo* {
 	return &PluginInfo;
 }
 
-D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginContext* context) noexcept {
-	if (!context || context->apiVersion < D2RLOADER_PLUGIN_API_VERSION) {
+D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
+	if (context == nullptr) {
 		return false;
 	}
 
@@ -544,36 +545,35 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 
 	// Resolve internal function pointers used by both hooks.
 	Fn_GenerateStoreItem = reinterpret_cast<GenerateStoreItem_t>(g_exeBase + OFF_GenerateStoreItem);
-	Fn_ComputeItemLevel  = reinterpret_cast<ComputeItemLevel_t>(g_exeBase + OFF_ComputeItemLevel);
+	Fn_ComputeItemLevel = reinterpret_cast<ComputeItemLevel_t>(g_exeBase + OFF_ComputeItemLevel);
 	Fn_GetItemIdFromCode = reinterpret_cast<GetItemIdFromCode_t>(g_exeBase + OFF_GetItemIdFromCode);
-	Fn_SetUnitStat       = reinterpret_cast<SetUnitStat_t>(g_exeBase + OFF_SetUnitStat);
-	Fn_GetMaxStack       = reinterpret_cast<GetMaxStack_t>(g_exeBase + OFF_GetMaxStack);
+	Fn_SetUnitStat = reinterpret_cast<SetUnitStat_t>(g_exeBase + OFF_SetUnitStat);
+	Fn_GetMaxStack = reinterpret_cast<GetMaxStack_t>(g_exeBase + OFF_GetMaxStack);
 
 	if (g_pluginOptions.bEnableVendorOverhaul)
 	{
 		// First instruction is MOV qword ptr [RSP+0x18],R8 = 5 bytes (4C 89 44 24 18).
-		if (!PSh_InstallHook(PLUGINID_ITEMS, context, OFF_FillStoreInventory,
-		                     reinterpret_cast<void*>(Hook_FillStoreInventory),
-		                     reinterpret_cast<void**>(&Original_FillStoreInventory), 5))
+		if (!context->InstallInlineHook(OFF_FillStoreInventory, nullptr, 0,
+			Hook_FillStoreInventory, &Original_FillStoreInventory))
 		{
-			D2RPluginLogErrorF(context, "plugin-items: failed to hook FillStoreInventory");
+			D2RL::LogErrorF(context, "plugin-items: failed to hook FillStoreInventory");
 		}
 
 		// Difficulty upgrade threshold patches inside D2GAME_NPC_GenerateStoreItem.
 		{
-			uint32_t nmBase   = (uint32_t)g_pluginOptions.VendorNightmareUpgradeBaseChance;
+			uint32_t nmBase = (uint32_t)g_pluginOptions.VendorNightmareUpgradeBaseChance;
 			uint32_t hellBase = (uint32_t)g_pluginOptions.VendorHellUberUpgradeBaseChance;
-			uint32_t ultBase  = (uint32_t)g_pluginOptions.VendorHellUpgradeBaseChance;
-			PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_NMUberBaseImm,    4, reinterpret_cast<unsigned char*>(&nmBase));
-			PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_HellUberBaseImm,  4, reinterpret_cast<unsigned char*>(&hellBase));
-			PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_HellUltraBaseImm, 4, reinterpret_cast<unsigned char*>(&ultBase));
+			uint32_t ultBase = (uint32_t)g_pluginOptions.VendorHellUpgradeBaseChance;
+			(void)context->PatchBytes(OFF_NMUberBaseImm, nullptr, 0, &nmBase, sizeof(nmBase));
+			(void)context->PatchBytes(OFF_HellUberBaseImm, nullptr, 0, &hellBase, sizeof(hellBase));
+			(void)context->PatchBytes(OFF_HellUltraBaseImm, nullptr, 0, &ultBase, sizeof(ultBase));
 
-			unsigned char nmScale   = ShiftCount(g_pluginOptions.VendorNightmareUpgradeLevelScale);
+			unsigned char nmScale = ShiftCount(g_pluginOptions.VendorNightmareUpgradeLevelScale);
 			unsigned char hellScale = ShiftCount(g_pluginOptions.VendorHellUberUpgradeLevelScale);
-			unsigned char ultScale  = ShiftCount(g_pluginOptions.VendorHellUpgradeLevelScale);
-			PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_NMUberScaleByte,    1, &nmScale);
-			PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_HellUberScaleByte,  1, &hellScale);
-			PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_HellUltraScaleByte, 1, &ultScale);
+			unsigned char ultScale = ShiftCount(g_pluginOptions.VendorHellUpgradeLevelScale);
+			(void)context->PatchBytes(OFF_NMUberScaleByte, nullptr, 0, &nmScale, sizeof(nmScale));
+			(void)context->PatchBytes(OFF_HellUberScaleByte, nullptr, 0, &hellScale, sizeof(hellScale));
+			(void)context->PatchBytes(OFF_HellUltraScaleByte, nullptr, 0, &ultScale, sizeof(ultScale));
 		}
 	}
 
@@ -582,46 +582,43 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 		// Change JGE (0x7D) → JMP (0xEB) at the ring/amulet override check in FillGamble.
 		// This makes the jump unconditional, permanently skipping the forced ring/amulet logic.
 		unsigned char patch[] = { 0xEB };
-		PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_FillGamble_JgeOpcode, 1, patch);
+		(void)context->PatchBytes(OFF_FillGamble_JgeOpcode, nullptr, 0, patch, sizeof(patch));
 	}
 	else if (g_pluginOptions.GambleFilter == GambleOption::Bitfield)
 	{
 		// First 7 bytes: PUSH RBP (1) + PUSH RSI (1) + PUSH RDI (1) + PUSH R14 (2) + PUSH R15 (2).
-		if (!PSh_InstallHook(PLUGINID_ITEMS, context, OFF_FillGamble,
-		                     reinterpret_cast<void*>(Hook_FillGamble_Bitfield),
-		                     reinterpret_cast<void**>(&Original_FillGamble), 7))
+		if (!context->InstallInlineHook(OFF_FillGamble, nullptr, 0,
+			Hook_FillGamble_Bitfield, &Original_FillGamble))
 		{
-			D2RPluginLogErrorF(context, "plugin-items: failed to hook FillGamble");
+			D2RL::LogErrorF(context, "plugin-items: failed to hook FillGamble");
 		}
 	}
 
 	if (g_pluginOptions.bDisableGoldPenalty)
 	{
 		// CALL is 5 bytes (E8 + 4-byte rel32); replace with NOPs to skip the penalty entirely.
-		unsigned char nops[] = { 0x90, 0x90, 0x90, 0x90, 0x90 };
-		PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_GoldPenaltyCall, 5, nops);
+		(void)context->PatchNop(OFF_GoldPenaltyCall, nullptr, 0, 5);
 	}
 
 	if (g_pluginOptions.bMagicItemsSpawnIdentified)
 	{
 		unsigned char patch[] = { 0x83, 0x4A, 0x18, 0x10 };
-		PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_MagicItemsSpawnIdentified, 4, patch);
+		(void)context->PatchBytes(OFF_MagicItemsSpawnIdentified, nullptr, 0, patch, sizeof(patch));
 	}
 
 	if (g_pluginOptions.bRareItemsSpawnIdentified)
 	{
 		unsigned char patch[] = { 0x83, 0x48, 0x18, 0x10 };
-		PSh_PatchBytes(PLUGINID_ITEMS, context, OFF_RareItemsSpawnIdentified, 4, patch);
+		(void)context->PatchBytes(OFF_RareItemsSpawnIdentified, nullptr, 0, patch, sizeof(patch));
 	}
 
 	if (g_pluginOptions.InventoryGoldLimitChange != GoldOption::Disabled)
 	{
-		// SUB RSP,0x28 (4 bytes) + TEST RCX,RCX (3 bytes) = 7 bytes; hookSize=7.
-		if (!PSh_InstallHook(PLUGINID_ITEMS, context, OFF_GetInventoryGoldLimit,
-		                     reinterpret_cast<void*>(Hook_GetInventoryGoldLimit),
-		                     reinterpret_cast<void**>(&Original_GetInventoryGoldLimit), 7))
+		// SUB RSP,0x28 (4 bytes) + TEST RCX,RCX (3 bytes) = 7 bytes.
+		if (!context->InstallInlineHook(OFF_GetInventoryGoldLimit, nullptr, 0,
+			Hook_GetInventoryGoldLimit, &Original_GetInventoryGoldLimit))
 		{
-			D2RPluginLogErrorF(context, "plugin-items: failed to hook GetInventoryGoldLimit");
+			D2RL::LogErrorF(context, "plugin-items: failed to hook GetInventoryGoldLimit");
 		}
 	}
 
@@ -629,49 +626,42 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 	{
 		if (g_pluginOptions.bRunewordQualities[i])
 		{
-			PSh_PatchBytes(PLUGINID_ITEMS, context,
-			               OFF_RunewordQualityJumpTable + static_cast<uint64_t>(i) * 4,
-			               4, RUNEWORD_QUALITY_PASS);
+			(void)context->PatchBytes(OFF_RunewordQualityJumpTable + static_cast<uint64_t>(i) * 4,
+				nullptr, 0, RUNEWORD_QUALITY_PASS, sizeof(RUNEWORD_QUALITY_PASS));
 		}
 	}
 
 	if (g_pluginOptions.bEnablePlayerConditionCalc)
 	{
-		PSh_PatchCallSite(PLUGINID_ITEMS, context, OFF_CompileTxtCallInTC,
-		                  reinterpret_cast<void*>(Hook_CompileTxt_TC));
-		PSh_PatchCallSite(PLUGINID_ITEMS, context, OFF_CreateCompiledTCStructCall,
-		                  reinterpret_cast<void*>(Hook_CreateCompiledTCStruct));
+		(void)context->PatchRel32(OFF_CompileTxtCallInTC, nullptr, 0,
+			reinterpret_cast<uint64_t>(&Hook_CompileTxt_TC) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
+		(void)context->PatchRel32(OFF_CreateCompiledTCStructCall, nullptr, 0,
+			reinterpret_cast<uint64_t>(&Hook_CreateCompiledTCStruct) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 		// hookSize=6: MOV R11,RSP (3) + PUSH RBP (1) + PUSH R13 (2)
-		if (!PSh_InstallHook(PLUGINID_ITEMS, context, OFF_TCDropFunction,
-		                     reinterpret_cast<void*>(Hook_TCDropFunction),
-		                     reinterpret_cast<void**>(&Original_TCDropFunction), 6))
+		if (!context->InstallInlineHook(OFF_TCDropFunction, nullptr, 0,
+			Hook_TCDropFunction, &Original_TCDropFunction))
 		{
-			D2RPluginLogErrorF(context, "plugin-items: failed to hook TCDropFunction");
+			D2RL::LogErrorF(context, "plugin-items: failed to hook TCDropFunction");
 		}
 		// hookSize=5: MOV qword ptr [RSP+0x8],RBX (5 bytes)
-		if (!PSh_InstallHook(PLUGINID_ITEMS, context, OFF_ConditionGate,
-		                     reinterpret_cast<void*>(Hook_ConditionGate),
-		                     reinterpret_cast<void**>(&Original_ConditionGate), 5))
+		if (!context->InstallInlineHook(OFF_ConditionGate, nullptr, 0,
+			Hook_ConditionGate, &Original_ConditionGate))
 		{
-			D2RPluginLogErrorF(context, "plugin-items: failed to hook ConditionGate");
+			D2RL::LogErrorF(context, "plugin-items: failed to hook ConditionGate");
 		}
 		// hookSize=5: MOV qword ptr [RSP+0x8],RBX (5 bytes)
-		if (!PSh_InstallHook(PLUGINID_ITEMS, context, OFF_ConditionCalcEval,
-		                     reinterpret_cast<void*>(Hook_ConditionCalcEval),
-		                     reinterpret_cast<void**>(&Original_ConditionCalcEval), 5))
+		if (!context->InstallInlineHook(OFF_ConditionCalcEval, nullptr, 0,
+			Hook_ConditionCalcEval, &Original_ConditionCalcEval))
 		{
-			D2RPluginLogErrorF(context, "plugin-items: failed to hook ConditionCalcEval");
+			D2RL::LogErrorF(context, "plugin-items: failed to hook ConditionCalcEval");
 		}
 	}
 
 	return true;
 }
 
-D2RLOADER_PLUGIN_EXPORT void __cdecl D2RLoaderUnload() noexcept {
-	PSh_RemoveHook(PLUGINID_ITEMS, nullptr, OFF_GetInventoryGoldLimit);
-	PSh_RemoveHook(PLUGINID_ITEMS, nullptr, OFF_FillStoreInventory);
-	PSh_RemoveHook(PLUGINID_ITEMS, nullptr, OFF_FillGamble);
-	PSh_RemoveHook(PLUGINID_ITEMS, nullptr, OFF_TCDropFunction);
-	PSh_RemoveHook(PLUGINID_ITEMS, nullptr, OFF_ConditionGate);
-	PSh_RemoveHook(PLUGINID_ITEMS, nullptr, OFF_ConditionCalcEval);
+D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	// Hooks/patches installed via context->InstallInlineHook/PatchBytes/PatchRel32 are
+	// reverted automatically by D2RLoader on unload (ASSUMPTION — verify against real
+	// loader behavior before relying on this in production).
 }

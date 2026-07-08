@@ -1,6 +1,6 @@
 #pragma once
 #include <json.hpp>
-#include <plugin.h>
+#include <D2RLPlugin/context.h>
 #include <fstream>
 #include <optional>
 #include <string>
@@ -8,7 +8,7 @@
 
 // Tries <modDirectory>/D2RPlugins.json, then ./D2RPlugins.json.
 // Returns the parsed JSON on success, or nullopt if neither file is found or is malformed.
-inline std::optional<nlohmann::json> PSh_Json_LoadConfig(const D2RLoaderPluginContext* context)
+inline std::optional<nlohmann::json> PSh_Json_LoadConfig(const D2RL::PluginContext* context)
 {
     auto tryLoad = [](const std::string& path) -> std::optional<nlohmann::json> {
         std::ifstream f(path);
