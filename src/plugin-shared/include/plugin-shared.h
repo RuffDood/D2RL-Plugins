@@ -394,10 +394,10 @@ constexpr uint32_t PSh_EncodeItemCode(const char* itemCode)
 {
 	if (!itemCode) return 0;
 	const char lastChar = 0x20;
-	return lastChar |
-		(((uint32_t)itemCode[2]) << 8) |
-		(((uint32_t)itemCode[1]) << 16) |
-		(((uint32_t)itemCode[0]) << 24);
+	return ((uint32_t)itemCode[0]) |
+		(((uint32_t)itemCode[1]) << 8) |
+		(((uint32_t)itemCode[2]) << 16) |
+		(((uint32_t)lastChar) << 24);
 }
 
 constexpr uint32_t PSh_EncodeItemTypeCode(const char* itemTypeCode)

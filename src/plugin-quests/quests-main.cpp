@@ -241,12 +241,10 @@ D2RLOADER_PLUGIN_EXPORT bool __cdecl D2RLoaderLoadHooks(const D2RLoaderPluginCon
 	if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed item on each difficulty
 		// Turn this into a XOR EAX,EAX; MOV AL, (reward)
-		uint32_t rewardBytes = 0x31C0B000;
-		rewardBytes &= 0xFFFFFF00;
-		rewardBytes |= g_questPluginOptions.AkaraCainRingQuality.Reward;
+		unsigned char rewardBytes[4] = { 0x31, 0xC0, 0xB0, g_questPluginOptions.AkaraCainRingQuality.Reward };
 
 		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_AkaraRingItem, 4, (unsigned char*)&g_questPluginOptions.AkaraCainRingItem.Reward);
-		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_AkaraRingItemQuality, 4, (unsigned char*)&rewardBytes);
+		PSh_PatchBytes(PLUGINID_QUESTS, context, OFF_AkaraRingItemQuality, 4, rewardBytes);
 	}
 	else if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::DifferentPerDifficulty)
 	{	// Different item/quality depending on difficulty

@@ -10,7 +10,7 @@ enum class RewardType : uint8_t {
 };
 
 template <typename T>
-union ItemQuestReward {
+struct ItemQuestReward {
 	T Reward;
 	T RewardPerDifficulty[3];
 };
