@@ -4,13 +4,19 @@
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
-// Inside FUN_14013cc10 (/players command handler)
-static constexpr uint64_t OFF_Players_AtoiCall    = 0x13d45d; // E8 CALL to atoi (parses the numeric arg)
-static constexpr uint64_t OFF_Players_ApplyCall   = 0x13d47e; // E8 CALL to FUN_1408082b0 (applies player count)
+// Inside FUN_140188700 (/players command handler)
+static constexpr uint64_t OFF_Players_AtoiCall    = 0x18885b; // E8 CALL to atoi (parses the numeric arg)
+static constexpr uint64_t OFF_Players_ApplyCall   = 0x18887f; // E8 CALL to FUN_140d2f020 (applies player count)
 
 // Callees saved so hooks can forward through
-static constexpr uint64_t OFF_Players_Atoi        = 0x1581a50; // atoi used at the /players call site
-static constexpr uint64_t OFF_SetPlayerCount      = 0x8082b0;  // FUN_1408082b0(session, count)
+static constexpr uint64_t OFF_Players_Atoi        = 0x12da3a4; // atoi used at the /players call site
+static constexpr uint64_t OFF_SetPlayerCount      = 0xd2f020;  // FUN_140d2f020(session, count)
+
+// Expected original bytes (verified against d2r_debug_91923.exe). D2RLoader
+// requires non-null expected bytes for PatchRel32 calls so it can verify the
+// patch site before writing.
+static constexpr uint8_t EXP_Players_AtoiCall[5]  = { 0xE8, 0x44, 0x1B, 0x15, 0x01 };
+static constexpr uint8_t EXP_Players_ApplyCall[5] = { 0xE8, 0x9C, 0x67, 0xBA, 0x00 };
 
 // ── D2R function types ────────────────────────────────────────────────────────
 
@@ -49,9 +55,9 @@ static void __fastcall Hook_SetPlayerCount(void* session, int /*count*/) {
 static constexpr D2RL::PluginInfo PluginInfo {
 	.infoSize   = D2RL::PluginInfoSize,
 	.apiVersion = D2RL_PLUGIN_API_VERSION,
-	.id         = "plugin-misc",
-	.name       = "Misc Plugin",
-	.version    = "0.0.1",
+	.id         = "eezstreet-plugin-misc",
+	.name       = "eezstreet Misc Plugin",
+	.version    = "2.0.0",
 	.author     = "eezstreet",
 	.description = "Miscellaneous changes.",
 	.flags      = D2RL::PluginFlags::None,
@@ -74,9 +80,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		Real_PlayersAtoi    = reinterpret_cast<PlayersAtoi_t>(context->exeBase + OFF_Players_Atoi);
 		Real_SetPlayerCount = reinterpret_cast<SetPlayerCount_t>(context->exeBase + OFF_SetPlayerCount);
 
-		(void)context->PatchRel32(OFF_Players_AtoiCall, nullptr, 0,
+		(void)context->PatchRel32(OFF_Players_AtoiCall, EXP_Players_AtoiCall, sizeof(EXP_Players_AtoiCall),
 			reinterpret_cast<uint64_t>(&Hook_PlayersAtoi) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
-		(void)context->PatchRel32(OFF_Players_ApplyCall, nullptr, 0,
+		(void)context->PatchRel32(OFF_Players_ApplyCall, EXP_Players_ApplyCall, sizeof(EXP_Players_ApplyCall),
 			reinterpret_cast<uint64_t>(&Hook_SetPlayerCount) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 

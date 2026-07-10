@@ -38,7 +38,7 @@ struct QuestPluginOptions {
 	RewardType                QualKehkRuneRewardEnabled;
 	ItemQuestReward<uint32_t> QualKehkRuneItems[3];
 
-	uint8_t ImbueAllowSockets;	// NOP two bytes at 0x140246597 and 0x1402468b6
+	uint8_t ImbueAllowSockets;	// NOP two bytes at 0x14036b123 and 0x14036b61b
 
 
 	void Load(const D2RL::PluginContext* context, const nlohmann::json& cfg);

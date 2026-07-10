@@ -1,39 +1,84 @@
-﻿#include <D2RLPlugin/api.h>
+#include <D2RLPlugin/api.h>
 #include <plugin-shared.h>
 #include "quests-private.h"
 #include <plugin-shared-json.h>
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
-static constexpr uint64_t OFF_DenOfEvilPatch1 = 0x456CDA;
-static constexpr uint64_t OFF_DenOfEvilPatch2 = 0x456CEA;
-static constexpr uint64_t OFF_DenOfEvilPatch3 = 0x456D04;
-static constexpr uint64_t OFF_FallenAngelPatch1 = 0x4660FE;
-static constexpr uint64_t OFF_FallenAngelPatch2 = 0x46610E;
-static constexpr uint64_t OFF_FallenAngelPatch3 = 0x466128;
-static constexpr uint64_t OFF_BlackBookPatch1 = 0x46C9C7;
-static constexpr uint64_t OFF_BlackBookPatch2 = 0x46C9E2;
-static constexpr uint64_t OFF_GoldenBirdStatPatch1 = 0x3F23D7;
-static constexpr uint64_t OFF_GoldenBirdStatPatch2 = 0x3F23E6;
-static constexpr uint64_t OFF_GoldenBirdAmountPatch1 = 0x3F23CB;
-static constexpr uint64_t OFF_GoldenBirdAmountPatch2 = 0x3F23EE;
-static constexpr uint64_t OFF_SkillBookStatPatch1 = 0x3F2594;
-static constexpr uint64_t OFF_SkillBookStatPatch2 = 0x3F2585;
-static constexpr uint64_t OFF_SkillBookAmountPatch1 = 0x3F2581;
-static constexpr uint64_t OFF_SkillBookAmountPatch2 = 0x3F259C;
-static constexpr uint64_t OFF_AkaraRingItem = 0x463B1D;
-static constexpr uint64_t OFF_AkaraRingItemQuality = 0x463B17;
-static constexpr uint64_t OFF_AkaraRingCallSite = 0x463B34;
-static constexpr uint64_t OFF_OrmusRingItem = 0x47781D;
-static constexpr uint64_t OFF_OrmusRingItemQuality = 0x477830;
-static constexpr uint64_t OFF_OrmusRingCallSite = 0x477834;
-static constexpr uint64_t OFF_GiveQuestItem = 0x35E3B0;
-static constexpr uint64_t OFF_QualKehkItem1       = 0x19EB430;
-static constexpr uint64_t OFF_QualKehkItem2       = 0x19EB434;
-static constexpr uint64_t OFF_QualKehkItem3       = 0x19EB438;
-static constexpr uint64_t OFF_QualKehkCallSite    = 0x3D4AFF;
-static constexpr uint64_t OFF_ImbueSocket1 = 0x246597;
-static constexpr uint64_t OFF_ImbueSocket2 = 0x2468b6;
+// Den of Evil reward: found via ACT1Q1_Callback11_ScrollMessage (decompile embeds
+// the "a1q1.cpp" source path), located from ACT1Q1_InitQuestData's callback table,
+// itself found by a byte-identical match of the gpAct1Q1NpcMessages data table.
+// Unlike profile.exe (amount is a plain MOV imm32, stat-id is a dependent
+// LEA R8D,[R9+4] that drifts if the amount register changes, hence the old
+// PUSH 5/POP R8 decouple patch), debug.exe computes both values independently as
+// LEA reg,[R9+<const>] off a register that's always zeroed by an immediately
+// preceding XOR R9D,R9D. There is no drift to decouple, so the old Patch2 site/
+// patch is unnecessary here — the amount is just the disp8 byte of its own LEA,
+// patched exactly like the old single-byte MOV case.
+static constexpr uint64_t OFF_DenOfEvilPatch1 = 0x5de5a0;
+static constexpr uint64_t OFF_DenOfEvilPatch3 = 0x5de5a0;
+// Izual/Fallen Angel reward: same shape as Den of Evil above. Debug computes
+// the stat-id via LEA EDX,[R9+0x5] off a register that's always zeroed by an
+// immediately preceding XOR R9D,R9D, completely independent of the reward
+// register — so the old Patch2 (PUSH 5/POP R8 decouple) is unnecessary here
+// too, and was in fact still being applied at its stale *profile.exe*
+// address against the debug binary (a live bug: it was corrupting 4
+// unrelated bytes of debug.exe). Removed; see OFF_DenOfEvilPatch1's comment
+// for the full explanation of why no decouple site exists in this build.
+static constexpr uint64_t OFF_FallenAngelPatch1 = 0x5e6eee;
+static constexpr uint64_t OFF_FallenAngelPatch3 = 0x5e6eee;
+// Note: the debug build's codegen dropped the duplicate copy of these
+// immediates that profile.exe wrote into a stack struct for an
+// EVENTS_InvokeHandlerList notification call (that call site doesn't exist
+// in this build) — only one copy of each stat/amount immediate remains, so
+// both Patch1/Patch2 constants below point at the same instruction. Patching
+// the same address twice is harmless.
+static constexpr uint64_t OFF_BlackBookPatch1 = 0x5ed713;
+static constexpr uint64_t OFF_BlackBookPatch2 = 0x5ed713;
+static constexpr uint64_t OFF_GoldenBirdStatPatch1 = 0x5806c1;
+static constexpr uint64_t OFF_GoldenBirdStatPatch2 = 0x5806c1;
+static constexpr uint64_t OFF_GoldenBirdAmountPatch1 = 0x5806b7;
+static constexpr uint64_t OFF_GoldenBirdAmountPatch2 = 0x5806b7;
+static constexpr uint64_t OFF_SkillBookStatPatch1 = 0x58078b;
+static constexpr uint64_t OFF_SkillBookStatPatch2 = 0x58078b;
+static constexpr uint64_t OFF_SkillBookAmountPatch1 = 0x58078f;
+static constexpr uint64_t OFF_SkillBookAmountPatch2 = 0x58078f;
+static constexpr uint64_t OFF_AkaraRingItem = 0x5d9a52;
+static constexpr uint64_t OFF_AkaraRingItemQuality = 0x5d9a4d;
+static constexpr uint64_t OFF_AkaraRingCallSite = 0x5d9a6d;
+static constexpr uint64_t OFF_OrmusRingItem = 0x5e9bc3;
+static constexpr uint64_t OFF_OrmusRingItemQuality = 0x5e9bd6;
+static constexpr uint64_t OFF_OrmusRingCallSite = 0x5e9bde;
+static constexpr uint64_t OFF_GiveQuestItem = 0x517530;
+static constexpr uint64_t OFF_QualKehkItem1       = 0x23a02c0;
+static constexpr uint64_t OFF_QualKehkItem2       = 0x23a02c4;
+static constexpr uint64_t OFF_QualKehkItem3       = 0x23a02c8;
+static constexpr uint64_t OFF_QualKehkCallSite    = 0x54c9ac;
+static constexpr uint64_t OFF_ImbueSocket1 = 0x36b123;
+static constexpr uint64_t OFF_ImbueSocket2 = 0x36b61b;
+
+// ── Expected original bytes (verified against d2r_debug_91923.exe) ───────────
+// D2RLoader requires non-null expected bytes for PatchBytes/PatchRel32 calls
+// so it can verify the patch site before writing.
+static constexpr uint8_t EXP_DenOfEvilPatch[1]        = { 0x01 };
+static constexpr uint8_t EXP_FallenAngelPatch[1]      = { 0x02 };
+static constexpr uint8_t EXP_BlackBookPatch[1]        = { 0x04 };
+static constexpr uint8_t EXP_GoldenBirdStatPatch[1]   = { 0x07 };
+static constexpr uint8_t EXP_GoldenBirdAmountPatch[4] = { 0x00, 0x14, 0x00, 0x00 };
+static constexpr uint8_t EXP_SkillBookAmountPatch[1]  = { 0x01 };
+static constexpr uint8_t EXP_SkillBookStatPatch[1]    = { 0x05 };
+static constexpr uint8_t EXP_AkaraRingItem[4]         = { 0x72, 0x69, 0x6E, 0x20 };
+static constexpr uint8_t EXP_AkaraRingItemQuality[4]  = { 0x8B, 0x53, 0x1C, 0x41 };
+static constexpr uint8_t EXP_AkaraRingCallSite[5]     = { 0xE8, 0xBE, 0xDA, 0xF3, 0xFF };
+static constexpr uint8_t EXP_OrmusRingItem[4]         = { 0x72, 0x69, 0x6E, 0x20 };
+static constexpr uint8_t EXP_OrmusRingItemQuality[1]  = { 0xC7 };
+static constexpr uint8_t EXP_OrmusRingCallSite[5]     = { 0xE8, 0x4D, 0xD9, 0xF2, 0xFF };
+static constexpr uint8_t EXP_QualKehkItem1[3]         = { 0x72, 0x30, 0x37 };
+static constexpr uint8_t EXP_QualKehkItem2[3]         = { 0x72, 0x30, 0x38 };
+static constexpr uint8_t EXP_QualKehkItem3[3]         = { 0x72, 0x30, 0x39 };
+static constexpr uint8_t EXP_QualKehkCallSite[5]      = { 0xE8, 0x7F, 0xAB, 0xFC, 0xFF };
+static constexpr uint8_t EXP_ImbueSocket1[2]          = { 0x0F, 0x85 };
+static constexpr uint8_t EXP_ImbueSocket2[2]          = { 0x75, 0x6A };
 
 // ── Plugin state ──────────────────────────────────────────────────────────────
 
@@ -186,15 +231,13 @@ void QuestPluginOptions::Load(const D2RL::PluginContext* /*context*/, const nloh
 static constexpr D2RL::PluginInfo PluginInfo {
 	.infoSize   = D2RL::PluginInfoSize,
 	.apiVersion = D2RL_PLUGIN_API_VERSION,
-	.id         = "plugin-quests",
-	.name       = "Quests Plugin",
+	.id         = "eezstreet-plugin-quests",
+	.name       = "eezstreet Quests Plugin",
 	.version    = "0.0.1",
 	.author     = "eezstreet",
 	.description = "Various quest-related changes.",
 	.flags      = D2RL::PluginFlags::None,
 };
-
-static unsigned char DenOfEvil_PushPopPatch[] = {0x6A, 0x05, 0x41, 0x58};
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginInfo* {
 	return &PluginInfo;
@@ -209,35 +252,35 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	g_questPluginOptions.Load(context, PSh_Json_GetSection(cfg, "quests"));
 
 	if (g_questPluginOptions.DenOfEvilRewardEnabled == RewardType::SamePerDifficulty)
-	{	// Fixed reward on each difficulty
-		(void)context->PatchBytes(OFF_DenOfEvilPatch1, nullptr, 0, &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
-		(void)context->PatchBytes(OFF_DenOfEvilPatch2, nullptr, 0, DenOfEvil_PushPopPatch, sizeof(DenOfEvil_PushPopPatch));
-		(void)context->PatchBytes(OFF_DenOfEvilPatch3, nullptr, 0, &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
+	{	// Fixed reward on each difficulty. No decouple patch needed here anymore —
+		// see the comment by OFF_DenOfEvilPatch1's declaration.
+		(void)context->PatchBytes(OFF_DenOfEvilPatch1, EXP_DenOfEvilPatch, sizeof(EXP_DenOfEvilPatch), &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
+		(void)context->PatchBytes(OFF_DenOfEvilPatch3, EXP_DenOfEvilPatch, sizeof(EXP_DenOfEvilPatch), &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
 	}
 	if (g_questPluginOptions.IzualRewardEnabled == RewardType::SamePerDifficulty)
-	{	// Fixed reward on each difficulty
-		(void)context->PatchBytes(OFF_FallenAngelPatch1, nullptr, 0, &g_questPluginOptions.IzualSkillPointReward, 1);
-		(void)context->PatchBytes(OFF_FallenAngelPatch2, nullptr, 0, DenOfEvil_PushPopPatch, sizeof(DenOfEvil_PushPopPatch));
-		(void)context->PatchBytes(OFF_FallenAngelPatch3, nullptr, 0, &g_questPluginOptions.IzualSkillPointReward, 1);
+	{	// Fixed reward on each difficulty. No decouple patch needed here anymore —
+		// see the comment by OFF_FallenAngelPatch1's declaration.
+		(void)context->PatchBytes(OFF_FallenAngelPatch1, EXP_FallenAngelPatch, sizeof(EXP_FallenAngelPatch), &g_questPluginOptions.IzualSkillPointReward, 1);
+		(void)context->PatchBytes(OFF_FallenAngelPatch3, EXP_FallenAngelPatch, sizeof(EXP_FallenAngelPatch), &g_questPluginOptions.IzualSkillPointReward, 1);
 	}
 	if (g_questPluginOptions.BlackBookRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty
-		(void)context->PatchBytes(OFF_BlackBookPatch1, nullptr, 0, &g_questPluginOptions.BlackBookStatPointReward, 1);
-		(void)context->PatchBytes(OFF_BlackBookPatch2, nullptr, 0, &g_questPluginOptions.BlackBookStatPointReward, 1);
+		(void)context->PatchBytes(OFF_BlackBookPatch1, EXP_BlackBookPatch, sizeof(EXP_BlackBookPatch), &g_questPluginOptions.BlackBookStatPointReward, 1);
+		(void)context->PatchBytes(OFF_BlackBookPatch2, EXP_BlackBookPatch, sizeof(EXP_BlackBookPatch), &g_questPluginOptions.BlackBookStatPointReward, 1);
 	}
 	if (g_questPluginOptions.GoldenBirdRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		(void)context->PatchBytes(OFF_GoldenBirdStatPatch1, nullptr, 0, &g_questPluginOptions.GoldenBirdRewardStat, 1);
-		(void)context->PatchBytes(OFF_GoldenBirdStatPatch2, nullptr, 0, &g_questPluginOptions.GoldenBirdRewardStat, 1);
-		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch1, nullptr, 0, &g_questPluginOptions.GoldenBirdRewardAmount, 4);
-		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch2, nullptr, 0, &g_questPluginOptions.GoldenBirdRewardAmount, 4);
+		(void)context->PatchBytes(OFF_GoldenBirdStatPatch1, EXP_GoldenBirdStatPatch, sizeof(EXP_GoldenBirdStatPatch), &g_questPluginOptions.GoldenBirdRewardStat, 1);
+		(void)context->PatchBytes(OFF_GoldenBirdStatPatch2, EXP_GoldenBirdStatPatch, sizeof(EXP_GoldenBirdStatPatch), &g_questPluginOptions.GoldenBirdRewardStat, 1);
+		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch1, EXP_GoldenBirdAmountPatch, sizeof(EXP_GoldenBirdAmountPatch), &g_questPluginOptions.GoldenBirdRewardAmount, 4);
+		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch2, EXP_GoldenBirdAmountPatch, sizeof(EXP_GoldenBirdAmountPatch), &g_questPluginOptions.GoldenBirdRewardAmount, 4);
 	}
 	if (g_questPluginOptions.SkillBookRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		(void)context->PatchBytes(OFF_SkillBookAmountPatch1, nullptr, 0, &g_questPluginOptions.SkillBookRewardAmount, 1);
-		(void)context->PatchBytes(OFF_SkillBookAmountPatch2, nullptr, 0, &g_questPluginOptions.SkillBookRewardAmount, 1);
-		(void)context->PatchBytes(OFF_SkillBookStatPatch1, nullptr, 0, &g_questPluginOptions.SkillBookRewardStat, 1);
-		(void)context->PatchBytes(OFF_SkillBookStatPatch2, nullptr, 0, &g_questPluginOptions.SkillBookRewardStat, 1);
+		(void)context->PatchBytes(OFF_SkillBookAmountPatch1, EXP_SkillBookAmountPatch, sizeof(EXP_SkillBookAmountPatch), &g_questPluginOptions.SkillBookRewardAmount, 1);
+		(void)context->PatchBytes(OFF_SkillBookAmountPatch2, EXP_SkillBookAmountPatch, sizeof(EXP_SkillBookAmountPatch), &g_questPluginOptions.SkillBookRewardAmount, 1);
+		(void)context->PatchBytes(OFF_SkillBookStatPatch1, EXP_SkillBookStatPatch, sizeof(EXP_SkillBookStatPatch), &g_questPluginOptions.SkillBookRewardStat, 1);
+		(void)context->PatchBytes(OFF_SkillBookStatPatch2, EXP_SkillBookStatPatch, sizeof(EXP_SkillBookStatPatch), &g_questPluginOptions.SkillBookRewardStat, 1);
 	}
 
 	if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::SamePerDifficulty)
@@ -245,46 +288,46 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// Turn this into a XOR EAX,EAX; MOV AL, (reward)
 		unsigned char rewardBytes[4] = { 0x31, 0xC0, 0xB0, g_questPluginOptions.AkaraCainRingQuality.Reward };
 
-		(void)context->PatchBytes(OFF_AkaraRingItem, nullptr, 0, &g_questPluginOptions.AkaraCainRingItem.Reward, 4);
-		(void)context->PatchBytes(OFF_AkaraRingItemQuality, nullptr, 0, rewardBytes, sizeof(rewardBytes));
+		(void)context->PatchBytes(OFF_AkaraRingItem, EXP_AkaraRingItem, sizeof(EXP_AkaraRingItem), &g_questPluginOptions.AkaraCainRingItem.Reward, 4);
+		(void)context->PatchBytes(OFF_AkaraRingItemQuality, EXP_AkaraRingItemQuality, sizeof(EXP_AkaraRingItemQuality), rewardBytes, sizeof(rewardBytes));
 	}
 	else if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::DifferentPerDifficulty)
 	{	// Different item/quality depending on difficulty
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		(void)context->PatchRel32(OFF_AkaraRingCallSite, nullptr, 0,
+		(void)context->PatchRel32(OFF_AkaraRingCallSite, EXP_AkaraRingCallSite, sizeof(EXP_AkaraRingCallSite),
 			reinterpret_cast<uint64_t>(&Hook_AkaraCainRingDiffReward) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_questPluginOptions.OrmusGidbinnRingRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed item on each difficulty
-		(void)context->PatchBytes(OFF_OrmusRingItem, nullptr, 0, &g_questPluginOptions.OrmusGidbinnRingItem.Reward, 4);
-		(void)context->PatchBytes(OFF_OrmusRingItemQuality, nullptr, 0, &g_questPluginOptions.OrmusGidbinnRingQuality.Reward, 1);
+		(void)context->PatchBytes(OFF_OrmusRingItem, EXP_OrmusRingItem, sizeof(EXP_OrmusRingItem), &g_questPluginOptions.OrmusGidbinnRingItem.Reward, 4);
+		(void)context->PatchBytes(OFF_OrmusRingItemQuality, EXP_OrmusRingItemQuality, sizeof(EXP_OrmusRingItemQuality), &g_questPluginOptions.OrmusGidbinnRingQuality.Reward, 1);
 	}
 	else if (g_questPluginOptions.OrmusGidbinnRingRewardEnabled == RewardType::DifferentPerDifficulty)
 	{	// Different item/quality depending on difficulty
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		(void)context->PatchRel32(OFF_OrmusRingCallSite, nullptr, 0,
+		(void)context->PatchRel32(OFF_OrmusRingCallSite, EXP_OrmusRingCallSite, sizeof(EXP_OrmusRingCallSite),
 			reinterpret_cast<uint64_t>(&Hook_OrmusGidbinnRingDiffReward) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		(void)context->PatchBytes(OFF_QualKehkItem1, nullptr, 0, &g_questPluginOptions.QualKehkRuneItems[0].Reward, 3);
-		(void)context->PatchBytes(OFF_QualKehkItem2, nullptr, 0, &g_questPluginOptions.QualKehkRuneItems[1].Reward, 3);
-		(void)context->PatchBytes(OFF_QualKehkItem3, nullptr, 0, &g_questPluginOptions.QualKehkRuneItems[2].Reward, 3);
+		(void)context->PatchBytes(OFF_QualKehkItem1, EXP_QualKehkItem1, sizeof(EXP_QualKehkItem1), &g_questPluginOptions.QualKehkRuneItems[0].Reward, 3);
+		(void)context->PatchBytes(OFF_QualKehkItem2, EXP_QualKehkItem2, sizeof(EXP_QualKehkItem2), &g_questPluginOptions.QualKehkRuneItems[1].Reward, 3);
+		(void)context->PatchBytes(OFF_QualKehkItem3, EXP_QualKehkItem3, sizeof(EXP_QualKehkItem3), &g_questPluginOptions.QualKehkRuneItems[2].Reward, 3);
 	}
 	else if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::DifferentPerDifficulty)
 	{
 		g_exeBase = context->exeBase;
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		(void)context->PatchRel32(OFF_QualKehkCallSite, nullptr, 0,
+		(void)context->PatchRel32(OFF_QualKehkCallSite, EXP_QualKehkCallSite, sizeof(EXP_QualKehkCallSite),
 			reinterpret_cast<uint64_t>(&Hook_QualKehkRuneDiffReward) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_questPluginOptions.ImbueAllowSockets)
 	{
-		(void)context->PatchNop(OFF_ImbueSocket1, nullptr, 0, 2);
-		(void)context->PatchNop(OFF_ImbueSocket2, nullptr, 0, 2);
+		(void)context->PatchNop(OFF_ImbueSocket1, EXP_ImbueSocket1, sizeof(EXP_ImbueSocket1), 2);
+		(void)context->PatchNop(OFF_ImbueSocket2, EXP_ImbueSocket2, sizeof(EXP_ImbueSocket2), 2);
 	}
 
 	return true;

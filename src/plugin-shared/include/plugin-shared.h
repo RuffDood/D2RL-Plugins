@@ -346,7 +346,7 @@ static_assert(sizeof(D2UnitStrc) == 448, "D2UnitStrc must be 448 bytes");
 // result, using the same LCG the engine uses for per-unit rolls (see
 // SKILLS_FindPotion_DropPotion @ 0x140417018): next = seedLow * 0x6AC690C5 + seedHigh.
 // Callers reduce (uint32_t)result as needed (e.g. % 100 for a percent roll).
-D2RL_PLUGIN_EXPORT uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept;
+extern "C" uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept;
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
@@ -356,8 +356,8 @@ D2RL_PLUGIN_EXPORT uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept;
 // a small set of internal min-value floors (see STATLIST_GetStat in Ghidra) that
 // plugin code doesn't need. Requires exeBase (context->exeBase) since the call
 // target lives in the game executable, not plugin-shared.
-D2RL_PLUGIN_EXPORT int PSh_GetStat(uintptr_t exeBase, D2StatListStrc* statList,
-                                    int statId, int64_t minOverride = 0) noexcept;
+extern "C" int PSh_GetStat(uintptr_t exeBase, D2StatListStrc* statList,
+                            int statId, int64_t minOverride = 0) noexcept;
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 constexpr uint32_t PSh_EncodeItemCode(const char* itemCode)

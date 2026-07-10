@@ -14,31 +14,93 @@ using CompileTxt_t    = void(__fastcall*)(uint8_t context, const char* txtName,
                                           D2TxtContainer* output);
 using Consume_t       = int64_t(__fastcall*)(int64_t unit, int* playerUnit,
                                              int skillId, int skillLevel);
-using AuraConsume_t   = int64_t(__fastcall*)(int* playerUnit, int manaCost);
 using DrainStat_t     = void(__fastcall*)(void* unit, int statId, int delta);
 using GetManaCost_t   = int(__fastcall*)(uint8_t unitType, int skillId, int skillLevel);
 using CheckStat_t     = bool(__fastcall*)(int* playerUnit, int64_t* skillStruct,
                                           int param3, int currentMana);
 using ClientPredict_t = void(__fastcall*)(int* playerUnit, int skillId, int skillLevel);
-using ConsumeWeaponCharge_t = int64_t(__fastcall*)(int64_t unit, int* playerUnit,
-                                                    int64_t chargeItem, int skillId);
+using GetSkillLevel_t = int(__fastcall*)(int* playerUnit, int64_t* skillStruct, int param3);
+using GetMaxSkillLevelForContext_t = int(__fastcall*)(uint8_t context, uint32_t index);
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
-static constexpr uint64_t OFF_CompileSkillsTxt = 0x214840; // DATATBLS_CompileSkillsTxt
-static constexpr uint64_t OFF_CompileTxt       = 0x21c680; // DATATBLS_CompileTxt
-static constexpr uint64_t OFF_Consume          = 0x30e7a0; // D2GAME_SKILLMANA_Consume
-static constexpr uint64_t OFF_AuraConsume      = 0x30e850; // D2GAME_SKILLMANA_AuraConsume
-static constexpr uint64_t OFF_DrainStat        = 0x227470; // FUN_140227470
-static constexpr uint64_t OFF_GetManaCost      = 0x268da0; // D2Common_SKILLMANA_GetManaCost
-static constexpr uint64_t OFF_CheckStat        = 0x264990; // D2Common_SKILLMANA_CheckStat (use-state mana check)
-static constexpr uint64_t OFF_ClientPredict    = 0x197080; // FUN_140197080 (client-side mana prediction)
-static constexpr uint64_t OFF_ConsumeWeaponCharge = 0x30e550; // D2GAME_SKILLMANA_ConsumeWeaponCharge
-static constexpr uint64_t OFF_GetUseState      = 0x264590; // SKILLS_GetUseState_6FDB0B70
-static constexpr uint64_t OFF_GetUseState_Call = 0x1a2580; // call site inside D2CLIENT_GetUnusableUseState
-static constexpr uint64_t OFF_ClassicWW        = 0x41A49D;
-static constexpr uint64_t OFF_EnableWWCtC      = 0x40AA35;
-static constexpr uint64_t OFF_Telekinesis      = 0x426991;
+static constexpr uint64_t OFF_CompileSkillsTxt = 0x302380; // DATATBLS_CompileSkillsTxt
+static constexpr uint64_t OFF_CompileTxt       = 0x2ff970; // DATATBLS_CompileTxt
+// OFF_Consume was a transcription bug for a long time (missing digit: 0x36830
+// instead of 0x436830), which meant InstallInlineHook was hooking into the
+// middle of an unrelated static-initializer function. Verified against
+// debug.exe via decompile: FUN_140436830 embeds the literal source path
+// "...\Skills\Skills.cpp" and calls D2Common_SKILLMANA_GetManaCost then
+// D2GAME_SKILLS_BloodMana_6FD025E0, matching profile's
+// D2GAME_SKILLMANA_Consume_6FD10A50 exactly.
+//
+// AuraConsume and ConsumeWeaponCharge are both **fully inlined** into this
+// debug function with no standalone call boundary at all (confirmed via full
+// decompile: the charge-drain logic and the BloodMana-or-mana-drain logic are
+// both directly inline in FUN_140436830's body). The OFF_AuraConsume/
+// OFF_ConsumeWeaponCharge constants that used to exist here were stale
+// **profile.exe** addresses (exact matches to profile's named
+// D2GAME_SKILLMANA_AuraConsume_6FD10C90/ConsumeWeaponCharge functions) that
+// would have InstallInlineHook'd garbage in debug.exe — removed. See
+// Hook_Consume for how the ManaCostsLife/Stamina redirect (AuraConsume's old
+// job) is now reimplemented directly against the merged function via a
+// before/after mana-stat delta, which needs no knowledge of Consume's
+// internal charge-vs-mana branching. ChargedPctDrainStat (ConsumeWeaponCharge's
+// old job) could not be safely reimplemented the same way — see the comment
+// on bEnableChargedPctDrainStat's handling below.
+static constexpr uint64_t OFF_Consume          = 0x436830;  // D2GAME_SKILLMANA_Consume (AuraConsume/ConsumeWeaponCharge both inlined here)
+static constexpr uint64_t OFF_DrainStat        = 0x2f34f0; // FUN_140227470
+static constexpr uint64_t OFF_GetManaCost      = 0x33aa00; // D2Common_SKILLMANA_GetManaCost (real standalone function, not inlined)
+static constexpr uint64_t OFF_CheckStat        = 0x340900; // D2Common_SKILLMANA_CheckStat (real standalone function; debug build only reads 2 args, recomputes stat 6/8 internally instead of taking them as params 3/4 like profile does -- verify CheckStat_t/Hook_CheckStat before relying on param3/param4)
+static constexpr uint64_t OFF_ClientPredict    = 0x2188b0; // FUN_140197080 (client-side mana prediction)
+static constexpr uint64_t OFF_GetUseState      = 0x33f360; // SKILLS_GetUseState_6FDB0B70
+static constexpr uint64_t OFF_GetUseState_Call = 0x21b180; // call site inside D2CLIENT_GetUnusableUseState
+static constexpr uint64_t OFF_ClassicWW        = 0x5691e2;
+// OFF_EnableWWCtC's *real* identity was misleading in the old naming: the
+// patch site is NOT inside Whirlwind's own attack loop. It's a JNZ bail-out
+// guard inside the generic "chance to cast on hit/attack" event caster.
+// Confirmed via the "OnHitOrAttack" string literal (unique in both binaries):
+// that string anchors profile's SUNIT_EvFunc_ItemApplyHitOrAttack, which --
+// when the CtC roll succeeds -- calls SKILLS_SrvDo114_NecDoBoneSpear (a
+// misleadingly-named shared "cast the proc'd skill" routine, not actually
+// Bone Spear-specific) to perform the cast. Debug's counterpart, found via
+// the same string anchor -> FUN_140583b30 -> FUN_1405896e0, refactored the
+// old inline `CMP [table+0x298],0x36 / TEST [state+0xaf4],0x400000` guard
+// into a real call: `MOV EDX,0x36; CALL FUN_1403351b0; TEST EAX,EAX; JNZ`
+// (FUN_1403351b0 -> FUN_1402f6220 turns out to be a generic
+// "does unit have bit-flag N set" state test, called here with N=0x36/54 --
+// matches the profile bit position 0xaf4*8+22=0x436, i.e. bit 54, exactly).
+// NOPing this JNZ (same 6-byte length as profile's near JNZ) forces the
+// cast to always proceed regardless of that state, exactly mirroring
+// profile's patch semantics one-for-one.
+static constexpr uint64_t OFF_EnableWWCtC      = 0x589736;
+static constexpr uint64_t OFF_Telekinesis      = 0x554936;
+static constexpr uint64_t OFF_GetSkillLevel    = 0x3400a0; // SKILLS_GetSkillLevel (profile 0x264b20)
+static constexpr uint64_t OFF_GetMaxSkillLevelForContext = 0x300c70; // debug-only helper; profile inlines this as a raw D2GAME_sgptDataTables[ctx*2]+0x14e0 double-deref, no separate profile function exists
+
+// ── Expected original bytes (verified against d2r_debug_91923.exe) ───────────
+// D2RLoader requires non-null expected bytes for PatchBytes/PatchRel32/
+// InstallInlineHook calls so it can verify the patch site before writing.
+static constexpr uint8_t EXP_CompileTxtCallOffsets[][5] = {
+	{ 0xE8, 0xBB, 0x8D, 0xFF, 0xFF },
+	{ 0xE8, 0x4F, 0x8C, 0xFF, 0xFF },
+	{ 0xE8, 0x1A, 0x8B, 0xFF, 0xFF },
+	{ 0xE8, 0xCD, 0x89, 0xFF, 0xFF },
+};
+static constexpr uint8_t EXP_Consume[16] = {
+	0x48, 0x89, 0x5C, 0x24, 0x10, 0x48, 0x89, 0x6C, 0x24, 0x18, 0x56, 0x57, 0x41, 0x56, 0x48, 0x83,
+};
+static constexpr uint8_t EXP_CheckStat[14] = {
+	0x40, 0x55, 0x56, 0x41, 0x54, 0x41, 0x57, 0x48, 0x83, 0xEC, 0x28, 0x45, 0x33, 0xC0,
+};
+static constexpr uint8_t EXP_ClientPredict[20] = {
+	0x48, 0x89, 0x5C, 0x24, 0x10, 0x48, 0x89, 0x6C, 0x24, 0x18,
+	0x48, 0x89, 0x74, 0x24, 0x20, 0x57, 0x48, 0x83, 0xEC, 0x20,
+};
+static constexpr uint8_t EXP_GetUseState_Call[5] = { 0xE8, 0xDB, 0x41, 0x12, 0x00 };
+static constexpr uint8_t EXP_ClassicWW[5]        = { 0xE8, 0x19, 0x1A, 0x00, 0x00 };
+static constexpr uint8_t EXP_EnableWWCtC[6]      = { 0x0F, 0x85, 0xC1, 0x00, 0x00, 0x00 };
+static constexpr uint8_t EXP_Telekinesis[5]      = { 0xE8, 0x35, 0xA8, 0xDE, 0xFF };
 
 // skills.txt record layout constants
 static constexpr uint64_t SKILLS_RECORD_STRIDE = 0x2EC;  // bytes per record
@@ -63,14 +125,9 @@ using DiagDaf0_t       = void(__fastcall*)(int* param_1, void* param_2, uint8_t 
 using PlaySoundEffect_t = int64_t(__fastcall*)(int soundId, int* entity, int param3, int param4, int param5);
 
 static Consume_t       Original_Consume       = nullptr;
-static AuraConsume_t   Original_AuraConsume   = nullptr;
 static CheckStat_t     Original_CheckStat     = nullptr;
 static ClientPredict_t Original_ClientPredict = nullptr;
-static ConsumeWeaponCharge_t Original_ConsumeWeaponCharge = nullptr;
 static void* Original_CanBePickedUpWithTelekinesis = nullptr;
-
-// Thread-local carries skillId from Hook_Consume into Hook_AuraConsume.
-thread_local int g_currentSkillId = -1;
 
 // ── Bit-field descriptor injection ───────────────────────────────────────────
 
@@ -138,7 +195,7 @@ static bool SkillManaCostsLife(int skillId) noexcept {
 	const uint8_t* rec = static_cast<const uint8_t*>(g_SkillsRecords)
 	                     + static_cast<uint64_t>(skillId) * SKILLS_RECORD_STRIDE;
 	return SkillRecManaCostsLife(rec);
-	
+
 }
 
 static bool SkillRecManaCostsStamina(const uint8_t* rec)
@@ -156,9 +213,19 @@ static bool SkillManaCostsStamina(int skillId) noexcept {
 
 // ── Hook: D2Common_SKILLMANA_CheckStat ───────────────────────────────────────
 // Called by GetUseState to decide if the skill can be cast (returns false → red orb).
-// param_4 is normally the current mana; we swap it for current life when ManaCostsLife=1.
-// Life and mana values are in fixed-point (×256), matching the units GetManaCost uses.
-
+//
+// The profile build took the current stat value as an explicit param4, so the
+// original approach here was to just substitute life/stamina for mana and let
+// Original_CheckStat do the comparison. That trick does NOT work against the
+// debug build: its CheckStat ignores param3/param4 entirely and always
+// re-derives both mana (stat 8) and life (stat 6) itself via direct GetStat
+// calls, picking between them based on its own internal "Blood Mana" state
+// flag -- passing a substituted currentAlt through would silently be ignored.
+//
+// Fix: when a skill's cost is redirected to life/stamina, bypass
+// Original_CheckStat entirely and replicate its level/cost computation
+// ourselves (decompile-verified against debug FUN_140340900), evaluated
+// against the correct alternate stat instead of mana.
 bool __fastcall Hook_CheckStat(int* playerUnit, int64_t* skillStruct,
                                 int param3, int currentMana)
 {
@@ -175,8 +242,23 @@ bool __fastcall Hook_CheckStat(int* playerUnit, int64_t* skillStruct,
             if (altStatId) {
                 auto* unitStrc = reinterpret_cast<D2UnitStrc*>(playerUnit);
                 if (unitStrc->statList) {
+                    // Replicate CheckStat's own level derivation: base level
+                    // (skillStruct+0x40) + bonus levels, clamped to [0, maxLevel].
+                    auto GetSkillLevel = reinterpret_cast<GetSkillLevel_t>(g_ExeBase + OFF_GetSkillLevel);
+                    int64_t baseLevel  = skillStruct[8]; // offset 0x40
+                    int bonusLevel     = GetSkillLevel(playerUnit, skillStruct, 0);
+                    int level = static_cast<int>(baseLevel) + bonusLevel;
+                    if (level < 0) level = 0;
+
+                    auto GetMaxSkillLevel = reinterpret_cast<GetMaxSkillLevelForContext_t>(g_ExeBase + OFF_GetMaxSkillLevelForContext);
+                    int maxLevel = GetMaxSkillLevel(unitStrc->itemTableEntry, 0);
+                    if (level > maxLevel) level = maxLevel;
+
+                    auto GetManaCost = reinterpret_cast<GetManaCost_t>(g_ExeBase + OFF_GetManaCost);
+                    int manaCost = GetManaCost(unitStrc->itemTableEntry, skillId, level);
+
                     int currentAlt = PSh_GetStat(g_ExeBase, unitStrc->statList, altStatId);
-                    return Original_CheckStat(playerUnit, skillStruct, param3, currentAlt);
+                    return currentAlt >= manaCost;
                 }
             }
         }
@@ -217,72 +299,59 @@ void __fastcall Hook_ClientPredict(int* playerUnit, int skillId, int skillLevel)
     Original_ClientPredict(playerUnit, skillId, skillLevel);
 }
 
-// ── Hook: D2GAME_SKILLMANA_ConsumeWeaponCharge ───────────────────────────────
-// Gives a percent chance (read from the player's ChargedPctDrainStat stat,
-// value 0-100) to skip draining a charge when a charged item's skill is cast.
-//
-// statCode encoding matches D2MOO's D2SLayerStatIdStrc::MakeFromStatId: low
-// 16 bits = layer (0), high 16 bits = stat ID — i.e. statId << 16. The 3rd
-// arg to GetStat is normally an ItemStatCost record used only to apply a
-// per-stat minimum-value floor; passing 0 skips that and returns the raw
-// stat value, which is what we want for a plain percent stat.
-//
-// Rolls via PSh_RollUnit, the same per-unit LCG the engine itself uses for
-// other rolls (see SKILLS_FindPotion_DropPotion @ 0x140417018), rather than
-// an unrelated RNG stream.
-//
-// Safe to skip the drain entirely: Consume (and thus this function) is only
-// called to pay the resource cost *after* the skill has already executed
-// (see callers of D2GAME_SKILLMANA_Consume) and its return value isn't even
-// checked by the caller — so returning 1 without decrementing/broadcasting
-// the charge has no other effect than leaving the charge count untouched.
-
-int64_t __fastcall Hook_ConsumeWeaponCharge(int64_t unit, int* playerUnit,
-                                             int64_t chargeItem, int skillId)
-{
-	if (g_skillPluginOptions.bEnableChargedPctDrainStat && playerUnit) {
-		auto* unitStrc = reinterpret_cast<D2UnitStrc*>(playerUnit);
-		if (unitStrc->statList) {
-			int pct = PSh_GetStat(g_ExeBase, unitStrc->statList, g_skillPluginOptions.ChargedPctDrainStat);
-			if (pct > 0) {
-				if (pct > 100) pct = 100;
-				uint32_t roll = static_cast<uint32_t>(PSh_RollUnit(unitStrc)) % 100;
-				if (static_cast<int>(roll) < pct)
-					return 1; // proc: charge is not drained, skill still casts normally
-			}
-		}
-	}
-	return Original_ConsumeWeaponCharge(unit, playerUnit, chargeItem, skillId);
-}
-
 // ── Hook: D2GAME_SKILLMANA_Consume ───────────────────────────────────────────
-// Sets thread-local skillId so Hook_AuraConsume can see which skill is being cast.
+// AuraConsume and ConsumeWeaponCharge are both fully inlined into this
+// function in the debug build (no standalone call boundary survives — see the
+// comment by OFF_Consume's declaration), so both of their old jobs are
+// reimplemented here directly instead of via separate inline hooks.
+//
+// ManaCostsLife/ManaCostsStamina redirect (AuraConsume's old job): rather than
+// replicating Consume's internal charge-vs-mana-vs-BloodMana branching
+// ourselves (which would require trusting an unverified multi-level pointer
+// chain read from the profile decompile — playerUnit+0x100 -> +0x18 ->
+// skill struct -> skill id / owner GUID — with no independent confirmation
+// available, and a wrong hop there is a crash, not a bug), we let the real
+// engine decide and react to the *result*: read mana before and after calling
+// Original_Consume, and if it actually decreased, refund it and drain the
+// alternate stat by the same amount instead. This is correct in every case
+// the original design cared about: a charge-item cast never touches mana, so
+// this is a no-op for it; a BloodMana-diverted cast already drained life via
+// the engine's own BloodMana path, so mana didn't move and this is a no-op
+// for it too; only a genuine mana-cost cast triggers the redirect.
+//
+// ChargedPctDrainStat (ConsumeWeaponCharge's old job, "give a % chance to
+// skip draining a charge") is NOT reimplemented here. Doing this safely would
+// need the same charge-item pointer chain mentioned above, this time to
+// preemptively skip the drain rather than just observe it — there's no
+// after-the-fact "refund a charge" trick available here the way there is for
+// a plain additive stat like mana, since charges are stored as a packed
+// (current | max<<8) value written via a dedicated setter, not a simple
+// STATLIST_AddUnitStat delta. Left unimplemented; bEnableChargedPctDrainStat
+// is intentionally not read anywhere. See docs/offset-migration-status.md.
 
 int64_t __fastcall Hook_Consume(int64_t unit, int* playerUnit, int skillId, int skillLevel) {
-	g_currentSkillId = skillId;
-	int64_t result = Original_Consume(unit, playerUnit, skillId, skillLevel);
-	g_currentSkillId = -1;
-	return result;
-}
+	int altStatId = 0;
+	if      (SkillManaCostsLife(skillId))    altStatId = 6;
+	else if (SkillManaCostsStamina(skillId)) altStatId = 10;
 
-// ── Hook: D2GAME_SKILLMANA_AuraConsume ───────────────────────────────────────
-// Drains life (stat 6) instead of mana when ManaCostsLife is set.
-// Mirrors D2GAME_SKILLS_BloodMana: no pre-check, kills player if life < cost.
-
-int64_t __fastcall Hook_AuraConsume(int* playerUnit, int manaCost) {
-	if (g_currentSkillId >= 0) {
-		int altStatId = 0;
-		if      (SkillManaCostsLife(g_currentSkillId))    altStatId = 6;
-		else if (SkillManaCostsStamina(g_currentSkillId)) altStatId = 10;
-		if (altStatId) {
-			if (!playerUnit || *playerUnit != 0)
-				return 1;
-			auto DrainStat = (DrainStat_t)(g_ExeBase + OFF_DrainStat);
-			DrainStat(playerUnit, altStatId, -manaCost);
-			return 1;
+	if (altStatId && playerUnit) {
+		auto* unitStrc = reinterpret_cast<D2UnitStrc*>(playerUnit);
+		if (unitStrc->statList) {
+			int manaBefore = PSh_GetStat(g_ExeBase, unitStrc->statList, 8 /* mana */);
+			int64_t result = Original_Consume(unit, playerUnit, skillId, skillLevel);
+			if (result != 0) {
+				int manaAfter = PSh_GetStat(g_ExeBase, unitStrc->statList, 8);
+				int drained = manaBefore - manaAfter;
+				if (drained > 0) {
+					auto DrainStat = reinterpret_cast<DrainStat_t>(g_ExeBase + OFF_DrainStat);
+					DrainStat(playerUnit, 8, drained);          // refund mana
+					DrainStat(playerUnit, altStatId, -drained); // drain the alternate stat instead
+				}
+			}
+			return result;
 		}
 	}
-	return Original_AuraConsume(playerUnit, manaCost);
+	return Original_Consume(unit, playerUnit, skillId, skillLevel);
 }
 
 // ── Hook: SKILLS_GetUseState call site inside D2CLIENT_GetUnusableUseState ───
@@ -311,10 +380,10 @@ int __fastcall Hook_CanBePickedUpWithTelekinesis(D2UnitStrc* ItemUnit)
 // E8 call sites inside DATATBLS_CompileSkillsTxt that target DATATBLS_CompileTxt.
 // Patched via context->PatchRel32(..., Rel32PatchKind::Call).
 static constexpr uint64_t COMPILE_TXT_CALL_OFFSETS[] = {
-	0x2190AD,
-	0x21921F,
-	0x219351,
-	0x2194B2,
+	0x306bb0,
+	0x306d1c,
+	0x306e51,
+	0x306f9e,
 };
 
 // ── INI loading ───────────────────────────────────────────────────────────────
@@ -336,12 +405,12 @@ void SkillPluginOptions::Load(const D2RL::PluginContext* /*context*/, const nloh
 static constexpr D2RL::PluginInfo PluginInfo {
 	.infoSize   = D2RL::PluginInfoSize,
 	.apiVersion = D2RL_PLUGIN_API_VERSION,
-	.id         = "plugin-skills",
-	.name       = "Skills Plugin",
-	.version    = "0.0.1",
+	.id         = "eezstreet-plugin-skills",
+	.name       = "eezstreet Skills Plugin",
+	.version    = "2.0.0",
 	.author     = "eezstreet",
 	.description = "Various skill-related changes.",
-	.flags      = D2RL::PluginFlags::None,
+	.flags      = D2RL::PluginFlags::NativeHooks,
 };
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginInfo* {
@@ -358,23 +427,19 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 
 	if (g_skillPluginOptions.bEnableManaCostsLife || g_skillPluginOptions.bEnableManaCostsStamina) {
 		// Redirect all DATATBLS_CompileTxt calls within DATATBLS_CompileSkillsTxt.
-		for (uint64_t off : COMPILE_TXT_CALL_OFFSETS)
-			(void)context->PatchRel32(off, nullptr, 0,
+		for (size_t i = 0; i < sizeof(COMPILE_TXT_CALL_OFFSETS) / sizeof(COMPILE_TXT_CALL_OFFSETS[0]); ++i)
+			(void)context->PatchRel32(COMPILE_TXT_CALL_OFFSETS[i], EXP_CompileTxtCallOffsets[i], sizeof(EXP_CompileTxtCallOffsets[i]),
 				reinterpret_cast<uint64_t>(&Hook_CompileTxt_Call) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 
-		// Hook Consume to propagate skillId to AuraConsume via thread-local.
-		if (!context->InstallInlineHook(OFF_Consume, nullptr, 0, Hook_Consume, &Original_Consume)) {
+		// Hook Consume; it handles the ManaCostsLife/Stamina redirect itself now
+		// (see the comment above Hook_Consume for why).
+		if (!context->InstallInlineHook(OFF_Consume, EXP_Consume, sizeof(EXP_Consume), Hook_Consume, &Original_Consume)) {
 			D2RL::LogErrorF(context, "plugin-skills: failed to hook Consume");
 			return false;
 		}
 
-		if (!context->InstallInlineHook(OFF_AuraConsume, nullptr, 0, Hook_AuraConsume, &Original_AuraConsume)) {
-			D2RL::LogErrorF(context, "plugin-skills: failed to hook AuraConsume");
-			return false;
-		}
-
 		// Hook CheckStat so the skill orb turns red when life (not mana) is too low.
-		if (!context->InstallInlineHook(OFF_CheckStat, nullptr, 0, Hook_CheckStat, &Original_CheckStat)) {
+		if (!context->InstallInlineHook(OFF_CheckStat, EXP_CheckStat, sizeof(EXP_CheckStat), Hook_CheckStat, &Original_CheckStat)) {
 			D2RL::LogErrorF(context, "plugin-skills: failed to hook CheckStat");
 			return false;
 		}
@@ -382,40 +447,40 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// Hook client-side mana prediction to drain life instead (prevents rubber-banding).
 		// First 6 bytes: push rbx (2) + sub rsp,0x20 (4) — old API needed hookSize=6 here;
 		// the new InstallInlineHook has no hookSize param, trusting the loader to size it.
-		if (!context->InstallInlineHook(OFF_ClientPredict, nullptr, 0, Hook_ClientPredict, &Original_ClientPredict)) {
+		if (!context->InstallInlineHook(OFF_ClientPredict, EXP_ClientPredict, sizeof(EXP_ClientPredict), Hook_ClientPredict, &Original_ClientPredict)) {
 			D2RL::LogErrorF(context, "plugin-skills: failed to hook ClientPredict");
 			return false;
 		}
 
 		// Redirect the single CALL at 0x1401a2580 inside D2CLIENT_GetUnusableUseState.
-		(void)context->PatchRel32(OFF_GetUseState_Call, nullptr, 0,
+		(void)context->PatchRel32(OFF_GetUseState_Call, EXP_GetUseState_Call, sizeof(EXP_GetUseState_Call),
 			reinterpret_cast<uint64_t>(&Hook_GetUseState) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_skillPluginOptions.bEnableClassicWW)
 	{
 		uint8_t classicWWBytes[] = { 0xB8, 0x01, 0x00, 0x00, 0x00 };
-		(void)context->PatchBytes(OFF_ClassicWW, nullptr, 0, classicWWBytes, sizeof(classicWWBytes));
+		(void)context->PatchBytes(OFF_ClassicWW, EXP_ClassicWW, sizeof(EXP_ClassicWW), classicWWBytes, sizeof(classicWWBytes));
 	}
 
 	if (g_skillPluginOptions.bEnableWWCtc)
 	{
 		uint8_t ctcWWBytes[] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
-		(void)context->PatchBytes(OFF_EnableWWCtC, nullptr, 0, ctcWWBytes, sizeof(ctcWWBytes));
+		(void)context->PatchBytes(OFF_EnableWWCtC, EXP_EnableWWCtC, sizeof(EXP_EnableWWCtC), ctcWWBytes, sizeof(ctcWWBytes));
 	}
 
 	if (g_skillPluginOptions.bTelekinesisPicksUpEverything)
 	{
-		(void)context->PatchRel32(OFF_Telekinesis, nullptr, 0,
+		(void)context->PatchRel32(OFF_Telekinesis, EXP_Telekinesis, sizeof(EXP_Telekinesis),
 			reinterpret_cast<uint64_t>(&Hook_CanBePickedUpWithTelekinesis) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 	}
 
 	if (g_skillPluginOptions.bEnableChargedPctDrainStat)
 	{
-		if (!context->InstallInlineHook(OFF_ConsumeWeaponCharge, nullptr, 0, Hook_ConsumeWeaponCharge, &Original_ConsumeWeaponCharge)) {
-			D2RL::LogErrorF(context, "plugin-skills: failed to hook ConsumeWeaponCharge");
-			return false;
-		}
+		// Not implemented against this build target — see the comment above
+		// Hook_Consume for why (needs an unverified charged-item pointer chain
+		// this codebase isn't confident enough in to ship).
+		D2RL::LogErrorF(context, "plugin-skills: chargedPctDrainStat is enabled in config but not implemented for this build; ignoring");
 	}
 
 	return true;

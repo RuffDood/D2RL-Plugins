@@ -1,6 +1,6 @@
 file(GLOB PLUGIN_SOURCES CONFIGURE_DEPENDS *.cpp)
 
-add_library(plugin-misc SHARED ${PLUGIN_SOURCES})
+add_library(plugin-misc SHARED ${PLUGIN_SOURCES} plugin.rc)
 
 target_link_libraries(plugin-misc PRIVATE plugin-shared)
 

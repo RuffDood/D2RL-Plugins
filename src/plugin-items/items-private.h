@@ -52,11 +52,11 @@ struct ItemPluginOptions {
 
 	bool bEnablePlayerConditionCalc;
 
-	bool bEnablePhysResistMaxChange; // one byte patch at 0x3b31cd
+	bool bEnablePhysResistMaxChange; // one byte patch, see OFF_PhysResist
 	uint8_t MaxPhysResist;
-	bool bEnableElementalResistMaxChange; // one byte patch at 0x3b31d5
+	bool bEnableElementalResistMaxChange; // one byte patch, see OFF_ElementalResist
 	uint8_t MaxElementalResist;
-	bool bEnableAbsorbCapChange; // one byte patch at 0x3b3346
+	bool bEnableAbsorbCapChange; // one byte patch, see OFF_AbsorbCap
 	uint8_t MaxAbsorbPct;
 
 	void Load(const D2RL::PluginContext* context, const nlohmann::json& cfg);

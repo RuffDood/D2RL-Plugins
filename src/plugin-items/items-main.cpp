@@ -6,52 +6,88 @@
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
-static constexpr uint64_t OFF_MagicItemsSpawnIdentified  = 0x319B80;
-static constexpr uint64_t OFF_RareItemsSpawnIdentified   = 0x433494;
-static constexpr uint64_t OFF_GetInventoryGoldLimit      = 0x256290; // D2GAME_GetInventoryGoldLimit
+// Both found via D2MOO source cross-reference: profile's containing functions
+// are D2MOO's sub_6FC4D5E0 (magic, single prefix+suffix roll) and the
+// table-based new-format rare-item roll near D2GAME_RollRareItem_6FC53360
+// (both end with `ITEMS_SetItemFlag(pItem, IFLAG_IDENTIFIED, 0)`). Profile
+// inlines that clear as `AND dword[reg+0x18],0xFFFFFFEF`; debug keeps it as a
+// real call to a shared flag-set/clear utility,
+// `FUN_14036d8f0(item, 0x10, /*bSet=*/0)` — confirmed to have no side effects
+// beyond the bit clear (full decompile checked), so NOP'ing the 5-byte CALL
+// (rather than trying to flip its bSet argument, which doesn't fit in the
+// available instruction encoding without corrupting the adjacent flag-mask
+// LEA) achieves the same "stays identified" outcome as profile's forced OR,
+// since items are always created identified and only explicitly
+// un-identified by this one call in each function.
+static constexpr uint64_t OFF_MagicItemsSpawnIdentified  = 0x442d2a;
+static constexpr uint64_t OFF_RareItemsSpawnIdentified   = 0x58be1a;
+static constexpr uint64_t OFF_GetInventoryGoldLimit      = 0x34b320; // D2GAME_GetInventoryGoldLimit
 // Jump table for the quality switch inside FUN_140244e30 (ITEMS_FindMatchingRuneword).
 // Instruction: MOV ECX,[R13 + RAX*4 + 0x2450b4]  where R13=imageBase, RAX=(quality-4).
 // Six 4-byte entries covering quality 4 (Magic) through 9 (Tempered).
 // Writing 0x00244E95 to an entry redirects that quality to the "pass" branch
 // (the instruction immediately after the switch, where rune matching proceeds normally).
-static constexpr uint64_t OFF_GoldPenaltyCall            = 0x3968AA; // lone CALL site that applies the gold penalty
-static constexpr uint64_t OFF_RunewordQualityJumpTable   = 0x2450B4;
+static constexpr uint64_t OFF_GoldPenaltyCall            = 0x424ad1; // lone CALL site that applies the gold penalty (D2GAME_ApplyDeathGoldPenalty)
+static constexpr uint64_t OFF_RunewordQualityJumpTable   = 0x372638; // inside ITEMS_ValidateRuneword
 static constexpr unsigned char RUNEWORD_QUALITY_PASS[]   = { 0x95, 0x4E, 0x24, 0x00 }; // RVA 0x244E95 LE
 
-static constexpr uint64_t OFF_FillStoreInventory         = 0x3e7e70; // D2GAME_NPC_FillStoreInventory
-static constexpr uint64_t OFF_GenerateStoreItem          = 0x3e7200; // D2GAME_NPC_GenerateStoreItem
-static constexpr uint64_t OFF_ComputeItemLevel           = 0x3e7dc0; // item level cap helper
-static constexpr uint64_t OFF_GetItemIdFromCode          = 0x7b6a90; // items.txt code → ID
-static constexpr uint64_t OFF_GetMaxStack                = 0x243cf0; // get total max stack for quivers
-static constexpr uint64_t OFF_SetUnitStat                = 0x2272f0; // STATLIST_SetUnitStat
-static constexpr uint64_t OFF_FillGamble                 = 0x3eee20; // D2GAME_STORES_FillGamble
-static constexpr uint64_t OFF_FillGamble_JgeOpcode       = 0x3ef024; // JGE byte that enforces ring/amulet
-static constexpr uint64_t OFF_sgptDataTables             = 0x1e3a610;
-static constexpr uint64_t OFF_CompileTxt                 = 0x21c680;  // DATATBLS_CompileTxt
-static constexpr uint64_t OFF_CompileTxtCallInTC         = 0x2850c2;  // CompileTxt call site inside TC compiler (FUN_140284a40)
-static constexpr uint64_t OFF_CreateCompiledTCStruct     = 0x283d10;  // FUN_140283d10 (raw record → compiled TC struct)
-static constexpr uint64_t OFF_CreateCompiledTCStructCall = 0x285164;  // call site of FUN_140283d10 inside TC compiler loop
-static constexpr uint64_t OFF_TCDropFunction             = 0x382ad0;  // FUN_140382ad0 (monster death drops entry)
-static constexpr uint64_t OFF_ConditionGate              = 0x321b90;  // FUN_140321b90 (TC condition gate, receives compiled struct)
-static constexpr uint64_t OFF_ConditionCalcEval          = 0x2a7950;  // FUN_1402a7950 (ConditionCalc expression evaluator)
-static constexpr uint64_t OFF_PhysResist                 = 0x3B31CD;
-static constexpr uint64_t OFF_ElementalResist = 0x3B31D5;
-static constexpr uint64_t OFF_AbsorbCap = 0x3B3346;
+static constexpr uint64_t OFF_FillStoreInventory         = 0x53c9f0; // D2GAME_NPC_FillStoreInventory
+static constexpr uint64_t OFF_GenerateStoreItem          = 0x540ea0; // D2GAME_NPC_GenerateStoreItem
+static constexpr uint64_t OFF_ComputeItemLevel           = 0x53cfa0; // item level cap helper
+static constexpr uint64_t OFF_GetItemIdFromCode          = 0xa12150; // items.txt code → ID
+static constexpr uint64_t OFF_GetMaxStack                = 0x3719e0; // get total max stack for quivers
+static constexpr uint64_t OFF_SetUnitStat                = 0x2f7d10; // STATLIST_SetUnitStat
+static constexpr uint64_t OFF_FillGamble                 = 0x541880; // D2GAME_STORES_FillGamble
+static constexpr uint64_t OFF_FillGamble_JgeOpcode       = 0x541a28; // JGE byte that enforces ring/amulet
+static constexpr uint64_t OFF_sgptDataTables             = 0x2a9a580; // D2GAME_sgptDataTables (global data-table pointer array, not a function)
+static constexpr uint64_t OFF_CompileTxt                 = 0x2ff970;  // DATATBLS_CompileTxt
+static constexpr uint64_t OFF_CompileTxtCallInTC         = 0x3a85a2;  // CompileTxt call site inside TC compiler (FUN_1403a7ea0)
+static constexpr uint64_t OFF_CreateCompiledTCStruct     = 0x3a6dc0;  // FUN_1403a6dc0 (raw record → compiled TC struct)
+static constexpr uint64_t OFF_CreateCompiledTCStructCall = 0x3a8682;  // call site of FUN_1403a6dc0 inside TC compiler loop
+static constexpr uint64_t OFF_TCDropFunction             = 0x441300;  // monster death drops entry (debug: 10 real params vs. our 4-arg TCDropFunction_t -- trailing args are caller-supplied literal 0s in both builds, verify hook still receives what it needs)
+static constexpr uint64_t OFF_ConditionGate              = 0x444920;  // TC condition gate, receives compiled struct
+static constexpr uint64_t OFF_ConditionCalcEval          = 0x3b5380;  // ConditionCalc expression evaluator
+static constexpr uint64_t OFF_PhysResist                 = 0x4524d6; // inlined into the resist/absorb wrapper in debug (no standalone SUNITDMG_ApplyResistances call)
+static constexpr uint64_t OFF_ElementalResist = 0x4524de; // MOV EAX,0x5f cap, immediately after OFF_PhysResist
+static constexpr uint64_t OFF_AbsorbCap = 0x4506a1; // MOV ECX,0x28 cap inside the (still-standalone) absorb function
 
 // ── TC raw record layout (stride 0x304, output of DATATBLS_CompileTxt) ─────
 static constexpr uint64_t TC_RECORD_STRIDE               = 0x304;
 static constexpr uint32_t TCREC_CONDCALC_OFF             = 0x2fc;  // uint32_t compiled expression index
 static constexpr uint32_t TCREC_USEPLAYER_OFF            = 0x301;  // uint8_t UsePlayerForConditionCalc flag
 
-// Vendor difficulty upgrade constants inside D2GAME_NPC_GenerateStoreItem (0x3e7200).
+// Vendor difficulty upgrade constants inside D2GAME_NPC_GenerateStoreItem (0x540ea0).
 // *ScaleByte = the shift-count operand in a SHL EAX,n instruction (1 byte).
 // *BaseImm   = the imm32 operand in an ADD EAX,imm instruction (4 bytes, little-endian).
-static constexpr uint64_t OFF_NMUberScaleByte     = 0x3e72fe; // SHL EAX,0x6  → ×64
-static constexpr uint64_t OFF_NMUberBaseImm       = 0x3e7300; // ADD EAX,0xfa0 → +4000
-static constexpr uint64_t OFF_HellUltraScaleByte  = 0x3e73d4; // SHL EAX,0x4  → ×16
-static constexpr uint64_t OFF_HellUltraBaseImm    = 0x3e73d6; // ADD EAX,0x3e8 → +1000
-static constexpr uint64_t OFF_HellUberScaleByte   = 0x3e7428; // SHL EAX,0x7  → ×128
-static constexpr uint64_t OFF_HellUberBaseImm     = 0x3e742a; // ADD EAX,0x1388 → +5000
+static constexpr uint64_t OFF_NMUberScaleByte     = 0x540f88; // SHL EAX,0x6  → ×64
+static constexpr uint64_t OFF_NMUberBaseImm       = 0x540f8a; // ADD EAX,0xfa0 → +4000
+static constexpr uint64_t OFF_HellUltraScaleByte  = 0x54104d; // SHL EAX,0x4  → ×16
+static constexpr uint64_t OFF_HellUltraBaseImm    = 0x54104f; // ADD EAX,0x3e8 → +1000
+static constexpr uint64_t OFF_HellUberScaleByte   = 0x541084; // SHL EAX,0x7  → ×128
+static constexpr uint64_t OFF_HellUberBaseImm     = 0x541086; // ADD EAX,0x1388 → +5000
+
+// ── Expected original bytes (verified against d2r_debug_91923.exe) ───────────
+// D2RLoader requires non-null expected bytes for PatchBytes/PatchRel32/
+// InstallInlineHook calls so it can verify the patch site before writing.
+static constexpr uint8_t EXP_FillStoreInventory[5]         = { 0x48, 0x89, 0x5C, 0x24, 0x10 };
+static constexpr uint8_t EXP_NMUberBaseImm[4]               = { 0xA0, 0x0F, 0x00, 0x00 };
+static constexpr uint8_t EXP_HellUberBaseImm[4]             = { 0x88, 0x13, 0x00, 0x00 };
+static constexpr uint8_t EXP_HellUltraBaseImm[4]            = { 0xE8, 0x03, 0x00, 0x00 };
+static constexpr uint8_t EXP_NMUberScaleByte[1]             = { 0x06 };
+static constexpr uint8_t EXP_HellUberScaleByte[1]           = { 0x07 };
+static constexpr uint8_t EXP_HellUltraScaleByte[1]          = { 0x04 };
+static constexpr uint8_t EXP_FillGamble_JgeOpcode[1]        = { 0x7D };
+static constexpr uint8_t EXP_FillGamble[6]                  = { 0x40, 0x56, 0x41, 0x54, 0x41, 0x55 };
+static constexpr uint8_t EXP_GoldPenaltyCall[5]             = { 0xE8, 0xDA, 0x11, 0x00, 0x00 };
+static constexpr uint8_t EXP_MagicItemsSpawnIdentified[5]   = { 0xE8, 0xC1, 0xAB, 0xF2, 0xFF };
+static constexpr uint8_t EXP_RareItemsSpawnIdentified[5]    = { 0xE8, 0xD1, 0x1A, 0xDE, 0xFF };
+static constexpr uint8_t EXP_GetInventoryGoldLimit[7]       = { 0x48, 0x83, 0xEC, 0x28, 0x45, 0x33, 0xC0 };
+static constexpr uint8_t EXP_RunewordQualityJumpTableEntry[4] = { 0x40, 0x24, 0x37, 0x00 };
+static constexpr uint8_t EXP_CompileTxtCallInTC[5]          = { 0xE8, 0xC9, 0x73, 0xF5, 0xFF };
+static constexpr uint8_t EXP_CreateCompiledTCStructCall[5]  = { 0xE8, 0x39, 0xE7, 0xFF, 0xFF };
+static constexpr uint8_t EXP_TCDropFunction[6]              = { 0x40, 0x53, 0x55, 0x56, 0x57, 0x41 };
+static constexpr uint8_t EXP_ConditionGate[5]               = { 0x48, 0x89, 0x5C, 0x24, 0x08 };
+static constexpr uint8_t EXP_ConditionCalcEval[5]           = { 0x48, 0x89, 0x5C, 0x24, 0x08 };
 
 // ── D2ItemsTxt field offsets (confirmed from Ghidra, stride = 0x1c0) ─────────
 static constexpr uint32_t ITEMREC_STRIDE      = 0x1c0;
@@ -524,10 +560,11 @@ static constexpr D2RL::PluginInfo PluginInfo{
 	.infoSize = D2RL::PluginInfoSize,
 	.apiVersion = D2RL_PLUGIN_API_VERSION,
 	.id = "eezstreet-plugin-items",
+	.name = "eezstreet Items Plugin",
 	.version = "2.0.0",
 	.author = "eezstreet",
 	.description = "Various item-related changes.",
-	.flags = D2RL::PluginFlags::None,
+	.flags = D2RL::PluginFlags::NativeHooks,
 };
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginInfo* {
@@ -553,7 +590,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (g_pluginOptions.bEnableVendorOverhaul)
 	{
 		// First instruction is MOV qword ptr [RSP+0x18],R8 = 5 bytes (4C 89 44 24 18).
-		if (!context->InstallInlineHook(OFF_FillStoreInventory, nullptr, 0,
+		if (!context->InstallInlineHook(OFF_FillStoreInventory, EXP_FillStoreInventory, sizeof(EXP_FillStoreInventory),
 			Hook_FillStoreInventory, &Original_FillStoreInventory))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook FillStoreInventory");
@@ -564,16 +601,16 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 			uint32_t nmBase = (uint32_t)g_pluginOptions.VendorNightmareUpgradeBaseChance;
 			uint32_t hellBase = (uint32_t)g_pluginOptions.VendorHellUberUpgradeBaseChance;
 			uint32_t ultBase = (uint32_t)g_pluginOptions.VendorHellUpgradeBaseChance;
-			(void)context->PatchBytes(OFF_NMUberBaseImm, nullptr, 0, &nmBase, sizeof(nmBase));
-			(void)context->PatchBytes(OFF_HellUberBaseImm, nullptr, 0, &hellBase, sizeof(hellBase));
-			(void)context->PatchBytes(OFF_HellUltraBaseImm, nullptr, 0, &ultBase, sizeof(ultBase));
+			(void)context->PatchBytes(OFF_NMUberBaseImm, EXP_NMUberBaseImm, sizeof(EXP_NMUberBaseImm), &nmBase, sizeof(nmBase));
+			(void)context->PatchBytes(OFF_HellUberBaseImm, EXP_HellUberBaseImm, sizeof(EXP_HellUberBaseImm), &hellBase, sizeof(hellBase));
+			(void)context->PatchBytes(OFF_HellUltraBaseImm, EXP_HellUltraBaseImm, sizeof(EXP_HellUltraBaseImm), &ultBase, sizeof(ultBase));
 
 			unsigned char nmScale = ShiftCount(g_pluginOptions.VendorNightmareUpgradeLevelScale);
 			unsigned char hellScale = ShiftCount(g_pluginOptions.VendorHellUberUpgradeLevelScale);
 			unsigned char ultScale = ShiftCount(g_pluginOptions.VendorHellUpgradeLevelScale);
-			(void)context->PatchBytes(OFF_NMUberScaleByte, nullptr, 0, &nmScale, sizeof(nmScale));
-			(void)context->PatchBytes(OFF_HellUberScaleByte, nullptr, 0, &hellScale, sizeof(hellScale));
-			(void)context->PatchBytes(OFF_HellUltraScaleByte, nullptr, 0, &ultScale, sizeof(ultScale));
+			(void)context->PatchBytes(OFF_NMUberScaleByte, EXP_NMUberScaleByte, sizeof(EXP_NMUberScaleByte), &nmScale, sizeof(nmScale));
+			(void)context->PatchBytes(OFF_HellUberScaleByte, EXP_HellUberScaleByte, sizeof(EXP_HellUberScaleByte), &hellScale, sizeof(hellScale));
+			(void)context->PatchBytes(OFF_HellUltraScaleByte, EXP_HellUltraScaleByte, sizeof(EXP_HellUltraScaleByte), &ultScale, sizeof(ultScale));
 		}
 	}
 
@@ -582,12 +619,12 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// Change JGE (0x7D) → JMP (0xEB) at the ring/amulet override check in FillGamble.
 		// This makes the jump unconditional, permanently skipping the forced ring/amulet logic.
 		unsigned char patch[] = { 0xEB };
-		(void)context->PatchBytes(OFF_FillGamble_JgeOpcode, nullptr, 0, patch, sizeof(patch));
+		(void)context->PatchBytes(OFF_FillGamble_JgeOpcode, EXP_FillGamble_JgeOpcode, sizeof(EXP_FillGamble_JgeOpcode), patch, sizeof(patch));
 	}
 	else if (g_pluginOptions.GambleFilter == GambleOption::Bitfield)
 	{
 		// First 7 bytes: PUSH RBP (1) + PUSH RSI (1) + PUSH RDI (1) + PUSH R14 (2) + PUSH R15 (2).
-		if (!context->InstallInlineHook(OFF_FillGamble, nullptr, 0,
+		if (!context->InstallInlineHook(OFF_FillGamble, EXP_FillGamble, sizeof(EXP_FillGamble),
 			Hook_FillGamble_Bitfield, &Original_FillGamble))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook FillGamble");
@@ -597,25 +634,26 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (g_pluginOptions.bDisableGoldPenalty)
 	{
 		// CALL is 5 bytes (E8 + 4-byte rel32); replace with NOPs to skip the penalty entirely.
-		(void)context->PatchNop(OFF_GoldPenaltyCall, nullptr, 0, 5);
+		(void)context->PatchNop(OFF_GoldPenaltyCall, EXP_GoldPenaltyCall, sizeof(EXP_GoldPenaltyCall), 5);
 	}
 
 	if (g_pluginOptions.bMagicItemsSpawnIdentified)
 	{
-		unsigned char patch[] = { 0x83, 0x4A, 0x18, 0x10 };
-		(void)context->PatchBytes(OFF_MagicItemsSpawnIdentified, nullptr, 0, patch, sizeof(patch));
+		// CALL is 5 bytes (E8 + 4-byte rel32); NOP out the IFLAG_IDENTIFIED-clear
+		// call so the item keeps its default identified state. See the comment by
+		// OFF_MagicItemsSpawnIdentified's declaration.
+		(void)context->PatchNop(OFF_MagicItemsSpawnIdentified, EXP_MagicItemsSpawnIdentified, sizeof(EXP_MagicItemsSpawnIdentified), 5);
 	}
 
 	if (g_pluginOptions.bRareItemsSpawnIdentified)
 	{
-		unsigned char patch[] = { 0x83, 0x48, 0x18, 0x10 };
-		(void)context->PatchBytes(OFF_RareItemsSpawnIdentified, nullptr, 0, patch, sizeof(patch));
+		(void)context->PatchNop(OFF_RareItemsSpawnIdentified, EXP_RareItemsSpawnIdentified, sizeof(EXP_RareItemsSpawnIdentified), 5);
 	}
 
 	if (g_pluginOptions.InventoryGoldLimitChange != GoldOption::Disabled)
 	{
 		// SUB RSP,0x28 (4 bytes) + TEST RCX,RCX (3 bytes) = 7 bytes.
-		if (!context->InstallInlineHook(OFF_GetInventoryGoldLimit, nullptr, 0,
+		if (!context->InstallInlineHook(OFF_GetInventoryGoldLimit, EXP_GetInventoryGoldLimit, sizeof(EXP_GetInventoryGoldLimit),
 			Hook_GetInventoryGoldLimit, &Original_GetInventoryGoldLimit))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook GetInventoryGoldLimit");
@@ -627,30 +665,30 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		if (g_pluginOptions.bRunewordQualities[i])
 		{
 			(void)context->PatchBytes(OFF_RunewordQualityJumpTable + static_cast<uint64_t>(i) * 4,
-				nullptr, 0, RUNEWORD_QUALITY_PASS, sizeof(RUNEWORD_QUALITY_PASS));
+				EXP_RunewordQualityJumpTableEntry, sizeof(EXP_RunewordQualityJumpTableEntry), RUNEWORD_QUALITY_PASS, sizeof(RUNEWORD_QUALITY_PASS));
 		}
 	}
 
 	if (g_pluginOptions.bEnablePlayerConditionCalc)
 	{
-		(void)context->PatchRel32(OFF_CompileTxtCallInTC, nullptr, 0,
+		(void)context->PatchRel32(OFF_CompileTxtCallInTC, EXP_CompileTxtCallInTC, sizeof(EXP_CompileTxtCallInTC),
 			reinterpret_cast<uint64_t>(&Hook_CompileTxt_TC) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
-		(void)context->PatchRel32(OFF_CreateCompiledTCStructCall, nullptr, 0,
+		(void)context->PatchRel32(OFF_CreateCompiledTCStructCall, EXP_CreateCompiledTCStructCall, sizeof(EXP_CreateCompiledTCStructCall),
 			reinterpret_cast<uint64_t>(&Hook_CreateCompiledTCStruct) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 		// hookSize=6: MOV R11,RSP (3) + PUSH RBP (1) + PUSH R13 (2)
-		if (!context->InstallInlineHook(OFF_TCDropFunction, nullptr, 0,
+		if (!context->InstallInlineHook(OFF_TCDropFunction, EXP_TCDropFunction, sizeof(EXP_TCDropFunction),
 			Hook_TCDropFunction, &Original_TCDropFunction))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook TCDropFunction");
 		}
 		// hookSize=5: MOV qword ptr [RSP+0x8],RBX (5 bytes)
-		if (!context->InstallInlineHook(OFF_ConditionGate, nullptr, 0,
+		if (!context->InstallInlineHook(OFF_ConditionGate, EXP_ConditionGate, sizeof(EXP_ConditionGate),
 			Hook_ConditionGate, &Original_ConditionGate))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook ConditionGate");
 		}
 		// hookSize=5: MOV qword ptr [RSP+0x8],RBX (5 bytes)
-		if (!context->InstallInlineHook(OFF_ConditionCalcEval, nullptr, 0,
+		if (!context->InstallInlineHook(OFF_ConditionCalcEval, EXP_ConditionCalcEval, sizeof(EXP_ConditionCalcEval),
 			Hook_ConditionCalcEval, &Original_ConditionCalcEval))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook ConditionCalcEval");
