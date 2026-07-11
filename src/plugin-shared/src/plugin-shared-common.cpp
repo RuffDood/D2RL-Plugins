@@ -1,13 +1,12 @@
 #include <plugin-shared.h>
 
-static constexpr uint64_t OFF_GetStat = 0xf9b10;
+static constexpr uint64_t OFF_GetStat = 0x2f5020; // FUN_1402f5020 -- see plugin-shared.h comment above PSh_GetStat
 
-using GetStat_t = int(__fastcall*)(int64_t statContainer, uint64_t statCode, int64_t unused);
+using GetStat_t = int64_t(__fastcall*)(int64_t unit, int statId, uint32_t extra);
 
-extern "C" int PSh_GetStat(uintptr_t exeBase, D2StatListStrc* statList,
-                            int statId, int64_t minOverride) noexcept {
+extern "C" int PSh_GetStat(uintptr_t exeBase, D2UnitStrc* unit, int statId) noexcept {
     auto GetStat = reinterpret_cast<GetStat_t>(exeBase + OFF_GetStat);
-    return GetStat(reinterpret_cast<int64_t>(statList), static_cast<uint64_t>(statId) << 16, minOverride);
+    return static_cast<int>(GetStat(reinterpret_cast<int64_t>(unit), statId, 0));
 }
 
 extern "C" uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept {

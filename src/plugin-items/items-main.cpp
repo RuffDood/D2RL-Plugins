@@ -306,7 +306,7 @@ static void Hook_FillStoreInventory(D2GameStrc* pGame, D2UnitStrc* pPlayer, D2Un
 	// ── Player level + item level cap ─────────────────────────────────────────
 	int playerLevel = 0;
 	if (pPlayer && pPlayer->statList) {
-		playerLevel = PSh_GetStat(g_exeBase, pPlayer->statList, STAT_LEVEL);
+		playerLevel = PSh_GetStat(g_exeBase, pPlayer, STAT_LEVEL);
 	}
 	int itemLevel = Fn_ComputeItemLevel(pGame, pNpc);
 

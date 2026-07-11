@@ -1,5 +1,6 @@
 #pragma once
 #include <D2RLPlugin/version.h>
+#include <D2RLPlugin/context.h>
 #include <cstddef>
 #include <cstdint>
 
@@ -340,6 +341,40 @@ static_assert(offsetof(D2UnitStrc, dwFlags)        == 0x124, "D2UnitStrc layout 
 static_assert(offsetof(D2UnitStrc, itemTableEntry) == 0x1bd, "D2UnitStrc layout mismatch");
 static_assert(sizeof(D2UnitStrc) == 448, "D2UnitStrc must be 448 bytes");
 
+// ── Memory / call-site patching ─────────────────────────────────────────────
+//
+// context->PatchRel32 fails at runtime ("target rva is out of rel32 range")
+// whenever the redirect target lives more than ~2GB away from the call site —
+// which is always true for a redirect into this plugin DLL's own code, since
+// Windows loads DLLs far from the exe with no proximity guarantee. The loader
+// has no code-cave/trampoline primitive to work around this (confirmed with
+// the loader author: a "Rel64" patch isn't possible — x64 CALL/JMP only have
+// rel32 encodings). PSh_PatchCallSite solves it entirely on the plugin side,
+// the same way plugin-shared did on the pre-v1.0.0 loader API (see git
+// history — this was dropped when plugin-shared stopped being its own
+// loadable plugin): allocate a small stub within rel32 range of the call
+// site (via PSh_AllocNear) containing an FF25 absolute indirect jmp to the
+// real hook function, then point the call site's E8 rel32 at that stub
+// instead. The call site's CALL instruction still executes as a real CALL
+// (the CPU auto-pushes the correct return address), so hookFn runs and
+// returns exactly as if it had been called directly — no change needed to
+// hookFn itself.
+
+// Allocates `size` bytes of PAGE_EXECUTE_READWRITE memory within ±2GB of
+// `hint`, required so a 5-byte rel32 CALL/JMP at `hint` can reach it. Returns
+// nullptr on failure. Free with VirtualFree(ptr, 0, MEM_RELEASE).
+extern "C" void* PSh_AllocNear(void* hint, size_t size) noexcept;
+
+// Redirects the 5-byte E8 CALL at (context->exeBase + callOffset) to hookFn
+// via a near FF25 stub (see the comment above), leaving the real callee
+// function itself untouched. hookFn's signature must match the callee's
+// calling convention and parameters — it's simply substituted for whatever
+// the CALL used to target. expected/expectedSize are the call site's current
+// 5 bytes (E8 + rel32), verified before patching; pass the site's known
+// EXP_* array.
+extern "C" bool PSh_PatchCallSite(const D2RL::PluginContext* context, uint64_t callOffset,
+                                   const void* expected, uint32_t expectedSize, void* hookFn) noexcept;
+
 // ── RNG ───────────────────────────────────────────────────────────────────────
 
 // Advances unit's RNG seed pair (seedLow/seedHigh) and returns the raw 64-bit
@@ -350,14 +385,23 @@ extern "C" uint64_t PSh_RollUnit(D2UnitStrc* unit) noexcept;
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
 
-// Calls the game's STATLIST_GetStat (0x140224720) to binary-search statList for
-// statCode (encoded as `statId << 16`) and return its current value, or 0 if the
-// stat isn't present. `minOverride` is normally 0; the game only consults it for
-// a small set of internal min-value floors (see STATLIST_GetStat in Ghidra) that
-// plugin code doesn't need. Requires exeBase (context->exeBase) since the call
-// target lives in the game executable, not plugin-shared.
-extern "C" int PSh_GetStat(uintptr_t exeBase, D2StatListStrc* statList,
-                            int statId, int64_t minOverride = 0) noexcept;
+// Calls the game's own stat-lookup wrapper (debug build RVA 0x2f5020, confirmed
+// via decompile of D2Common_SKILLMANA_CheckStat, which fetches mana/life exactly
+// this way: FUN_1402f5020(unit, statId)) and returns the stat's current value, or
+// 0 if absent. Takes the UNIT pointer directly, not its statList -- the real
+// function derives the statlist lookup internally (via an unexported low-level
+// helper at RVA 0x2f9b10 that isn't safe to call directly: its 3rd argument is an
+// internal lookup pointer obtained via another private call, not a caller-
+// supplied value). Requires exeBase (context->exeBase) since the call target
+// lives in the game executable, not plugin-shared.
+//
+// History: earlier revisions of this constant were 0xf9b10 (a digit-dropped
+// transcription of the real low-level helper's RVA 0x2f9b10 -- calling that
+// address directly landed inside STATLIST_GetStatValue's *body*, not its entry)
+// and 0x224720 (STATLIST_GetStatValue's entry point, but in the PROFILE build --
+// wrong exe target entirely for a debug-build plugin). Both produced a crash
+// exactly where the digit/exe mismatch put execution: mid-function garbage.
+extern "C" int PSh_GetStat(uintptr_t exeBase, D2UnitStrc* unit, int statId) noexcept;
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 constexpr uint32_t PSh_EncodeItemCode(const char* itemCode)

@@ -3,15 +3,15 @@
 #include "skills-private.h"
 #include <Windows.h>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <string>
 #include <vector>
 
 // ── D2R function type aliases ─────────────────────────────────────────────────
 
-using CompileTxt_t    = void(__fastcall*)(uint8_t context, const char* txtName,
-                                          const char* binName, const char* param4,
-                                          D2TxtFieldDesc* fields, uint64_t recordSize,
-                                          D2TxtContainer* output);
+using CompileSkillsTxt_t = void(__fastcall*)(uint8_t context);
 using Consume_t       = int64_t(__fastcall*)(int64_t unit, int* playerUnit,
                                              int skillId, int skillLevel);
 using DrainStat_t     = void(__fastcall*)(void* unit, int statId, int delta);
@@ -25,7 +25,15 @@ using GetMaxSkillLevelForContext_t = int(__fastcall*)(uint8_t context, uint32_t 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
 static constexpr uint64_t OFF_CompileSkillsTxt = 0x302380; // DATATBLS_CompileSkillsTxt
-static constexpr uint64_t OFF_CompileTxt       = 0x2ff970; // DATATBLS_CompileTxt
+// D2GAME_sgptDataTables: array of per-context data-table struct pointers.
+// Confirmed via decompile of DATATBLS_CompileSkillsTxt: lVar9 = (&DAT_142a9a580)
+// [(longlong)context * 2] -- i.e. an 8-byte-element array indexed by context*2,
+// so byte offset = context*16. The compiled skills.txt records live inside that
+// per-context struct at +0x11b0 (record array pointer) / +0x11b8 (record count),
+// with confirmed stride 0x2ec: pppuVar20 = *(lVar9+0x11b8)*0x2ec + *(lVar9+0x11b0).
+static constexpr uint64_t OFF_DataTables                   = 0x2a9a580;
+static constexpr uint64_t DATATABLES_SKILLS_RECORDS_OFFSET = 0x11b0;
+static constexpr uint64_t DATATABLES_SKILLS_COUNT_OFFSET   = 0x11b8;
 // OFF_Consume was a transcription bug for a long time (missing digit: 0x36830
 // instead of 0x436830), which meant InstallInlineHook was hooking into the
 // middle of an unrelated static-initializer function. Verified against
@@ -81,11 +89,9 @@ static constexpr uint64_t OFF_GetMaxSkillLevelForContext = 0x300c70; // debug-on
 // ── Expected original bytes (verified against d2r_debug_91923.exe) ───────────
 // D2RLoader requires non-null expected bytes for PatchBytes/PatchRel32/
 // InstallInlineHook calls so it can verify the patch site before writing.
-static constexpr uint8_t EXP_CompileTxtCallOffsets[][5] = {
-	{ 0xE8, 0xBB, 0x8D, 0xFF, 0xFF },
-	{ 0xE8, 0x4F, 0x8C, 0xFF, 0xFF },
-	{ 0xE8, 0x1A, 0x8B, 0xFF, 0xFF },
-	{ 0xE8, 0xCD, 0x89, 0xFF, 0xFF },
+static constexpr uint8_t EXP_CompileSkillsTxt[24] = {
+	0x48, 0x89, 0x5C, 0x24, 0x10, 0x48, 0x89, 0x74, 0x24, 0x18, 0x48, 0x89,
+	0x7C, 0x24, 0x20, 0x55, 0x41, 0x54, 0x41, 0x55, 0x41, 0x56, 0x41, 0x57,
 };
 static constexpr uint8_t EXP_Consume[16] = {
 	0x48, 0x89, 0x5C, 0x24, 0x10, 0x48, 0x89, 0x6C, 0x24, 0x18, 0x56, 0x57, 0x41, 0x56, 0x48, 0x83,
@@ -113,6 +119,7 @@ static constexpr int      MANA_COSTS_STAMINA_BIT = 48;   // second free bit
 
 static SkillPluginOptions            g_skillPluginOptions {};
 static uintptr_t                     g_ExeBase  = 0;
+static const D2RL::PluginContext*    g_Context  = nullptr;
 
 // Compiled skills.txt records (game-owned memory — do not free).
 static void*    g_SkillsRecords = nullptr;
@@ -124,68 +131,164 @@ using DiagB2300_t      = void(__fastcall*)(void* param_1, void* param_2);
 using DiagDaf0_t       = void(__fastcall*)(int* param_1, void* param_2, uint8_t param_3, char param_4, uint32_t* param_5);
 using PlaySoundEffect_t = int64_t(__fastcall*)(int soundId, int* entity, int param3, int param4, int param5);
 
-static Consume_t       Original_Consume       = nullptr;
-static CheckStat_t     Original_CheckStat     = nullptr;
-static ClientPredict_t Original_ClientPredict = nullptr;
+static Consume_t             Original_Consume            = nullptr;
+static CheckStat_t           Original_CheckStat          = nullptr;
+static ClientPredict_t       Original_ClientPredict      = nullptr;
+static CompileSkillsTxt_t    Original_CompileSkillsTxt   = nullptr;
 static void* Original_CanBePickedUpWithTelekinesis = nullptr;
 
-// ── Bit-field descriptor injection ───────────────────────────────────────────
+// ── ManaCostsLife/ManaCostsStamina column application ───────────────────────
+//
+// The original design tried to inject ManaCostsLife/ManaCostsStamina as new
+// field descriptors into DATATBLS_CompileTxt's parse of skills.txt (redirecting
+// the CALL instructions inside DATATBLS_CompileSkillsTxt that invoke it). That
+// assumed CompileTxt took a (name, binPath, fields[], recordSize, output)-style
+// signature. Decompiling both DATATBLS_CompileTxt and its actual call sites
+// disproved this: the call sites don't pass a per-table name/descriptor array at
+// all (one call site's "name" slot resolves to the unrelated static string
+// "monstats"; the "recordSize" slot holds a bare literal 2; the "fields"/"output"
+// slots point to small internal scratch structures, not a real descriptor array
+// or a D2TxtContainer). Extending that call was never viable.
+//
+// The mod's own skills.txt (e.g. Reborne) *already* has manacostslife/
+// manacostsstamina columns — they're just not read by the vanilla engine, which
+// is exactly why this plugin exists. Rather than fight the engine's internal
+// compiler ABI, we let DATATBLS_CompileSkillsTxt run completely untouched (entry
+// hook, call Original first) and then read the exact same loose skills.txt file
+// ourselves afterward, matching rows to the already-compiled records 1:1 (cross-
+// checked against each row's own *Id column), and set the corresponding flags
+// bit directly. This needs no knowledge of the compiler's internal ABI at all.
 
-// Scans origFields for a boolean field packed into the flags QWORD (offset == SKILLS_FLAGS_OFFSET)
-// to infer the game's bit-field type code. We rely on count encoding the bit index (0 = LSB).
-static uint32_t DetectBoolType(D2TxtFieldDesc* origFields) {
-	for (int i = 0; origFields[i].pName && std::strcmp(origFields[i].pName, "end") != 0; ++i) {
-		if (origFields[i].offset == SKILLS_FLAGS_OFFSET)
-			return origFields[i].type;
-	}
-	return 0;
+static std::wstring BuildSkillsTxtPath()
+{
+	if (!g_Context || !g_Context->modDirectory)
+		return {};
+	std::wstring path = g_Context->modDirectory;
+	path += L"\\data\\global\\excel\\skills.txt";
+	return path;
 }
 
-// Descriptors for ManaCostsLife and ManaCostsStamina — filled in once we know g_BoolFieldType.
-static D2TxtFieldDesc g_ManaCostsLifeDesc = { "ManaCostsLife", SKILLSRECORD_TYPE_BOOL, MANA_COSTS_LIFE_BIT, SKILLS_FLAGS_OFFSET, 0 };
-static D2TxtFieldDesc g_ManaCostsStaminaDesc = { "ManaCostsStamina", SKILLSRECORD_TYPE_BOOL, MANA_COSTS_STAMINA_BIT, SKILLS_FLAGS_OFFSET, 0 };
-
-// ── Hook: replacement for DATATBLS_CompileTxt call inside CompileSkillsTxt ───
-//
-// Called instead of the real CompileTxt whenever DATATBLS_CompileSkillsTxt would
-// have called it. For the "skills" table, appends ManaCostsLife to the descriptor
-// array and saves the resulting records pointer for the mana hooks.
-
-void __fastcall Hook_CompileTxt_Call(uint8_t context, const char* txtName,
-                                      const char* binName, const char* param4,
-                                      D2TxtFieldDesc* origFields, uint64_t recordSize,
-                                      D2TxtContainer* output)
+static std::vector<std::string> SplitTabs(const std::string& line)
 {
-	auto RealCompileTxt = (CompileTxt_t)(g_ExeBase + OFF_CompileTxt);
+	std::vector<std::string> fields;
+	size_t s = 0;
+	for (size_t i = 0; i <= line.size(); ++i) {
+		if (i == line.size() || line[i] == '\t') {
+			fields.push_back(line.substr(s, i - s));
+			s = i + 1;
+		}
+	}
+	return fields;
+}
 
-	if (std::strcmp(txtName, "skills") != 0) {
-		// Not the skills table (e.g. skilldesc) — pass through unchanged.
-		RealCompileTxt(context, txtName, binName, param4, origFields, recordSize, output);
+static void ApplyManaCostsColumnsFromTxt()
+{
+	if (!g_SkillsRecords || g_SkillsCount == 0)
+		return;
+
+	std::wstring path = BuildSkillsTxtPath();
+	if (path.empty())
+		return;
+
+	std::ifstream file(path, std::ios::binary);
+	if (!file.is_open()) {
+		if (g_Context) g_Context->LogWarn("plugin-skills: could not open skills.txt for ManaCosts column read");
 		return;
 	}
+	std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
-	// Find the "end" sentinel (type=0, pName="end") that terminates the descriptor list.
-	// Insert our field immediately before it so the compiler sees it.
-	int n = 0;
-	while (origFields[n].pName && std::strcmp(origFields[n].pName, "end") != 0) ++n;
-
-	std::vector<D2TxtFieldDesc> extended(origFields, origFields + n);
-	if (g_skillPluginOptions.bEnableManaCostsLife)    extended.push_back(g_ManaCostsLifeDesc);
-	if (g_skillPluginOptions.bEnableManaCostsStamina) extended.push_back(g_ManaCostsStaminaDesc);
-	extended.push_back(origFields[n]);   // preserve the "end" sentinel
-
-	RealCompileTxt(context, txtName, binName, param4,
-	               extended.data(), recordSize, output);
-
-	// Save records for SkillManaCostsLife() lookups.
-	if (output && output->pData) {
-		g_SkillsRecords = output->pData->pRecords;
-		g_SkillsCount   = output->pData->nCount;
+	std::vector<std::string> lines;
+	size_t start = 0;
+	for (size_t i = 0; i <= content.size(); ++i) {
+		if (i == content.size() || content[i] == '\n') {
+			std::string line = content.substr(start, i - start);
+			if (!line.empty() && line.back() == '\r') line.pop_back();
+			lines.push_back(std::move(line));
+			start = i + 1;
+		}
 	}
+	if (lines.empty())
+		return;
+
+	std::vector<std::string> header = SplitTabs(lines[0]);
+	int idCol = -1, lifeCol = -1, staminaCol = -1;
+	for (size_t i = 0; i < header.size(); ++i) {
+		if      (header[i] == "*Id")              idCol      = static_cast<int>(i);
+		else if (header[i] == "manacostslife")    lifeCol    = static_cast<int>(i);
+		else if (header[i] == "manacostsstamina") staminaCol = static_cast<int>(i);
+	}
+	if (lifeCol < 0 && staminaCol < 0)
+		return; // this mod's skills.txt doesn't define these columns; nothing to apply.
+
+	uint64_t recordIndex = 0;
+	for (size_t li = 1; li < lines.size() && recordIndex < g_SkillsCount; ++li) {
+		if (lines[li].empty())
+			continue;
+		std::vector<std::string> fields = SplitTabs(lines[li]);
+		if (fields.empty() || fields[0].empty())
+			continue; // spacer/expansion rows (empty name column) aren't compiled as records.
+
+		if (idCol >= 0 && idCol < static_cast<int>(fields.size()) && !fields[idCol].empty()) {
+			char* endp = nullptr;
+			long id = std::strtol(fields[idCol].c_str(), &endp, 10);
+			if (endp != fields[idCol].c_str() && static_cast<uint64_t>(id) != recordIndex) {
+				if (g_Context) g_Context->LogWarn("plugin-skills: skills.txt row/*Id mismatch, aborting ManaCosts column apply");
+				return;
+			}
+		}
+
+		uint8_t* rec = static_cast<uint8_t*>(g_SkillsRecords) + recordIndex * SKILLS_RECORD_STRIDE;
+		uint64_t* flags = reinterpret_cast<uint64_t*>(rec + SKILLS_FLAGS_OFFSET);
+
+		if (lifeCol >= 0 && lifeCol < static_cast<int>(fields.size()) && !fields[lifeCol].empty() && fields[lifeCol] != "0")
+			*flags |= (uint64_t{1} << MANA_COSTS_LIFE_BIT);
+		if (staminaCol >= 0 && staminaCol < static_cast<int>(fields.size()) && !fields[staminaCol].empty() && fields[staminaCol] != "0")
+			*flags |= (uint64_t{1} << MANA_COSTS_STAMINA_BIT);
+
+		++recordIndex;
+	}
+}
+
+// ── Hook: DATATBLS_CompileSkillsTxt (function-entry hook, not a call-site
+// redirect) ───────────────────────────────────────────────────────────────
+// Confirmed via decompile to take a single uint8_t context parameter (the only
+// register read in its prologue: MOVZX R14D, CL). Runs the real compile
+// unmodified, then locates the resulting records via the game's own
+// D2GAME_sgptDataTables[context] entry (see OFF_DataTables above) and applies
+// the ManaCostsLife/ManaCostsStamina columns from skills.txt directly.
+void __fastcall Hook_CompileSkillsTxt(uint8_t context)
+{
+	Original_CompileSkillsTxt(context);
+
+	uintptr_t tableBase = *reinterpret_cast<uintptr_t*>(g_ExeBase + OFF_DataTables + static_cast<uint64_t>(context) * 16);
+	g_SkillsRecords = *reinterpret_cast<void**>(tableBase + DATATABLES_SKILLS_RECORDS_OFFSET);
+	g_SkillsCount   = *reinterpret_cast<uint64_t*>(tableBase + DATATABLES_SKILLS_COUNT_OFFSET);
+
+	ApplyManaCostsColumnsFromTxt();
+}
+
+// Callers like Hook_GetUseState pass a record pointer read directly out of a
+// skill entity (*pSkill) with no guarantee it's non-null or in-range -- e.g.
+// empty/unassigned hotbar slots carry a null skills-record pointer. Validate
+// against g_SkillsRecords' actual bounds before ever dereferencing rec+0x24;
+// SkillManaCostsLife/Stamina's own skillId-computed rec is already guaranteed
+// in-range but this check is cheap enough to apply unconditionally anyway.
+static bool IsValidSkillsRecord(const uint8_t* rec)
+{
+	if (!rec || !g_SkillsRecords || g_SkillsCount == 0)
+		return false;
+	auto base = reinterpret_cast<uintptr_t>(g_SkillsRecords);
+	auto ptr  = reinterpret_cast<uintptr_t>(rec);
+	if (ptr < base)
+		return false;
+	uint64_t byteOff = ptr - base;
+	return byteOff < g_SkillsCount * SKILLS_RECORD_STRIDE && byteOff % SKILLS_RECORD_STRIDE == 0;
 }
 
 static bool SkillRecManaCostsLife(const uint8_t* rec)
 {
+	if (!IsValidSkillsRecord(rec))
+		return false;
 	return ((*reinterpret_cast<const uint64_t*>(rec + SKILLS_FLAGS_OFFSET)) >> MANA_COSTS_LIFE_BIT) & 1;
 }
 
@@ -200,6 +303,8 @@ static bool SkillManaCostsLife(int skillId) noexcept {
 
 static bool SkillRecManaCostsStamina(const uint8_t* rec)
 {
+	if (!IsValidSkillsRecord(rec))
+		return false;
 	return ((*reinterpret_cast<const uint64_t*>(rec + SKILLS_FLAGS_OFFSET)) >> MANA_COSTS_STAMINA_BIT) & 1;
 }
 
@@ -257,7 +362,7 @@ bool __fastcall Hook_CheckStat(int* playerUnit, int64_t* skillStruct,
                     auto GetManaCost = reinterpret_cast<GetManaCost_t>(g_ExeBase + OFF_GetManaCost);
                     int manaCost = GetManaCost(unitStrc->itemTableEntry, skillId, level);
 
-                    int currentAlt = PSh_GetStat(g_ExeBase, unitStrc->statList, altStatId);
+                    int currentAlt = PSh_GetStat(g_ExeBase, unitStrc, altStatId);
                     return currentAlt >= manaCost;
                 }
             }
@@ -289,7 +394,7 @@ void __fastcall Hook_ClientPredict(int* playerUnit, int skillId, int skillLevel)
             int manaCost = GetManaCost(unitStrc->itemTableEntry, skillId, skillLevel);
             if (manaCost >= 1 && unitStrc->statList) {
                 auto DrainStat = reinterpret_cast<DrainStat_t>(g_ExeBase + OFF_DrainStat);
-                int currentAlt = PSh_GetStat(g_ExeBase, unitStrc->statList, altStatId);
+                int currentAlt = PSh_GetStat(g_ExeBase, unitStrc, altStatId);
                 if (currentAlt >= manaCost)
                     DrainStat(playerUnit, altStatId, -manaCost);
             }
@@ -337,10 +442,10 @@ int64_t __fastcall Hook_Consume(int64_t unit, int* playerUnit, int skillId, int 
 	if (altStatId && playerUnit) {
 		auto* unitStrc = reinterpret_cast<D2UnitStrc*>(playerUnit);
 		if (unitStrc->statList) {
-			int manaBefore = PSh_GetStat(g_ExeBase, unitStrc->statList, 8 /* mana */);
+			int manaBefore = PSh_GetStat(g_ExeBase, unitStrc, 8 /* mana */);
 			int64_t result = Original_Consume(unit, playerUnit, skillId, skillLevel);
 			if (result != 0) {
-				int manaAfter = PSh_GetStat(g_ExeBase, unitStrc->statList, 8);
+				int manaAfter = PSh_GetStat(g_ExeBase, unitStrc, 8);
 				int drained = manaBefore - manaAfter;
 				if (drained > 0) {
 					auto DrainStat = reinterpret_cast<DrainStat_t>(g_ExeBase + OFF_DrainStat);
@@ -376,15 +481,6 @@ int __fastcall Hook_CanBePickedUpWithTelekinesis(D2UnitStrc* ItemUnit)
 	// ITEMS_CheckItemTypeId(ItemUnit, ITEM_TYPE_XXX) --> 140245230 if you want to check this yourself
 	return ItemUnit != nullptr && ItemUnit->dwUnitType == D2UnitType::Item;
 }
-
-// E8 call sites inside DATATBLS_CompileSkillsTxt that target DATATBLS_CompileTxt.
-// Patched via context->PatchRel32(..., Rel32PatchKind::Call).
-static constexpr uint64_t COMPILE_TXT_CALL_OFFSETS[] = {
-	0x306bb0,
-	0x306d1c,
-	0x306e51,
-	0x306f9e,
-};
 
 // ── INI loading ───────────────────────────────────────────────────────────────
 
@@ -424,12 +520,16 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	auto cfg = PSh_Json_LoadConfig(context);
 	g_skillPluginOptions.Load(context, PSh_Json_GetSection(cfg, "skills"));
 	g_ExeBase = context->exeBase;
+	g_Context = context;
 
 	if (g_skillPluginOptions.bEnableManaCostsLife || g_skillPluginOptions.bEnableManaCostsStamina) {
-		// Redirect all DATATBLS_CompileTxt calls within DATATBLS_CompileSkillsTxt.
-		for (size_t i = 0; i < sizeof(COMPILE_TXT_CALL_OFFSETS) / sizeof(COMPILE_TXT_CALL_OFFSETS[0]); ++i)
-			(void)context->PatchRel32(COMPILE_TXT_CALL_OFFSETS[i], EXP_CompileTxtCallOffsets[i], sizeof(EXP_CompileTxtCallOffsets[i]),
-				reinterpret_cast<uint64_t>(&Hook_CompileTxt_Call) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
+		// Entry hook on DATATBLS_CompileSkillsTxt itself -- see the comment above
+		// ApplyManaCostsColumnsFromTxt for why this replaced the old call-site
+		// redirect into DATATBLS_CompileTxt.
+		if (!context->InstallInlineHook(OFF_CompileSkillsTxt, EXP_CompileSkillsTxt, sizeof(EXP_CompileSkillsTxt), Hook_CompileSkillsTxt, &Original_CompileSkillsTxt)) {
+			D2RL::LogErrorF(context, "plugin-skills: failed to hook CompileSkillsTxt");
+			return false;
+		}
 
 		// Hook Consume; it handles the ManaCostsLife/Stamina redirect itself now
 		// (see the comment above Hook_Consume for why).
@@ -453,8 +553,11 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		}
 
 		// Redirect the single CALL at 0x1401a2580 inside D2CLIENT_GetUnusableUseState.
-		(void)context->PatchRel32(OFF_GetUseState_Call, EXP_GetUseState_Call, sizeof(EXP_GetUseState_Call),
-			reinterpret_cast<uint64_t>(&Hook_GetUseState) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
+		// Uses PSh_PatchCallSite (not context->PatchRel32) since Hook_GetUseState
+		// lives in this plugin DLL, more than 2GB from the exe — see the comment
+		// above PSh_PatchCallSite in plugin-shared.h.
+		(void)PSh_PatchCallSite(context, OFF_GetUseState_Call, EXP_GetUseState_Call, sizeof(EXP_GetUseState_Call),
+			reinterpret_cast<void*>(&Hook_GetUseState));
 	}
 
 	if (g_skillPluginOptions.bEnableClassicWW)
@@ -471,8 +574,12 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 
 	if (g_skillPluginOptions.bTelekinesisPicksUpEverything)
 	{
-		(void)context->PatchRel32(OFF_Telekinesis, EXP_Telekinesis, sizeof(EXP_Telekinesis),
-			reinterpret_cast<uint64_t>(&Hook_CanBePickedUpWithTelekinesis) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
+		// Uses PSh_PatchCallSite (not context->PatchRel32) since
+		// Hook_CanBePickedUpWithTelekinesis lives in this plugin DLL, more than
+		// 2GB from the exe — see the comment above PSh_PatchCallSite in
+		// plugin-shared.h.
+		(void)PSh_PatchCallSite(context, OFF_Telekinesis, EXP_Telekinesis, sizeof(EXP_Telekinesis),
+			reinterpret_cast<void*>(&Hook_CanBePickedUpWithTelekinesis));
 	}
 
 	if (g_skillPluginOptions.bEnableChargedPctDrainStat)
