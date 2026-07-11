@@ -130,7 +130,15 @@
     "misc": {
         // Maximum value accepted by the /players command (vanilla cap: 8).
         // Values above 8 install hooks to bypass the engine clamp.
-        "playersCommandLimit": 8
+        "playersCommandLimit": 8,
+
+        // Cap the effective player count used when computing each monster's
+        // /players bonus to monster max HP / experience. 0 disables the cap
+        // (vanilla behaviour: scales with the real /players value, up to 8).
+        // Set to 1 to remove that stat's /players scaling entirely. The two
+        // caps are independent of each other and of the real /players value.
+        "monsterHpPlayerCountCap": 0,
+        "monsterExperiencePlayerCountCap": 0
     },
 
     // ── Quests ────────────────────────────────────────────────────────────────

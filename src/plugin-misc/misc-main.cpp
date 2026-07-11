@@ -12,23 +12,84 @@ static constexpr uint64_t OFF_Players_ApplyCall   = 0x18887f; // E8 CALL to FUN_
 static constexpr uint64_t OFF_Players_Atoi        = 0x12da3a4; // atoi used at the /players call site
 static constexpr uint64_t OFF_SetPlayerCount      = 0xd2f020;  // FUN_140d2f020(session, count)
 
+// GAME_GetPlayerCountBonus (debug FUN_140542f40; profile 0x1403e34b0) computes the
+// per-monster /players bonus struct { nHp%, nExperience%, nMonsterSkillBonus,
+// nDifficulty, nPlayerCount } used by MONSTER_InitializeStatsAndSkills (see D2MOO's
+// D2PlayerCountBonusStrc in Units/Player.h and Monster.cpp for the field layout —
+// confirmed by decompile-vs-decompile structural match against the profile build,
+// including the identical (n+26)*10 / (n-2)*50 extrapolation formulas for n>8).
+// Only nHp and nExperience are driven by player count; nMonsterSkillBonus is
+// difficulty-based (not player-count-based) and there is no player-count-driven
+// monster damage bonus anywhere in this engine, so those are the only two fields
+// worth capping independently.
+static constexpr uint64_t OFF_GetPlayerCountBonus = 0x542f40;
+
 // Expected original bytes (verified against d2r_debug_91923.exe). D2RLoader
-// requires non-null expected bytes for PatchRel32 calls so it can verify the
-// patch site before writing.
+// requires non-null expected bytes for PatchRel32/InstallInlineHook calls so it
+// can verify the patch site before writing.
 static constexpr uint8_t EXP_Players_AtoiCall[5]  = { 0xE8, 0x44, 0x1B, 0x15, 0x01 };
 static constexpr uint8_t EXP_Players_ApplyCall[5] = { 0xE8, 0x9C, 0x67, 0xBA, 0x00 };
+static constexpr uint8_t EXP_GetPlayerCountBonus[16] = {
+	0x48, 0x89, 0x5C, 0x24, 0x18, 0x55, 0x57, 0x41, 0x56, 0x48, 0x83, 0xEC, 0x40, 0x49, 0x8B, 0xD9,
+};
 
 // ── D2R function types ────────────────────────────────────────────────────────
 
-using PlayersAtoi_t    = int  (__fastcall*)(const char* str);
-using SetPlayerCount_t = void (__fastcall*)(void* session, int count);
+using PlayersAtoi_t          = int  (__fastcall*)(const char* str);
+using SetPlayerCount_t       = void (__fastcall*)(void* session, int count);
+using GetPlayerCountBonus_t  = void (__fastcall*)(void* game, int32_t* outBonus, void* room, void* monster);
 
 // ── Plugin state ──────────────────────────────────────────────────────────────
 
-static int                 g_PlayersCommandLimit = 8;
-static int                 g_LastPlayersArg      = 1;
-static PlayersAtoi_t       Real_PlayersAtoi      = nullptr;
-static SetPlayerCount_t    Real_SetPlayerCount   = nullptr;
+static int                   g_PlayersCommandLimit             = 8;
+static int                   g_LastPlayersArg                  = 1;
+static int                   g_MonsterHpPlayerCountCap          = 0;
+static int                   g_MonsterExperiencePlayerCountCap  = 0;
+static PlayersAtoi_t         Real_PlayersAtoi                  = nullptr;
+static SetPlayerCount_t      Real_SetPlayerCount               = nullptr;
+static GetPlayerCountBonus_t Real_GetPlayerCountBonus          = nullptr;
+
+// Player-count bonus-percent table for indices 1-8, mirrored from the game's own
+// DAT_1416ec070/DAT_141d3d4a8 table (verified via read_memory: 0,0,50,100,150,200,
+// 250,300,350 -- index 0 unused). Hardcoded here rather than re-read at runtime
+// since it's small, static content the plugin doesn't otherwise need a pointer to.
+static constexpr int kPlayerCountBonusTable[9] = { 0, 0, 50, 100, 150, 200, 250, 300, 350 };
+
+static int PlayerCountBonusPercent_Hp(int count) {
+	if (count < 9) return kPlayerCountBonusTable[count];
+	return (count - 2) * 50;
+}
+
+static int PlayerCountBonusPercent_Experience(int count) {
+	if (count < 9) return kPlayerCountBonusTable[count];
+	return (count + 26) * 10;
+}
+
+// ── Hook: GAME_GetPlayerCountBonus ─────────────────────────────────────────────
+// Runs the real computation first (so nMonsterSkillBonus/nDifficulty/nPlayerCount
+// stay untouched), then independently re-derives nHp/nExperience using their own
+// capped player counts instead of the real /players value.
+
+static void __fastcall Hook_GetPlayerCountBonus(void* game, int32_t* outBonus, void* room, void* monster) {
+	Real_GetPlayerCountBonus(game, outBonus, room, monster);
+	if (outBonus == nullptr) {
+		return;
+	}
+
+	const int effectiveCount = outBonus[4];
+	if (effectiveCount <= 0) {
+		return;
+	}
+
+	if (g_MonsterHpPlayerCountCap > 0) {
+		const int cappedCount = effectiveCount < g_MonsterHpPlayerCountCap ? effectiveCount : g_MonsterHpPlayerCountCap;
+		outBonus[0] = PlayerCountBonusPercent_Hp(cappedCount);
+	}
+	if (g_MonsterExperiencePlayerCountCap > 0) {
+		const int cappedCount = effectiveCount < g_MonsterExperiencePlayerCountCap ? effectiveCount : g_MonsterExperiencePlayerCountCap;
+		outBonus[1] = PlayerCountBonusPercent_Experience(cappedCount);
+	}
+}
 
 // ── Hook: atoi call site inside /players handler ──────────────────────────────
 // Captures the raw numeric argument before the game's [1,8] ceiling clamp runs.
@@ -75,6 +136,8 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	auto cfg = PSh_Json_LoadConfig(context);
 	auto misc = PSh_Json_GetSection(cfg, "misc");
 	g_PlayersCommandLimit = misc.value("playersCommandLimit", 8);
+	g_MonsterHpPlayerCountCap = misc.value("monsterHpPlayerCountCap", 0);
+	g_MonsterExperiencePlayerCountCap = misc.value("monsterExperiencePlayerCountCap", 0);
 
 	if (g_PlayersCommandLimit > 8) {
 		Real_PlayersAtoi    = reinterpret_cast<PlayersAtoi_t>(context->exeBase + OFF_Players_Atoi);
@@ -84,6 +147,14 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 			reinterpret_cast<uint64_t>(&Hook_PlayersAtoi) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
 		(void)context->PatchRel32(OFF_Players_ApplyCall, EXP_Players_ApplyCall, sizeof(EXP_Players_ApplyCall),
 			reinterpret_cast<uint64_t>(&Hook_SetPlayerCount) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
+	}
+
+	if (g_MonsterHpPlayerCountCap > 0 || g_MonsterExperiencePlayerCountCap > 0) {
+		if (!context->InstallInlineHook(OFF_GetPlayerCountBonus, EXP_GetPlayerCountBonus, sizeof(EXP_GetPlayerCountBonus),
+				&Hook_GetPlayerCountBonus, &Real_GetPlayerCountBonus)) {
+			context->LogError("plugin-misc: failed to hook GetPlayerCountBonus");
+			return false;
+		}
 	}
 
 	return true;
