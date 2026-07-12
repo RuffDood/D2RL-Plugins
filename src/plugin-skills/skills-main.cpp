@@ -404,36 +404,60 @@ void __fastcall Hook_ClientPredict(int* playerUnit, int skillId, int skillLevel)
     Original_ClientPredict(playerUnit, skillId, skillLevel);
 }
 
+// ── Charge-item cast detection (ConsumeWeaponCharge's gating check) ──────────
+// Debug's Consume (FUN_140436830) decides charge-vs-mana by testing, in order:
+//   lVar5 = FUN_14034ba40(playerUnit)      == *(uint64_t*)(playerUnit->_unk0x100 + 0x18)
+//   FUN_14033e080(lVar5)  == skillId       == *(short*)(*lVar5)
+//   FUN_14033cc10(lVar5)  != -1            == *(int*)(lVar5 + 0x4c)
+// All three sub-calls were decompiled directly (not inferred) and match the
+// profile build's independently-named D2GAME_SKILLMANA_Consume byte-for-byte
+// (chargeItem = *(playerUnit->field182_0x100 + 0x18); *(short*)*chargeItem ==
+// skillId; *(int*)(chargeItem+0x4c) != -1). playerUnit->_unk0x100 is already
+// a static_assert-verified field (plugin-shared.h), so this whole chain is
+// now confirmed rather than guessed — see docs/offset-migration-status.md.
+static bool IsChargeItemCast(D2UnitStrc* unitStrc, int skillId)
+{
+	if (!unitStrc) return false;
+	auto slotBase = static_cast<uintptr_t>(unitStrc->_unk0x100);
+	if (!slotBase) return false;
+	auto slot = *reinterpret_cast<uintptr_t*>(slotBase + 0x18);
+	if (!slot) return false;
+	auto itemPtr = *reinterpret_cast<uintptr_t*>(slot);
+	if (!itemPtr) return false;
+	int16_t itemSkillCode = *reinterpret_cast<int16_t*>(itemPtr);
+	int32_t chargeGuard    = *reinterpret_cast<int32_t*>(slot + 0x4c);
+	return itemSkillCode == static_cast<int16_t>(skillId) && chargeGuard != -1;
+}
+
 // ── Hook: D2GAME_SKILLMANA_Consume ───────────────────────────────────────────
 // AuraConsume and ConsumeWeaponCharge are both fully inlined into this
 // function in the debug build (no standalone call boundary survives — see the
 // comment by OFF_Consume's declaration), so both of their old jobs are
 // reimplemented here directly instead of via separate inline hooks.
 //
-// ManaCostsLife/ManaCostsStamina redirect (AuraConsume's old job): rather than
-// replicating Consume's internal charge-vs-mana-vs-BloodMana branching
-// ourselves (which would require trusting an unverified multi-level pointer
-// chain read from the profile decompile — playerUnit+0x100 -> +0x18 ->
-// skill struct -> skill id / owner GUID — with no independent confirmation
-// available, and a wrong hop there is a crash, not a bug), we let the real
-// engine decide and react to the *result*: read mana before and after calling
-// Original_Consume, and if it actually decreased, refund it and drain the
-// alternate stat by the same amount instead. This is correct in every case
-// the original design cared about: a charge-item cast never touches mana, so
-// this is a no-op for it; a BloodMana-diverted cast already drained life via
-// the engine's own BloodMana path, so mana didn't move and this is a no-op
-// for it too; only a genuine mana-cost cast triggers the redirect.
+// ManaCostsLife/ManaCostsStamina redirect (AuraConsume's old job): read mana
+// before and after calling Original_Consume, and if it actually decreased,
+// refund it and drain the alternate stat by the same amount instead. This is
+// correct in every case the original design cared about: a charge-item cast
+// never touches mana, so this is a no-op for it; a BloodMana-diverted cast
+// already drained life via the engine's own BloodMana path, so mana didn't
+// move and this is a no-op for it too; only a genuine mana-cost cast
+// triggers the redirect.
 //
 // ChargedPctDrainStat (ConsumeWeaponCharge's old job, "give a % chance to
-// skip draining a charge") is NOT reimplemented here. Doing this safely would
-// need the same charge-item pointer chain mentioned above, this time to
-// preemptively skip the drain rather than just observe it — there's no
-// after-the-fact "refund a charge" trick available here the way there is for
-// a plain additive stat like mana, since charges are stored as a packed
-// (current | max<<8) value written via a dedicated setter, not a simple
-// STATLIST_AddUnitStat delta. Left unimplemented; bEnableChargedPctDrainStat
-// is intentionally not read anywhere. See docs/offset-migration-status.md.
-
+// skip draining a charge"): charges are stored as a packed (current |
+// max<<8) value written via a dedicated setter (FUN_1402f5df0/FUN_1402f7c20
+// in debug), keyed off an item/stat-code pair Original_Consume derives via
+// its own internal helper (FUN_1403d4950) — there's no cheap after-the-fact
+// "refund one charge" trick the way there is for a plain additive stat like
+// mana. Instead, when IsChargeItemCast() confirms this is a charge-based
+// cast and the percent roll succeeds, skip calling Original_Consume entirely
+// and report success. Caveat: this bypasses vanilla's own "already at 0
+// charges" refusal check inside ConsumeWeaponCharge -- in practice a client
+// shouldn't be able to reach Consume for a 0-charge item at all (the same
+// upstream GetUseState-family gating that blocks insufficient-mana casts
+// should already block this), but that specific path hasn't been
+// independently verified the way the cast-detection chain above has.
 int64_t __fastcall Hook_Consume(int64_t unit, int* playerUnit, int skillId, int skillLevel) {
 	int altStatId = 0;
 	if      (SkillManaCostsLife(skillId))    altStatId = 6;
@@ -456,6 +480,20 @@ int64_t __fastcall Hook_Consume(int64_t unit, int* playerUnit, int skillId, int 
 			return result;
 		}
 	}
+
+	if (g_skillPluginOptions.bEnableChargedPctDrainStat && playerUnit) {
+		auto* unitStrc = reinterpret_cast<D2UnitStrc*>(playerUnit);
+		if (unitStrc->statList && IsChargeItemCast(unitStrc, skillId)) {
+			int pct = PSh_GetStat(g_ExeBase, unitStrc, g_skillPluginOptions.ChargedPctDrainStat);
+			if (pct > 0) {
+				uint64_t roll = PSh_RollUnit(unitStrc);
+				if (static_cast<uint32_t>(roll) % 100 < static_cast<uint32_t>(pct)) {
+					return 1; // skip the charge drain; the skill cast itself is handled elsewhere
+				}
+			}
+		}
+	}
+
 	return Original_Consume(unit, playerUnit, skillId, skillLevel);
 }
 
@@ -531,13 +569,6 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 			return false;
 		}
 
-		// Hook Consume; it handles the ManaCostsLife/Stamina redirect itself now
-		// (see the comment above Hook_Consume for why).
-		if (!context->InstallInlineHook(OFF_Consume, EXP_Consume, sizeof(EXP_Consume), Hook_Consume, &Original_Consume)) {
-			D2RL::LogErrorF(context, "plugin-skills: failed to hook Consume");
-			return false;
-		}
-
 		// Hook CheckStat so the skill orb turns red when life (not mana) is too low.
 		if (!context->InstallInlineHook(OFF_CheckStat, EXP_CheckStat, sizeof(EXP_CheckStat), Hook_CheckStat, &Original_CheckStat)) {
 			D2RL::LogErrorF(context, "plugin-skills: failed to hook CheckStat");
@@ -560,6 +591,16 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 			reinterpret_cast<void*>(&Hook_GetUseState));
 	}
 
+	if (g_skillPluginOptions.bEnableManaCostsLife || g_skillPluginOptions.bEnableManaCostsStamina
+		|| g_skillPluginOptions.bEnableChargedPctDrainStat) {
+		// Hook Consume; it handles the ManaCostsLife/Stamina redirect and the
+		// ChargedPctDrainStat skip itself now (see the comment above Hook_Consume).
+		if (!context->InstallInlineHook(OFF_Consume, EXP_Consume, sizeof(EXP_Consume), Hook_Consume, &Original_Consume)) {
+			D2RL::LogErrorF(context, "plugin-skills: failed to hook Consume");
+			return false;
+		}
+	}
+
 	if (g_skillPluginOptions.bEnableClassicWW)
 	{
 		uint8_t classicWWBytes[] = { 0xB8, 0x01, 0x00, 0x00, 0x00 };
@@ -580,14 +621,6 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// plugin-shared.h.
 		(void)PSh_PatchCallSite(context, OFF_Telekinesis, EXP_Telekinesis, sizeof(EXP_Telekinesis),
 			reinterpret_cast<void*>(&Hook_CanBePickedUpWithTelekinesis));
-	}
-
-	if (g_skillPluginOptions.bEnableChargedPctDrainStat)
-	{
-		// Not implemented against this build target — see the comment above
-		// Hook_Consume for why (needs an unverified charged-item pointer chain
-		// this codebase isn't confident enough in to ship).
-		D2RL::LogErrorF(context, "plugin-skills: chargedPctDrainStat is enabled in config but not implemented for this build; ignoring");
 	}
 
 	return true;

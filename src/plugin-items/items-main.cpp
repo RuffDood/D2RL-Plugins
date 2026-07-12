@@ -22,14 +22,20 @@
 static constexpr uint64_t OFF_MagicItemsSpawnIdentified  = 0x442d2a;
 static constexpr uint64_t OFF_RareItemsSpawnIdentified   = 0x58be1a;
 static constexpr uint64_t OFF_GetInventoryGoldLimit      = 0x34b320; // D2GAME_GetInventoryGoldLimit
-// Jump table for the quality switch inside FUN_140244e30 (ITEMS_FindMatchingRuneword).
-// Instruction: MOV ECX,[R13 + RAX*4 + 0x2450b4]  where R13=imageBase, RAX=(quality-4).
-// Six 4-byte entries covering quality 4 (Magic) through 9 (Tempered).
-// Writing 0x00244E95 to an entry redirects that quality to the "pass" branch
-// (the instruction immediately after the switch, where rune matching proceeds normally).
+// Jump table for the quality switch inside ITEMS_ValidateRuneword (0x372260-0x372634).
+// Dispatch at 0x372483: MOV ECX,[RDX + RAX*4 + 0x372638]; ADD RCX,RDX; JMP RCX
+// where RDX=imageBase, RAX=(quality-4). Six 4-byte RVA entries covering quality
+// 4 (Magic) through 9 (Tempered); each currently holds 0x00372440, the address
+// of the function's early "XOR EAX,EAX" reject path (no runeword allowed).
+// The out-of-range case (quality outside 4..9, i.e. Normal/Superior/etc.) is
+// handled by the JA at 0x372474, which jumps straight to 0x3722e4 -- the real
+// "keep validating normally" continuation. Writing 0x003722e4 to an entry
+// redirects that quality to that same continuation, i.e. treats it exactly
+// like Normal quality. (Read directly from d2r_debug_91923.exe and confirmed
+// against the live jump-table bytes; see docs/offset-migration-status.md.)
 static constexpr uint64_t OFF_GoldPenaltyCall            = 0x424ad1; // lone CALL site that applies the gold penalty (D2GAME_ApplyDeathGoldPenalty)
 static constexpr uint64_t OFF_RunewordQualityJumpTable   = 0x372638; // inside ITEMS_ValidateRuneword
-static constexpr unsigned char RUNEWORD_QUALITY_PASS[]   = { 0x95, 0x4E, 0x24, 0x00 }; // RVA 0x244E95 LE
+static constexpr unsigned char RUNEWORD_QUALITY_PASS[]   = { 0xE4, 0x22, 0x37, 0x00 }; // RVA 0x3722e4 LE
 
 static constexpr uint64_t OFF_FillStoreInventory         = 0x53c9f0; // D2GAME_NPC_FillStoreInventory
 static constexpr uint64_t OFF_GenerateStoreItem          = 0x540ea0; // D2GAME_NPC_GenerateStoreItem

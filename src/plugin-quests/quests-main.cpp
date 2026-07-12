@@ -1,4 +1,5 @@
 #include <D2RLPlugin/api.h>
+#include <D2RLPlugin/logging.h>
 #include <plugin-shared.h>
 #include "quests-private.h"
 #include <plugin-shared-json.h>
@@ -87,6 +88,7 @@ static QuestPluginOptions g_questPluginOptions;
 using GiveQuestItemFn_t = int* (__fastcall*)(const D2GameStrc* pGame, void* pPlayer, uint32_t itemCode, int param4, uint32_t quality, int param6);
 static GiveQuestItemFn_t g_GiveQuestItemFn = nullptr;
 static uintptr_t g_exeBase = 0;
+static const D2RL::PluginContext* g_context = nullptr;
 
 // ── DifferentPerDifficulty call-site hooks ────────────────────────────────────
 static int* __fastcall Hook_AkaraCainRingDiffReward(const D2GameStrc* pGame, void* pPlayer, uint32_t, int param4, uint32_t, int param6)
@@ -115,6 +117,9 @@ static int* __fastcall Hook_QualKehkRuneDiffReward(const D2GameStrc* pGame, void
 	const auto* tbl = reinterpret_cast<const uint32_t*>(g_exeBase + OFF_QualKehkItem1);
 	int slot = (itemCode == tbl[0]) ? 0 : (itemCode == tbl[1]) ? 1 : 2;
 	uint32_t newItem = g_questPluginOptions.QualKehkRuneItems[slot].RewardPerDifficulty[di];
+	D2RL::LogInfoF(g_context,
+		"QualKehkRuneDiffReward: rawDifficulty=%u di=%u slot=%d itemCode=0x%08X newItem=0x%08X",
+		static_cast<unsigned>(pGame->difficultyLevel), di, slot, itemCode, newItem);
 	return g_GiveQuestItemFn(pGame, pPlayer, newItem, param4, quality, param6);
 }
 
@@ -248,6 +253,8 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 	}
 
+	g_context = context;
+
 	auto cfg = PSh_Json_LoadConfig(context);
 	g_questPluginOptions.Load(context, PSh_Json_GetSection(cfg, "quests"));
 
@@ -297,8 +304,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// this plugin DLL, more than 2GB from the exe — see the comment above
 		// PSh_PatchCallSite in plugin-shared.h.
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		(void)PSh_PatchCallSite(context, OFF_AkaraRingCallSite, EXP_AkaraRingCallSite, sizeof(EXP_AkaraRingCallSite),
+		bool ok = PSh_PatchCallSite(context, OFF_AkaraRingCallSite, EXP_AkaraRingCallSite, sizeof(EXP_AkaraRingCallSite),
 			reinterpret_cast<void*>(&Hook_AkaraCainRingDiffReward));
+		D2RL::LogInfoF(context, "AkaraCainRing: DifferentPerDifficulty callsite patch %s", ok ? "installed" : "FAILED");
 	}
 
 	if (g_questPluginOptions.OrmusGidbinnRingRewardEnabled == RewardType::SamePerDifficulty)
@@ -310,8 +318,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	{	// Different item/quality depending on difficulty — see the comment on the
 		// Akara branch above for why this uses PSh_PatchCallSite.
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		(void)PSh_PatchCallSite(context, OFF_OrmusRingCallSite, EXP_OrmusRingCallSite, sizeof(EXP_OrmusRingCallSite),
+		bool ok = PSh_PatchCallSite(context, OFF_OrmusRingCallSite, EXP_OrmusRingCallSite, sizeof(EXP_OrmusRingCallSite),
 			reinterpret_cast<void*>(&Hook_OrmusGidbinnRingDiffReward));
+		D2RL::LogInfoF(context, "OrmusGidbinnRing: DifferentPerDifficulty callsite patch %s", ok ? "installed" : "FAILED");
 	}
 
 	if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::SamePerDifficulty)
@@ -324,8 +333,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	{	// see the comment on the Akara branch above for why this uses PSh_PatchCallSite
 		g_exeBase = context->exeBase;
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		(void)PSh_PatchCallSite(context, OFF_QualKehkCallSite, EXP_QualKehkCallSite, sizeof(EXP_QualKehkCallSite),
+		bool ok = PSh_PatchCallSite(context, OFF_QualKehkCallSite, EXP_QualKehkCallSite, sizeof(EXP_QualKehkCallSite),
 			reinterpret_cast<void*>(&Hook_QualKehkRuneDiffReward));
+		D2RL::LogInfoF(context, "QualKehkRunes: DifferentPerDifficulty callsite patch %s", ok ? "installed" : "FAILED");
 	}
 
 	if (g_questPluginOptions.ImbueAllowSockets)
