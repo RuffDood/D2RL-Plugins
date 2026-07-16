@@ -238,7 +238,7 @@ static constexpr D2RL::PluginInfo PluginInfo {
 	.apiVersion = D2RL_PLUGIN_API_VERSION,
 	.id         = "eezstreet-plugin-quests",
 	.name       = "eezstreet Quests Plugin",
-	.version    = "0.0.1",
+	.version    = "2.0.1",
 	.author     = "eezstreet",
 	.description = "Various quest-related changes.",
 	.flags      = D2RL::PluginFlags::None,

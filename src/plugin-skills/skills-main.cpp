@@ -541,7 +541,7 @@ static constexpr D2RL::PluginInfo PluginInfo {
 	.apiVersion = D2RL_PLUGIN_API_VERSION,
 	.id         = "eezstreet-plugin-skills",
 	.name       = "eezstreet Skills Plugin",
-	.version    = "2.0.0",
+	.version    = "2.0.1",
 	.author     = "eezstreet",
 	.description = "Various skill-related changes.",
 	.flags      = D2RL::PluginFlags::NativeHooks,
