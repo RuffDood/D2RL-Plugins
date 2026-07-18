@@ -117,7 +117,12 @@
         "chargedPctDrainStat": {
             "enabled": false,
             "statId": 0
-        }
+        },
+
+        // Adds additional properties to srvdofunc 169:
+        // par1 set to 0 (default) will heal TO a percentage. par1 set to 1 will heal BY a percentage.
+        // par2 set to 0 (default) will heal life. par2 set to 1 will heal mana.
+        "selfHealParams": true
     },
 
     // ── Levels ────────────────────────────────────────────────────────────────

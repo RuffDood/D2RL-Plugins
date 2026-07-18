@@ -11,6 +11,8 @@ struct SkillPluginOptions {
 	bool bTelekinesisPicksUpEverything; // When enabled, Telekinesis picks up anything
 	bool bEnableChargedPctDrainStat;    // When enabled, charged items have a chance to not drain a charge on use
 	int  ChargedPctDrainStat;           // Stat ID giving the % chance to skip the charge drain
+	bool bEnableSelfHealParams;         // When enabled, SKILLS_SrvDo169_MonDoSelfHeal is replaced by
+	                                     // a Param1/Param2-driven heal-to/heal-by, life/mana implementation
 
 	void Load(const D2RL::PluginContext* context, const nlohmann::json& cfg);
 };

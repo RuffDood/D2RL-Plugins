@@ -238,6 +238,129 @@ struct D2ItemDataTbl
 	D2ItemsTxt* pMisc;                      // start of misc sub-array
 };
 
+// Compiled skills.txt record (748 bytes, stride confirmed against the game's own
+// per-context data table). Field names/offsets recovered via Ghidra.
+//
+// One deliberate correction to Ghidra's raw output: Ghidra reports the field at
+// offset 0x24 as a 4-byte dwFlags, with an unlabeled 4-byte gap before bCharclass
+// at 0x2C. plugin-skills' ManaCostsLife/ManaCostsStamina feature reads/writes that
+// region as a full 8-byte uint64_t (bits 47/48) and is confirmed working against
+// the real game — so dwFlags is declared here as uint64_t spanning 0x24-0x2B,
+// which absorbs that gap exactly and lines back up with bCharclass at 0x2C
+// (Ghidra's own reported offset), with no other field shifted.
+#pragma pack(1)
+struct D2SkillsTxt
+{
+	uint16_t wSkillId;                          // 0x000
+	uint8_t  _unk002[34];                       // 0x002  unmapped
+	uint64_t dwFlags;                            // 0x024  flags QWORD -- bits 47/48 = ManaCostsLife/Stamina (plugin-skills)
+	uint8_t  bCharclass;                         // 0x02C
+	uint8_t  _pad02D[3];                         // 0x02D
+	uint8_t  b_unk030;                           // 0x030
+	uint8_t  bMonanim;                           // 0x031
+	uint8_t  bSeqtrans;                          // 0x032
+	uint8_t  bSeqnum;                            // 0x033
+	uint8_t  bRange;                             // 0x034
+	uint8_t  bSelectProc;                        // 0x035
+	uint8_t  bSeqinput;                          // 0x036
+	uint8_t  _pad037;                            // 0x037
+	int16_t  nItypea1, nItypea2, nItypea3;       // 0x038, 0x03A, 0x03C
+	int16_t  nItypeb1, nItypeb2, nItypeb3;       // 0x03E, 0x040, 0x042
+	int16_t  nEtypea1, nEtypea2;                 // 0x044, 0x046
+	int16_t  nEtypeb1, nEtypeb2;                 // 0x048, 0x04A
+	int16_t  nSrvstfunc;                         // 0x04C
+	int16_t  nSrvdofunc;                         // 0x04E
+	int16_t  nSrvprgfunc1, nSrvprgfunc2, nSrvprgfunc3; // 0x050, 0x052, 0x054
+	uint8_t  _pad056[2];                         // 0x056
+	int32_t  nPrgcalc1, nPrgcalc2, nPrgcalc3;    // 0x058, 0x05C, 0x060
+	uint8_t  bPrgdam;                            // 0x064
+	uint8_t  _pad065;                            // 0x065
+	int16_t  nSrvmissile, nSrvmissilea, nSrvmissileb, nSrvmissilec; // 0x066, 0x068, 0x06A, 0x06C
+	int16_t  nSrvoverlay;                        // 0x06E
+	int32_t  nAuraFilter;                        // 0x070
+	int16_t  nAuraStat1, nAurastat2, nAurastat3, nAurastat4, nAurastat5, nAurastat6; // 0x074..0x07E
+	int32_t  nAuraLenCalc, nAuraRangeCalc;       // 0x080, 0x084
+	int32_t  nAuraStatCalc1, nAurastatcalc2, nAurastatcalc3, nAurastatcalc4, nAurastatcalc5, nAurastatcalc6; // 0x088..0x09C
+	int16_t  nAurastate, nAuraTargetState;       // 0x0A0, 0x0A2
+	int16_t  nAuraevent1, nAuraevent2, nAuraevent3, nAuraevent4; // 0x0A4..0x0AA
+	int16_t  nAuraeventfunc1, nAuraeventfunc2, nAuraeventfunc3, nAuraeventfunc4; // 0x0AC..0x0B2
+	int16_t  nPassivestate, nPassiveitype;       // 0x0B4, 0x0B6
+	uint8_t  bPassivereqweaponcount;             // 0x0B8
+	uint8_t  _pad0B9;                            // 0x0B9
+	int16_t  nPassivestat1, nPassivestat2, nPassivestat3, nPassivestat4, nPassivestat5, nPassivestat6, nPassivestat7, nPassivestat8, nPassivestat9, nPassivestat10, nPassivestat11, nPassivestat12, nPassivestat13, nPassivestat14; // 0x0BA..0x0D4
+	uint8_t  _pad0D6[2];                         // 0x0D6
+	int32_t  nPassivecalc1, nPassivecalc2, nPassivecalc3, nPassivecalc4, nPassivecalc5, nPassivecalc6, nPassivecalc7, nPassivecalc8, nPassivecalc9, nPassivecalc10, nPassivecalc11, nPassivecalc12, nPassivecalc13, nPassivecalc14; // 0x0D8..0x10C
+	int16_t  nSummon;                            // 0x110
+	uint8_t  bPettype, bSummode;                 // 0x112, 0x113
+	int32_t  nPetmax;                            // 0x114
+	int16_t  nSumskill1, nSumskill2, nSumskill3, nSumskill4, nSumskill5; // 0x118..0x120
+	uint8_t  _pad122[2];                         // 0x122
+	int32_t  nSumsk1calc, nSumsk2calc, nSumsk3calc, nSumsk4calc, nSumsk5calc; // 0x124..0x134
+	int32_t  nSumumod;                           // 0x138
+	int16_t  nSumoverlay;                        // 0x13C
+	int16_t  nCltmissile, nCltmissilea, nCltmissileb, nCltmissilec, nCltmissiled; // 0x13E..0x146
+	int16_t  nCltstfunc, nCltdofunc;             // 0x148, 0x14A
+	int16_t  nCltprgfunc1, nCltprgfunc2, nCltprgfunc3; // 0x14C, 0x14E, 0x150
+	int16_t  nStsound, nStsoundclass;            // 0x152, 0x154
+	int16_t  nDosound, nDosound_a, nDosound_b;   // 0x156, 0x158, 0x15A
+	int16_t  nCastoverlay, nTgtoverlay, nTgtsound; // 0x15C, 0x15E, 0x160
+	int16_t  nPrgoverlay, nPrgsound;             // 0x162, 0x164
+	int16_t  nCltoverlaya, nCltoverlayb;         // 0x166, 0x168
+	uint8_t  _pad16A[2];                         // 0x16A
+	int32_t  nCltcalc1, nCltcalc2, nCltcalc3;    // 0x16C, 0x170, 0x174
+	uint8_t  bItemTarget;                        // 0x178
+	uint8_t  _pad179;                            // 0x179
+	int16_t  nItemCastSound, nItemCastOverlay;   // 0x17A, 0x17C
+	uint8_t  _pad17E[2];                         // 0x17E
+	int32_t  nPerdelay;                          // 0x180
+	int16_t  nMaxlvl, nResultFlags;              // 0x184, 0x186
+	int32_t  nHitFlags, nHitClass;               // 0x188, 0x18C
+	int32_t  nCalc1, nCalc2, nCalc3, nCalc4, nCalc5, nCalc6, nCalc7, nCalc8, nCalc9, nCalc10; // 0x190..0x1B4
+	int32_t  nParam1, nParam2, nParam3, nParam4, nParam5, nParam6, nParam7, nParam8, nParam9, nParam10,
+	         nParam11, nParam12, nParam13, nParam14, nParam15, nParam16, nParam17, nParam18, nParam19, nParam20; // 0x1B8..0x204
+	uint8_t  bWeapsel;                            // 0x208
+	uint8_t  _pad209;                             // 0x209
+	int16_t  nItemEffect, nItemCltEffect;        // 0x20A, 0x20C
+	uint8_t  _pad20E[2];                         // 0x20E
+	int32_t  nSkpoints;                          // 0x210
+	int16_t  nReqlevel, nReqstr, nReqdex, nReqint, nReqvit; // 0x214..0x21C
+	int16_t  nReqskill1, nReqskill2, nReqskill3; // 0x21E, 0x220, 0x222
+	int16_t  nStartmana, nMinmana, nManashift, nMana, nLvlmana; // 0x224..0x22C
+	uint8_t  bPrgchargestocast, bPrgchargesconsumed, bAttackrank, bLineofsight; // 0x22E..0x231
+	uint8_t  _pad232[2];                         // 0x232
+	int32_t  nGlobalDelay, nLocaldelay;          // 0x234, 0x238
+	int16_t  nSkilldesc;                         // 0x23C
+	uint8_t  _pad23E[2];                         // 0x23E
+	int32_t  nToHit, nLevToHit, nToHitCalc;      // 0x240, 0x244, 0x248
+	uint8_t  bHitShift, bSrcDam;                 // 0x24C, 0x24D
+	uint8_t  _pad24E[2];                         // 0x24E
+	int32_t  nMinDam, nMaxDam;                   // 0x250, 0x254
+	int32_t  nMinLevDam1, nMinLevDam2, nMinLevDam3, nMinLevDam4, nMinLevDam5; // 0x258..0x268
+	int32_t  nMaxLevDam1, nMaxLevDam2, nMaxLevDam3, nMaxLevDam4, nMaxLevDam5; // 0x26C..0x27C
+	int32_t  nDmgSymPerCalc;                     // 0x280
+	uint8_t  bEType;                             // 0x284
+	uint8_t  _pad285[3];                         // 0x285
+	int32_t  nEMinDam, nEMaxDam;                 // 0x288, 0x28C
+	int32_t  nEMinLev1, nEMinLev2, nEMinLev3, nEMinLev4, nEMinLev5; // 0x290..0x2A0
+	int32_t  nEMaxLev1, nEMaxLev2, nEMaxLev3, nEMaxLev4, nEMaxLev5; // 0x2A4..0x2B4
+	int32_t  nEDmgSymPerCalc;                    // 0x2B8
+	int32_t  nELevLen, nELevLen1, nELevLen2, nELevLen3;  // 0x2BC..0x2C8
+	int32_t  nELenSymPerCalc;                    // 0x2CC
+	uint8_t  bRestrict_;                         // 0x2D0
+	uint8_t  _pad2D1;                            // 0x2D1
+	int16_t  nState1, nState2, nState3;          // 0x2D2, 0x2D4, 0x2D6
+	uint8_t  bAitype;                            // 0x2D8
+	uint8_t  _pad2D9;                            // 0x2D9
+	int16_t  nAibonus;                           // 0x2DA
+	int32_t  nCost_mult, nCost_add;              // 0x2DC, 0x2E0
+	uint8_t  bUseServerMissilesOnRemoteClients;  // 0x2E4
+	uint8_t  _pad2E5;                            // 0x2E5
+	int16_t  nSrvstopfunc, nCltstopfunc;         // 0x2E6, 0x2E8
+	uint8_t  _pad2EA[2];                         // 0x2EA
+};
+static_assert(sizeof(D2SkillsTxt) == 0x2EC, "D2SkillsTxt size mismatch");
+#pragma pack()
+
 //
 // D2Game types
 //

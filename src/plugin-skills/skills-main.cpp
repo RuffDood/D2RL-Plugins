@@ -2,6 +2,7 @@
 #include "plugin-shared.h"
 #include "skills-private.h"
 #include <Windows.h>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -21,6 +22,11 @@ using CheckStat_t     = bool(__fastcall*)(int* playerUnit, int64_t* skillStruct,
 using ClientPredict_t = void(__fastcall*)(int* playerUnit, int skillId, int skillLevel);
 using GetSkillLevel_t = int(__fastcall*)(int* playerUnit, int64_t* skillStruct, int param3);
 using GetMaxSkillLevelForContext_t = int(__fastcall*)(uint8_t context, uint32_t index);
+using MonDoSelfHeal_t        = int64_t(__fastcall*)(D2GameStrc* pGame, D2UnitStrc* pUnit,
+                                                     int skillId, int param4);
+using EvaluateSkillFormula_t = uint32_t(__fastcall*)(uint8_t bExpansion, D2UnitStrc* unit,
+                                                      uint32_t calcSlot, int skillId, int param5);
+using SetUnitStat_t          = void(__fastcall*)(D2UnitStrc* unit, int statId, int value, int layer);
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -85,6 +91,9 @@ static constexpr uint64_t OFF_EnableWWCtC      = 0x589736;
 static constexpr uint64_t OFF_Telekinesis      = 0x554936;
 static constexpr uint64_t OFF_GetSkillLevel    = 0x3400a0; // SKILLS_GetSkillLevel (profile 0x264b20)
 static constexpr uint64_t OFF_GetMaxSkillLevelForContext = 0x300c70; // debug-only helper; profile inlines this as a raw D2GAME_sgptDataTables[ctx*2]+0x14e0 double-deref, no separate profile function exists
+static constexpr uint64_t OFF_MonDoSelfHeal          = 0x57d030; // SKILLS_SrvDo169_MonDoSelfHeal
+static constexpr uint64_t OFF_EvaluateSkillFormula   = 0x3b5160; // SKILLS_EvaluateSkillFormula
+static constexpr uint64_t OFF_SetUnitStat            = 0x2f7d10; // STATLIST_SetUnitStat
 
 // ── Expected original bytes (verified against d2r_debug_91923.exe) ───────────
 // D2RLoader requires non-null expected bytes for PatchBytes/PatchRel32/
@@ -107,10 +116,11 @@ static constexpr uint8_t EXP_GetUseState_Call[5] = { 0xE8, 0xDB, 0x41, 0x12, 0x0
 static constexpr uint8_t EXP_ClassicWW[5]        = { 0xE8, 0x19, 0x1A, 0x00, 0x00 };
 static constexpr uint8_t EXP_EnableWWCtC[6]      = { 0x0F, 0x85, 0xC1, 0x00, 0x00, 0x00 };
 static constexpr uint8_t EXP_Telekinesis[5]      = { 0xE8, 0x35, 0xA8, 0xDE, 0xFF };
+static constexpr uint8_t EXP_MonDoSelfHeal[20]   = {
+	0x48, 0x89, 0x5C, 0x24, 0x10, 0x48, 0x89, 0x6C, 0x24, 0x18,
+	0x56, 0x57, 0x41, 0x56, 0x48, 0x83, 0xEC, 0x30, 0x4C, 0x8B,
+};
 
-// skills.txt record layout constants
-static constexpr uint64_t SKILLS_RECORD_STRIDE = 0x2EC;  // bytes per record
-static constexpr uint64_t SKILLS_FLAGS_OFFSET  = 0x24;   // uint64_t flags QWORD
 static constexpr uint32_t SKILLSRECORD_TYPE_BOOL = 29;
 static constexpr int      MANA_COSTS_LIFE_BIT    = 47;   // first free bit
 static constexpr int      MANA_COSTS_STAMINA_BIT = 48;   // second free bit
@@ -122,8 +132,8 @@ static uintptr_t                     g_ExeBase  = 0;
 static const D2RL::PluginContext*    g_Context  = nullptr;
 
 // Compiled skills.txt records (game-owned memory — do not free).
-static void*    g_SkillsRecords = nullptr;
-static uint64_t g_SkillsCount  = 0;
+static D2SkillsTxt* g_SkillsRecords = nullptr;
+static uint64_t      g_SkillsCount  = 0;
 
 using GetUseState_t    = int(__fastcall*)(int* playerUnit, int64_t* pSkill);
 using NeedManaSound_t  = int(__fastcall*)(int* skillEntity, uint32_t* outPriority);
@@ -136,6 +146,7 @@ static CheckStat_t           Original_CheckStat          = nullptr;
 static ClientPredict_t       Original_ClientPredict      = nullptr;
 static CompileSkillsTxt_t    Original_CompileSkillsTxt   = nullptr;
 static void* Original_CanBePickedUpWithTelekinesis = nullptr;
+static MonDoSelfHeal_t       Original_MonDoSelfHeal      = nullptr;
 
 // ── ManaCostsLife/ManaCostsStamina column application ───────────────────────
 //
@@ -237,13 +248,12 @@ static void ApplyManaCostsColumnsFromTxt()
 			}
 		}
 
-		uint8_t* rec = static_cast<uint8_t*>(g_SkillsRecords) + recordIndex * SKILLS_RECORD_STRIDE;
-		uint64_t* flags = reinterpret_cast<uint64_t*>(rec + SKILLS_FLAGS_OFFSET);
+		D2SkillsTxt* rec = g_SkillsRecords + recordIndex;
 
 		if (lifeCol >= 0 && lifeCol < static_cast<int>(fields.size()) && !fields[lifeCol].empty() && fields[lifeCol] != "0")
-			*flags |= (uint64_t{1} << MANA_COSTS_LIFE_BIT);
+			rec->dwFlags |= (uint64_t{1} << MANA_COSTS_LIFE_BIT);
 		if (staminaCol >= 0 && staminaCol < static_cast<int>(fields.size()) && !fields[staminaCol].empty() && fields[staminaCol] != "0")
-			*flags |= (uint64_t{1} << MANA_COSTS_STAMINA_BIT);
+			rec->dwFlags |= (uint64_t{1} << MANA_COSTS_STAMINA_BIT);
 
 		++recordIndex;
 	}
@@ -261,7 +271,7 @@ void __fastcall Hook_CompileSkillsTxt(uint8_t context)
 	Original_CompileSkillsTxt(context);
 
 	uintptr_t tableBase = *reinterpret_cast<uintptr_t*>(g_ExeBase + OFF_DataTables + static_cast<uint64_t>(context) * 16);
-	g_SkillsRecords = *reinterpret_cast<void**>(tableBase + DATATABLES_SKILLS_RECORDS_OFFSET);
+	g_SkillsRecords = *reinterpret_cast<D2SkillsTxt**>(tableBase + DATATABLES_SKILLS_RECORDS_OFFSET);
 	g_SkillsCount   = *reinterpret_cast<uint64_t*>(tableBase + DATATABLES_SKILLS_COUNT_OFFSET);
 
 	ApplyManaCostsColumnsFromTxt();
@@ -270,50 +280,43 @@ void __fastcall Hook_CompileSkillsTxt(uint8_t context)
 // Callers like Hook_GetUseState pass a record pointer read directly out of a
 // skill entity (*pSkill) with no guarantee it's non-null or in-range -- e.g.
 // empty/unassigned hotbar slots carry a null skills-record pointer. Validate
-// against g_SkillsRecords' actual bounds before ever dereferencing rec+0x24;
+// against g_SkillsRecords' actual bounds before ever dereferencing it;
 // SkillManaCostsLife/Stamina's own skillId-computed rec is already guaranteed
 // in-range but this check is cheap enough to apply unconditionally anyway.
-static bool IsValidSkillsRecord(const uint8_t* rec)
+static bool IsValidSkillsRecord(const D2SkillsTxt* rec)
 {
 	if (!rec || !g_SkillsRecords || g_SkillsCount == 0)
 		return false;
-	auto base = reinterpret_cast<uintptr_t>(g_SkillsRecords);
-	auto ptr  = reinterpret_cast<uintptr_t>(rec);
-	if (ptr < base)
+	if (rec < g_SkillsRecords)
 		return false;
-	uint64_t byteOff = ptr - base;
-	return byteOff < g_SkillsCount * SKILLS_RECORD_STRIDE && byteOff % SKILLS_RECORD_STRIDE == 0;
+	uint64_t index = static_cast<uint64_t>(rec - g_SkillsRecords);
+	return index < g_SkillsCount;
 }
 
-static bool SkillRecManaCostsLife(const uint8_t* rec)
+static bool SkillRecManaCostsLife(const D2SkillsTxt* rec)
 {
 	if (!IsValidSkillsRecord(rec))
 		return false;
-	return ((*reinterpret_cast<const uint64_t*>(rec + SKILLS_FLAGS_OFFSET)) >> MANA_COSTS_LIFE_BIT) & 1;
+	return (rec->dwFlags >> MANA_COSTS_LIFE_BIT) & 1;
 }
 
 static bool SkillManaCostsLife(int skillId) noexcept {
 	if (!g_SkillsRecords || skillId < 0 || static_cast<uint64_t>(skillId) >= g_SkillsCount)
 		return false;
-	const uint8_t* rec = static_cast<const uint8_t*>(g_SkillsRecords)
-	                     + static_cast<uint64_t>(skillId) * SKILLS_RECORD_STRIDE;
-	return SkillRecManaCostsLife(rec);
-
+	return SkillRecManaCostsLife(g_SkillsRecords + skillId);
 }
 
-static bool SkillRecManaCostsStamina(const uint8_t* rec)
+static bool SkillRecManaCostsStamina(const D2SkillsTxt* rec)
 {
 	if (!IsValidSkillsRecord(rec))
 		return false;
-	return ((*reinterpret_cast<const uint64_t*>(rec + SKILLS_FLAGS_OFFSET)) >> MANA_COSTS_STAMINA_BIT) & 1;
+	return (rec->dwFlags >> MANA_COSTS_STAMINA_BIT) & 1;
 }
 
 static bool SkillManaCostsStamina(int skillId) noexcept {
 	if (!g_SkillsRecords || skillId < 0 || static_cast<uint64_t>(skillId) >= g_SkillsCount)
 		return false;
-	const uint8_t* rec = static_cast<const uint8_t*>(g_SkillsRecords)
-	                     + static_cast<uint64_t>(skillId) * SKILLS_RECORD_STRIDE;
-	return SkillRecManaCostsStamina(rec);
+	return SkillRecManaCostsStamina(g_SkillsRecords + skillId);
 }
 
 // ── Hook: D2Common_SKILLMANA_CheckStat ───────────────────────────────────────
@@ -338,9 +341,9 @@ bool __fastcall Hook_CheckStat(int* playerUnit, int64_t* skillStruct,
         auto recPtr  = *reinterpret_cast<const uintptr_t*>(skillStruct);
         auto base    = reinterpret_cast<uintptr_t>(g_SkillsRecords);
         auto byteOff = recPtr - base;
-        if (recPtr >= base && byteOff < g_SkillsCount * SKILLS_RECORD_STRIDE
-                           && byteOff % SKILLS_RECORD_STRIDE == 0) {
-            int skillId = static_cast<int>(byteOff / SKILLS_RECORD_STRIDE);
+        if (recPtr >= base && byteOff < g_SkillsCount * sizeof(D2SkillsTxt)
+                           && byteOff % sizeof(D2SkillsTxt) == 0) {
+            int skillId = static_cast<int>(byteOff / sizeof(D2SkillsTxt));
             int altStatId = 0;
             if      (SkillManaCostsLife(skillId))    altStatId = 6;  // life
             else if (SkillManaCostsStamina(skillId)) altStatId = 10; // stamina
@@ -506,7 +509,7 @@ int __fastcall Hook_GetUseState(int* playerUnit, int64_t* pSkill)
     auto Original = reinterpret_cast<GetUseState_t>(g_ExeBase + OFF_GetUseState);
 	int value = Original(playerUnit, pSkill);
 	if (value == 1 &&
-		(SkillRecManaCostsLife((const uint8_t*)*pSkill) || SkillRecManaCostsStamina((const uint8_t*)*pSkill)))
+		(SkillRecManaCostsLife((const D2SkillsTxt*)*pSkill) || SkillRecManaCostsStamina((const D2SkillsTxt*)*pSkill)))
 	{
 		return 2;
 	}
@@ -518,6 +521,50 @@ int __fastcall Hook_CanBePickedUpWithTelekinesis(D2UnitStrc* ItemUnit)
 {
 	// ITEMS_CheckItemTypeId(ItemUnit, ITEM_TYPE_XXX) --> 140245230 if you want to check this yourself
 	return ItemUnit != nullptr && ItemUnit->dwUnitType == D2UnitType::Item;
+}
+
+// ── Hook: SKILLS_SrvDo169_MonDoSelfHeal ──────────────────────────────────────
+// Vanilla computes a target *absolute* stat value from a monster-level min/max
+// table keyed off pUnit->itemTableEntry, then clamps to max(target, current) --
+// meaningless for a player unit (the table is monster-only), so the "heal"
+// silently collapses to a few raw points. skills.txt's native Param1/Param2
+// columns are never read by vanilla MonDoSelfHeal, so they're repurposed here:
+//   Param1: 0 = heal TO a percentage of the max stat, 1 = heal BY a percentage
+//           of the max stat (added to current).
+//   Param2: 0 = life stat, 1 = mana stat.
+// The percentage itself still comes from the skill's own Calc1 slot, evaluated
+// via the same SKILLS_EvaluateSkillFormula vanilla used.
+int64_t __fastcall Hook_MonDoSelfHeal(D2GameStrc* pGame, D2UnitStrc* pUnit, int skillId, int param4)
+{
+	const D2SkillsTxt* rec = (skillId >= 0 && g_SkillsRecords &&
+	                           static_cast<uint64_t>(skillId) < g_SkillsCount)
+		? g_SkillsRecords + skillId
+		: nullptr;
+
+	if (rec && pUnit && pUnit->statList) {
+		auto EvaluateSkillFormula = reinterpret_cast<EvaluateSkillFormula_t>(g_ExeBase + OFF_EvaluateSkillFormula);
+		uint32_t percent = EvaluateSkillFormula(pGame->expansion, pUnit, rec->nCalc1, skillId, param4);
+
+		int statId    = (rec->nParam2 == 0) ? 6 : 8;
+		int maxStatId = (rec->nParam2 == 0) ? 7 : 9;
+		int current   = PSh_GetStat(g_ExeBase, pUnit, statId);
+		int maxVal    = PSh_GetStat(g_ExeBase, pUnit, maxStatId);
+
+		int64_t target;
+		if (rec->nParam1 == 0) {
+			// heal TO a percentage of max -- never reduces current value
+			target = std::max<int64_t>(current, static_cast<int64_t>(maxVal) * percent / 100);
+		} else {
+			// heal BY a percentage of max -- additive, capped at max
+			target = std::min<int64_t>(maxVal, current + static_cast<int64_t>(maxVal) * percent / 100);
+		}
+
+		auto SetUnitStat = reinterpret_cast<SetUnitStat_t>(g_ExeBase + OFF_SetUnitStat);
+		SetUnitStat(pUnit, statId, static_cast<int>(target), 0);
+		return 1;
+	}
+
+	return Original_MonDoSelfHeal(pGame, pUnit, skillId, param4);
 }
 
 // ── INI loading ───────────────────────────────────────────────────────────────
@@ -532,6 +579,8 @@ void SkillPluginOptions::Load(const D2RL::PluginContext* /*context*/, const nloh
 	auto drain = cfg.value("chargedPctDrainStat", nlohmann::json::object());
 	bEnableChargedPctDrainStat = drain.value("enabled", false);
 	ChargedPctDrainStat        = drain.value("statId", 0);
+
+	bEnableSelfHealParams = cfg.value("selfHealParams", false);
 }
 
 // ── Plugin exports ────────────────────────────────────────────────────────────
@@ -621,6 +670,14 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// plugin-shared.h.
 		(void)PSh_PatchCallSite(context, OFF_Telekinesis, EXP_Telekinesis, sizeof(EXP_Telekinesis),
 			reinterpret_cast<void*>(&Hook_CanBePickedUpWithTelekinesis));
+	}
+
+	if (g_skillPluginOptions.bEnableSelfHealParams)
+	{
+		if (!context->InstallInlineHook(OFF_MonDoSelfHeal, EXP_MonDoSelfHeal, sizeof(EXP_MonDoSelfHeal), Hook_MonDoSelfHeal, &Original_MonDoSelfHeal)) {
+			D2RL::LogErrorF(context, "plugin-skills: failed to hook MonDoSelfHeal");
+			return false;
+		}
 	}
 
 	return true;

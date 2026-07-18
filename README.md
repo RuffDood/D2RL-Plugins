@@ -29,7 +29,7 @@ Open the project with CMake (the root `CMakeLists.txt`) and build with the MSVC 
 | `plugin-levels.dll` | `[PluginPack.Levels]` | Level/area tweaks (e.g. disabling the Act 1 dirt path overlay) |
 | `plugin-misc.dll` | `[PluginPack.Misc]` | Miscellaneous tweaks (e.g. `/players` command limit) |
 | `plugin-quests.dll` | `[PluginPack.Quests]` | Quest reward overrides — skill/stat point counts, ring and rune rewards, per-difficulty variants |
-| `plugin-skills.dll` | `[PluginPack.Skills]` | Skill mana system extensions — life/stamina costs, classic Whirlwind, CtC on WW, Telekinesis pickup, charged item drain chance |
+| `plugin-skills.dll` | `[PluginPack.Skills]` | Skill mana system extensions — life/stamina costs, classic Whirlwind, CtC on WW, Telekinesis pickup, charged item drain chance, Param1/Param2-driven self-heal (heal-to/heal-by, life/mana) |
 
 ## Configuration
 
