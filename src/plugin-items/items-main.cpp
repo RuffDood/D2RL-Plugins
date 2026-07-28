@@ -1,10 +1,13 @@
 ﻿#include <D2RLPlugin/api.h>
+#include "items-ethereal.h"
 #include "items-private.h"
 #include <cstring>
 #include <vector>
 #include <windows.h>
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
+
+static constexpr uint32_t SUPPORTED_BUILD = 92777;
 
 // Both found via D2MOO source cross-reference: profile's containing functions
 // are D2MOO's sub_6FC4D5E0 (magic, single prefix+suffix roll) and the
@@ -581,10 +584,23 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (context == nullptr) {
 		return false;
 	}
+	if (context->modDataVersionBuild != 0
+		&& context->modDataVersionBuild != SUPPORTED_BUILD) {
+		D2RL::LogErrorF(context, "plugin-items: only D2R build 92777 is supported");
+		return false;
+	}
+	if (context->exeBase == 0) {
+		D2RL::LogErrorF(context, "plugin-items: D2R executable base is unavailable");
+		return false;
+	}
 
 	auto cfg = PSh_Json_LoadConfig(context);
-	g_pluginOptions.Load(context, PSh_Json_GetSection(cfg, "items"));
+	const auto itemsConfig = PSh_Json_GetSection(cfg, "items");
+	g_pluginOptions.Load(context, itemsConfig);
 	g_exeBase = context->exeBase;
+	if (!ItemsEthereal_Install(context, itemsConfig)) {
+		return false;
+	}
 
 	// Resolve internal function pointers used by both hooks.
 	Fn_GenerateStoreItem = reinterpret_cast<GenerateStoreItem_t>(g_exeBase + OFF_GenerateStoreItem);
@@ -705,6 +721,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	ItemsEthereal_Reset();
 	// Hooks/patches installed via context->InstallInlineHook/PatchBytes/PatchRel32 are
 	// reverted automatically by D2RLoader on unload (ASSUMPTION — verify against real
 	// loader behavior before relying on this in production).

@@ -9,3 +9,15 @@ set_target_properties(plugin-items PROPERTIES
 	LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 	ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
+
+if(BUILD_TESTING)
+	add_executable(items-ethereal-policy-tests
+		tests/items-ethereal-policy-tests.cpp
+	)
+	target_link_libraries(items-ethereal-policy-tests PRIVATE plugin-shared)
+	target_include_directories(items-ethereal-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME items-ethereal-policy
+		COMMAND items-ethereal-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
+endif()

@@ -243,6 +243,56 @@
       "source": "src/plugin-items/items-main.cpp"
     },
     {
+      "id": "items.etherealExclusions.itemTypeCheck",
+      "owner": "plugin-items",
+      "feature": "items.etherealExclusions",
+      "kind": "inline-hook",
+      "rva": "0x373890",
+      "length": 15,
+      "expectedBytes": "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20",
+      "source": "src/plugin-items/items-ethereal.cpp"
+    },
+    {
+      "id": "items.etherealItemRules.chance",
+      "owner": "plugin-items",
+      "feature": "items.etherealItemRules",
+      "kind": "byte-patch",
+      "rva": "0x4434DF",
+      "length": 1,
+      "expectedBytes": "05",
+      "source": "src/plugin-items/items-ethereal.cpp"
+    },
+    {
+      "id": "items.etherealItemRules.setEligibility",
+      "owner": "plugin-items",
+      "feature": "items.etherealItemRules",
+      "kind": "nop",
+      "rva": "0x443315",
+      "length": 6,
+      "expectedBytes": "0F 84 3D 02 00 00",
+      "source": "src/plugin-items/items-ethereal.cpp"
+    },
+    {
+      "id": "items.etherealItemRules.durabilityEligibilityCall",
+      "owner": "plugin-items",
+      "feature": "items.etherealItemRules",
+      "kind": "call-site",
+      "rva": "0x4432F4",
+      "length": 5,
+      "expectedBytes": "E8 47 02 F3 FF",
+      "source": "src/plugin-items/items-ethereal.cpp"
+    },
+    {
+      "id": "items.etherealItemRules.indestructibleHelper",
+      "owner": "plugin-items",
+      "feature": "items.etherealItemRules",
+      "kind": "byte-patch",
+      "rva": "0x46D840",
+      "length": 67,
+      "expectedBytes": "CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC CC",
+      "source": "src/plugin-items/items-ethereal.cpp"
+    },
+    {
       "id": "levels.disableAct1Path.spawnCall",
       "owner": "plugin-levels",
       "feature": "levels.disableAct1Path",
