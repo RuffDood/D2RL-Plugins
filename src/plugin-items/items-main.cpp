@@ -1,6 +1,7 @@
 ﻿#include <D2RLPlugin/api.h>
 #include "items-ethereal.h"
 #include "items-private.h"
+#include "repair-costs-cap.h"
 #include <cstring>
 #include <vector>
 #include <windows.h>
@@ -601,6 +602,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (!ItemsEthereal_Install(context, itemsConfig)) {
 		return false;
 	}
+	if (!RuffnecKk::RepairCostsCap::Load(context, itemsConfig)) {
+		return false;
+	}
 
 	// Resolve internal function pointers used by both hooks.
 	Fn_GenerateStoreItem = reinterpret_cast<GenerateStoreItem_t>(g_exeBase + OFF_GenerateStoreItem);
@@ -721,6 +725,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	RuffnecKk::RepairCostsCap::Unload();
 	ItemsEthereal_Reset();
 	// Hooks/patches installed via context->InstallInlineHook/PatchBytes/PatchRel32 are
 	// reverted automatically by D2RLoader on unload (ASSUMPTION — verify against real

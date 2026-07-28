@@ -5,6 +5,18 @@
         "magicItemsSpawnIdentified": false,
         "rareItemsSpawnIdentified": false,
 
+		// Cap NPC repair prices and optionally apply permanent durability wear.
+		// maximumGold is shared by individual repairs and the Repair All total;
+		// 2147483647 and zero durability wear preserve vanilla behavior.
+		"repairCostsCap": {
+			"enabled": false,
+			"maximumGold": 2147483647,
+			"durabilityWear": {
+				"enabled": false,
+				"chance": 0.0
+			}
+		},
+
         // Remove the gold-penalty formula that reduces gold picked up at high levels.
         "disableGoldPenalty": false,
 
@@ -95,17 +107,12 @@
             "max": 40
         },
 
-        // Prevent configured item-type families from becoming ethereal.
-        // Codes use the Code column from itemtypes.txt; parent types include descendants.
-        "etherealExclusions": {
-            "enabled": false,
-            "itemTypes": []
-        },
-
-        // Control the base ethereal roll and eligibility exceptions.
+        // Control every ethereal item rule from one block.
+        // Excluded codes use the Code column from itemtypes.txt; parent types include descendants.
         // These shipped values preserve vanilla behavior.
         "etherealItemRules": {
             "enabled": false,
+            "excludedItemTypes": [],
             "chancePercent": 5,
             "allowSetItems": false,
             "allowIndestructibleItems": false

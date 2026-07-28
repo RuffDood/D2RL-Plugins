@@ -20,4 +20,14 @@ if(BUILD_TESTING)
 		NAME items-ethereal-policy
 		COMMAND items-ethereal-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(repair-costs-cap-policy-tests
+		tests/repair-costs-cap-policy-tests.cpp
+	)
+	target_link_libraries(repair-costs-cap-policy-tests PRIVATE plugin-shared)
+	target_include_directories(repair-costs-cap-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME repair-costs-cap-policy
+		COMMAND repair-costs-cap-policy-tests
+	)
 endif()

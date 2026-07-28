@@ -53,31 +53,28 @@ int main(int argc, char** argv) {
 	assert(FindItemTypeId(records.data(), 4097, sizeof(Record), belt) == -1);
 
 	const auto defaults = ParseConfig(nlohmann::json::object());
-	assert(!defaults.exclusions.enabled);
-	assert(defaults.exclusions.itemTypeCount == 0);
-	assert(!defaults.rules.enabled);
-	assert(defaults.rules.chancePercent == VanillaChancePercent);
+	assert(!defaults.enabled);
+	assert(defaults.excludedItemTypeCount == 0);
+	assert(defaults.chancePercent == VanillaChancePercent);
+	assert(!HasExcludedItemTypes(defaults));
 	assert(!HasDirectRulePatches(defaults));
 
 	const auto configured = ParseConfig(nlohmann::json::parse(R"json(
 		{
 		  "magicItemsSpawnIdentified": false,
-		  "etherealExclusions": {
-			"enabled": true,
-			"itemTypes": ["belt", "BELT", "armo"]
-		  },
 		  "etherealItemRules": {
 			"enabled": true,
+			"excludedItemTypes": ["belt", "BELT", "armo"],
 			"chancePercent": 6,
 			"allowSetItems": true,
 			"allowIndestructibleItems": true
 		  }
 		}
 	)json"));
-	assert(configured.exclusions.enabled);
-	assert(configured.exclusions.itemTypeCount == 2);
-	assert(configured.rules.enabled);
-	assert(configured.rules.chancePercent == 6);
+	assert(configured.enabled);
+	assert(configured.excludedItemTypeCount == 2);
+	assert(configured.chancePercent == 6);
+	assert(HasExcludedItemTypes(configured));
 	assert(PatchChance(configured));
 	assert(PatchSetItems(configured));
 	assert(PatchIndestructibleItems(configured));
@@ -85,12 +82,17 @@ int main(int argc, char** argv) {
 
 	assert(Throws([] {
 		ParseConfig(nlohmann::json::parse(
-			R"json({"etherealExclusions":{"enabled":true,"extra":1}})json"
+			R"json({"etherealExclusions":{"enabled":true}})json"
 		));
 	}));
 	assert(Throws([] {
 		ParseConfig(nlohmann::json::parse(
-			R"json({"etherealExclusions":{"itemTypes":["too-long"]}})json"
+			R"json({"etherealItemRules":{"enabled":true,"extra":1}})json"
+		));
+	}));
+	assert(Throws([] {
+		ParseConfig(nlohmann::json::parse(
+			R"json({"etherealItemRules":{"excludedItemTypes":["too-long"]}})json"
 		));
 	}));
 	assert(Throws([] {
@@ -111,12 +113,12 @@ int main(int argc, char** argv) {
 	assert(root.at("skills").at("selfHealParams").is_boolean());
 	assert(!root.at("skills").at("selfHealParams").get<bool>());
 	const auto shipped = ParseConfig(root.at("items"));
-	assert(!shipped.exclusions.enabled);
-	assert(shipped.exclusions.itemTypeCount == 0);
-	assert(!shipped.rules.enabled);
-	assert(shipped.rules.chancePercent == VanillaChancePercent);
-	assert(!shipped.rules.allowSetItems);
-	assert(!shipped.rules.allowIndestructibleItems);
+	assert(!shipped.enabled);
+	assert(shipped.excludedItemTypeCount == 0);
+	assert(shipped.chancePercent == VanillaChancePercent);
+	assert(!shipped.allowSetItems);
+	assert(!shipped.allowIndestructibleItems);
+	assert(!HasExcludedItemTypes(shipped));
 	assert(!HasDirectRulePatches(shipped));
 	return 0;
 }

@@ -25,22 +25,13 @@ struct ItemTypeCode {
 	std::uint8_t length{};
 };
 
-struct EtherealExclusions {
+struct Config {
 	bool enabled{};
-	std::array<ItemTypeCode, MaxExcludedItemTypes> itemTypes{};
-	std::size_t itemTypeCount{};
-};
-
-struct EtherealItemRules {
-	bool enabled{};
+	std::array<ItemTypeCode, MaxExcludedItemTypes> excludedItemTypes{};
+	std::size_t excludedItemTypeCount{};
 	std::uint8_t chancePercent{VanillaChancePercent};
 	bool allowSetItems{};
 	bool allowIndestructibleItems{};
-};
-
-struct Config {
-	EtherealExclusions exclusions{};
-	EtherealItemRules rules{};
 };
 
 inline bool NormalizeItemTypeCode(std::string_view input, ItemTypeCode& output) noexcept {
@@ -104,66 +95,28 @@ inline void RequireAllowedKeys(
 }
 
 // The input is the complete `items` object. Other PluginPack item options are
-// deliberately ignored; only these two RuffnecKk-owned sections are parsed.
+// deliberately ignored; EthItemRules has one owner and one configuration block.
 inline Config ParseConfig(const nlohmann::json& items) {
 	if (!items.is_object()) throw std::runtime_error("items must be an object");
-
-	Config parsed{};
 	if (items.contains("etherealExclusions")) {
-		const auto& exclusions = items.at("etherealExclusions");
-		RequireAllowedKeys(exclusions, {"enabled", "itemTypes"}, "items.etherealExclusions");
-
-		if (exclusions.contains("enabled")) {
-			if (!exclusions.at("enabled").is_boolean()) {
-				throw std::runtime_error("items.etherealExclusions.enabled must be true or false");
-			}
-			parsed.exclusions.enabled = exclusions.at("enabled").get<bool>();
-		}
-		if (exclusions.contains("itemTypes")) {
-			const auto& itemTypes = exclusions.at("itemTypes");
-			if (!itemTypes.is_array()) {
-				throw std::runtime_error("items.etherealExclusions.itemTypes must be an array");
-			}
-			for (std::size_t index = 0; index < itemTypes.size(); ++index) {
-				const auto& value = itemTypes.at(index);
-				if (!value.is_string()) {
-					throw std::runtime_error(
-						"items.etherealExclusions.itemTypes[" + std::to_string(index)
-						+ "] must be a string"
-					);
-				}
-				ItemTypeCode code{};
-				if (!NormalizeItemTypeCode(value.get_ref<const std::string&>(), code)) {
-					throw std::runtime_error(
-						"items.etherealExclusions.itemTypes[" + std::to_string(index)
-						+ "] must be a 1-4 character itemtypes code"
-					);
-				}
-				bool duplicate{};
-				for (std::size_t existing = 0;
-					existing < parsed.exclusions.itemTypeCount;
-					++existing) {
-					if (SameCode(parsed.exclusions.itemTypes[existing], code)) {
-						duplicate = true;
-						break;
-					}
-				}
-				if (duplicate) continue;
-				if (parsed.exclusions.itemTypeCount >= MaxExcludedItemTypes) {
-					throw std::runtime_error(
-						"items.etherealExclusions.itemTypes supports at most 64 unique codes"
-					);
-				}
-				parsed.exclusions.itemTypes[parsed.exclusions.itemTypeCount++] = code;
-			}
-		}
+		throw std::runtime_error(
+			"items.etherealExclusions was removed; use "
+			"items.etherealItemRules.excludedItemTypes"
+		);
 	}
 
+	Config parsed{};
 	if (items.contains("etherealItemRules")) {
 		const auto& rules = items.at("etherealItemRules");
 		RequireAllowedKeys(
 			rules,
-			{"enabled", "chancePercent", "allowSetItems", "allowIndestructibleItems"},
+			{
+				"enabled",
+				"excludedItemTypes",
+				"chancePercent",
+				"allowSetItems",
+				"allowIndestructibleItems"
+			},
 			"items.etherealItemRules"
 		);
 
@@ -171,7 +124,47 @@ inline Config ParseConfig(const nlohmann::json& items) {
 			if (!rules.at("enabled").is_boolean()) {
 				throw std::runtime_error("items.etherealItemRules.enabled must be true or false");
 			}
-			parsed.rules.enabled = rules.at("enabled").get<bool>();
+			parsed.enabled = rules.at("enabled").get<bool>();
+		}
+		if (rules.contains("excludedItemTypes")) {
+			const auto& itemTypes = rules.at("excludedItemTypes");
+			if (!itemTypes.is_array()) {
+				throw std::runtime_error(
+					"items.etherealItemRules.excludedItemTypes must be an array"
+				);
+			}
+			for (std::size_t index = 0; index < itemTypes.size(); ++index) {
+				const auto& value = itemTypes.at(index);
+				if (!value.is_string()) {
+					throw std::runtime_error(
+						"items.etherealItemRules.excludedItemTypes[" + std::to_string(index)
+						+ "] must be a string"
+					);
+				}
+				ItemTypeCode code{};
+				if (!NormalizeItemTypeCode(value.get_ref<const std::string&>(), code)) {
+					throw std::runtime_error(
+						"items.etherealItemRules.excludedItemTypes[" + std::to_string(index)
+						+ "] must be a 1-4 character itemtypes code"
+					);
+				}
+				bool duplicate{};
+				for (std::size_t existing = 0;
+					existing < parsed.excludedItemTypeCount;
+					++existing) {
+					if (SameCode(parsed.excludedItemTypes[existing], code)) {
+						duplicate = true;
+						break;
+					}
+				}
+				if (duplicate) continue;
+				if (parsed.excludedItemTypeCount >= MaxExcludedItemTypes) {
+					throw std::runtime_error(
+						"items.etherealItemRules.excludedItemTypes supports at most 64 unique codes"
+					);
+				}
+				parsed.excludedItemTypes[parsed.excludedItemTypeCount++] = code;
+			}
 		}
 		if (rules.contains("chancePercent")) {
 			if (!rules.at("chancePercent").is_number_integer()) {
@@ -183,13 +176,13 @@ inline Config ParseConfig(const nlohmann::json& items) {
 					"items.etherealItemRules.chancePercent must be from 0 through 100"
 				);
 			}
-			parsed.rules.chancePercent = static_cast<std::uint8_t>(chance);
+			parsed.chancePercent = static_cast<std::uint8_t>(chance);
 		}
 		if (rules.contains("allowSetItems")) {
 			if (!rules.at("allowSetItems").is_boolean()) {
 				throw std::runtime_error("items.etherealItemRules.allowSetItems must be true or false");
 			}
-			parsed.rules.allowSetItems = rules.at("allowSetItems").get<bool>();
+			parsed.allowSetItems = rules.at("allowSetItems").get<bool>();
 		}
 		if (rules.contains("allowIndestructibleItems")) {
 			if (!rules.at("allowIndestructibleItems").is_boolean()) {
@@ -197,7 +190,7 @@ inline Config ParseConfig(const nlohmann::json& items) {
 					"items.etherealItemRules.allowIndestructibleItems must be true or false"
 				);
 			}
-			parsed.rules.allowIndestructibleItems =
+			parsed.allowIndestructibleItems =
 				rules.at("allowIndestructibleItems").get<bool>();
 		}
 	}
@@ -205,15 +198,19 @@ inline Config ParseConfig(const nlohmann::json& items) {
 }
 
 inline bool PatchChance(const Config& config) noexcept {
-	return config.rules.enabled && config.rules.chancePercent != VanillaChancePercent;
+	return config.enabled && config.chancePercent != VanillaChancePercent;
 }
 
 inline bool PatchSetItems(const Config& config) noexcept {
-	return config.rules.enabled && config.rules.allowSetItems;
+	return config.enabled && config.allowSetItems;
 }
 
 inline bool PatchIndestructibleItems(const Config& config) noexcept {
-	return config.rules.enabled && config.rules.allowIndestructibleItems;
+	return config.enabled && config.allowIndestructibleItems;
+}
+
+inline bool HasExcludedItemTypes(const Config& config) noexcept {
+	return config.enabled && config.excludedItemTypeCount != 0;
 }
 
 inline bool HasDirectRulePatches(const Config& config) noexcept {

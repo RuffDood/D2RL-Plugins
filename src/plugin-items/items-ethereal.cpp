@@ -14,6 +14,7 @@ namespace {
 using ruffneckk::plugin_items::ethereal::Config;
 using ruffneckk::plugin_items::ethereal::FindItemTypeId;
 using ruffneckk::plugin_items::ethereal::HasDirectRulePatches;
+using ruffneckk::plugin_items::ethereal::HasExcludedItemTypes;
 using ruffneckk::plugin_items::ethereal::ItemTypeRecordStride;
 using ruffneckk::plugin_items::ethereal::MaxExcludedItemTypes;
 using ruffneckk::plugin_items::ethereal::ParseConfig;
@@ -124,12 +125,12 @@ bool RefreshTypeCache(const void* item) noexcept {
 	TypeCache.dataTables = dataTables;
 	TypeCache.records = records;
 	TypeCache.recordCount = recordCount;
-	for (std::size_t index = 0; index < Settings.exclusions.itemTypeCount; ++index) {
+	for (std::size_t index = 0; index < Settings.excludedItemTypeCount; ++index) {
 		const auto id = FindItemTypeId(
 			records,
 			recordCount,
 			ItemTypeRecordStride,
-			Settings.exclusions.itemTypes[index]
+			Settings.excludedItemTypes[index]
 		);
 		if (id < 0) {
 			++TypeCache.unresolvedCount;
@@ -157,9 +158,7 @@ bool RefreshTypeCache(const void* item) noexcept {
 }
 
 bool IsExcluded(const void* item) noexcept {
-	if (!Settings.exclusions.enabled
-		|| Settings.exclusions.itemTypeCount == 0
-		|| !RefreshTypeCache(item)) {
+	if (!HasExcludedItemTypes(Settings) || !RefreshTypeCache(item)) {
 		return false;
 	}
 	for (std::size_t index = 0; index < TypeCache.idCount; ++index) {
@@ -214,7 +213,7 @@ bool Preflight(
 
 bool PreflightEnabledSites() noexcept {
 	bool valid = true;
-	if (Settings.exclusions.enabled) {
+	if (HasExcludedItemTypes(Settings)) {
 		valid = Preflight(CheckItemTypeRva, ExpectedCheckItemType, "item-type hook") && valid;
 		valid = Preflight(GetItemContextRva, ExpectedGetItemContext, "item context helper")
 			&& valid;
@@ -244,7 +243,7 @@ bool PreflightEnabledSites() noexcept {
 }
 
 bool InstallExclusionHook() noexcept {
-	if (!Settings.exclusions.enabled) return true;
+	if (!HasExcludedItemTypes(Settings)) return true;
 	GetItemContext = At<GetItemContextFn>(GetItemContextRva);
 	GetDataTables = At<GetDataTablesFn>(GetDataTablesRva);
 	if (!Context->InstallInlineHook(
@@ -297,7 +296,7 @@ bool InstallRulePatches() noexcept {
 			EtherealChanceRva,
 			ExpectedEtherealChance.data(),
 			static_cast<std::uint32_t>(ExpectedEtherealChance.size()),
-			Settings.rules.chancePercent
+			Settings.chancePercent
 		)) {
 		Context->LogError("plugin-items: RuffnecKk ethereal chance patch failed.");
 		return false;
@@ -326,9 +325,9 @@ bool ItemsEthereal_Install(
 	if (!PreflightEnabledSites()) return false;
 	if (!InstallExclusionHook() || !InstallRulePatches()) return false;
 
-	if (Settings.exclusions.enabled || Settings.rules.enabled) {
+	if (Settings.enabled) {
 		context->LogInfo(
-			"plugin-items: RuffnecKk ethereal exclusions and item rules are configured."
+			"plugin-items: RuffnecKk EthItemRules is configured from one block."
 		);
 	}
 	return true;
