@@ -53,6 +53,12 @@
 			"enabled": false
 		},
 
+		// Raise the simultaneous ground-item label limit from vanilla 32 to 64 or 128.
+		"groundItemLabels": {
+			"enabled": false,
+			"limit": 64
+		},
+
         // Vendor overhaul: replaces the vanilla random-item generator for shops.
         "vendorOverhaul": {
             "enabled": false,

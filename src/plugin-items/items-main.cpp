@@ -1,5 +1,6 @@
 ﻿#include <D2RLPlugin/api.h>
 #include "gamble-screen-limit.h"
+#include "ground-item-label-limit.h"
 #include "items-ethereal.h"
 #include "items-private.h"
 #include "repair-costs-cap.h"
@@ -603,6 +604,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (!RuffnecKk::GambleScreenLimit::Load(context, itemsConfig)) {
 		return false;
 	}
+	if (!RuffnecKk::GroundItemLabelLimit::Load(context, itemsConfig)) {
+		return false;
+	}
 	if (!ItemsEthereal_Install(context, itemsConfig)) {
 		return false;
 	}
@@ -731,6 +735,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
 	RuffnecKk::RepairCostsCap::Unload();
 	ItemsEthereal_Reset();
+	RuffnecKk::GroundItemLabelLimit::Unload();
 	RuffnecKk::GambleScreenLimit::Unload();
 	// Hooks/patches installed via context->InstallInlineHook/PatchBytes/PatchRel32 are
 	// reverted automatically by D2RLoader on unload (ASSUMPTION — verify against real

@@ -103,6 +103,76 @@
       "source": "src/plugin-items/gamble-screen-limit.cpp"
     },
     {
+      "id": "items.groundItemLabels.recordCount",
+      "owner": "plugin-items",
+      "feature": "items.groundItemLabels",
+      "kind": "byte-patch",
+      "rva": "0x1516EBE",
+      "length": 4,
+      "expectedBytes": "48 83 F8 20",
+      "source": "src/plugin-items/ground-item-label-limit.cpp"
+    },
+    {
+      "id": "items.groundItemLabels.recordEndpoint",
+      "owner": "plugin-items",
+      "feature": "items.groundItemLabels",
+      "kind": "byte-patch",
+      "rva": "0x1516ED1",
+      "length": 4,
+      "expectedBytes": "80 28 00 00",
+      "source": "src/plugin-items/ground-item-label-limit.cpp"
+    },
+    {
+      "id": "items.groundItemLabels.recordFillCount",
+      "owner": "plugin-items",
+      "feature": "items.groundItemLabels",
+      "kind": "byte-patch",
+      "rva": "0x1516F43",
+      "length": 4,
+      "expectedBytes": "20 00 00 00",
+      "source": "src/plugin-items/ground-item-label-limit.cpp"
+    },
+    {
+      "id": "items.groundItemLabels.layoutSourceCount",
+      "owner": "plugin-items",
+      "feature": "items.groundItemLabels",
+      "kind": "byte-patch",
+      "rva": "0x1519A1B",
+      "length": 1,
+      "expectedBytes": "20",
+      "source": "src/plugin-items/ground-item-label-limit.cpp"
+    },
+    {
+      "id": "items.groundItemLabels.layoutInitialCount",
+      "owner": "plugin-items",
+      "feature": "items.groundItemLabels",
+      "kind": "byte-patch",
+      "rva": "0x1519A4F",
+      "length": 4,
+      "expectedBytes": "48 83 F8 20",
+      "source": "src/plugin-items/ground-item-label-limit.cpp"
+    },
+    {
+      "id": "items.groundItemLabels.layoutGrowthCount",
+      "owner": "plugin-items",
+      "feature": "items.groundItemLabels",
+      "kind": "byte-patch",
+      "rva": "0x1519AAA",
+      "length": 4,
+      "expectedBytes": "48 83 F8 20",
+      "source": "src/plugin-items/ground-item-label-limit.cpp"
+    },
+    {
+      "id": "items.groundItemLabels.layoutShrinkCount",
+      "owner": "plugin-items",
+      "feature": "items.groundItemLabels",
+      "kind": "byte-patch",
+      "rva": "0x1519AF9",
+      "length": 6,
+      "expectedBytes": "49 83 7C 24 10 20",
+      "source": "src/plugin-items/ground-item-label-limit.cpp"
+    },
+    {
       "id": "items.disableGoldPenalty",
       "owner": "plugin-items",
       "feature": "items.disableGoldPenalty",

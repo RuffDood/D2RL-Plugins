@@ -40,4 +40,14 @@ if(BUILD_TESTING)
 		NAME gamble-screen-limit-policy
 		COMMAND gamble-screen-limit-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(ground-item-label-limit-policy-tests
+		tests/ground-item-label-limit-policy-tests.cpp
+	)
+	target_link_libraries(ground-item-label-limit-policy-tests PRIVATE plugin-shared)
+	target_include_directories(ground-item-label-limit-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME ground-item-label-limit-policy
+		COMMAND ground-item-label-limit-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()
