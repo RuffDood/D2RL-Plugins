@@ -16,34 +16,27 @@
 // preceding XOR R9D,R9D. There is no drift to decouple, so the old Patch2 site/
 // patch is unnecessary here — the amount is just the disp8 byte of its own LEA,
 // patched exactly like the old single-byte MOV case.
-static constexpr uint64_t OFF_DenOfEvilPatch1 = 0x5de5a0;
-static constexpr uint64_t OFF_DenOfEvilPatch3 = 0x5de5a0;
+static constexpr uint64_t OFF_DenOfEvilPatch = 0x5de5a0;
 // Izual/Fallen Angel reward: same shape as Den of Evil above. Debug computes
 // the stat-id via LEA EDX,[R9+0x5] off a register that's always zeroed by an
 // immediately preceding XOR R9D,R9D, completely independent of the reward
 // register — so the old Patch2 (PUSH 5/POP R8 decouple) is unnecessary here
 // too, and was in fact still being applied at its stale *profile.exe*
 // address against the debug binary (a live bug: it was corrupting 4
-// unrelated bytes of debug.exe). Removed; see OFF_DenOfEvilPatch1's comment
+// unrelated bytes of debug.exe). Removed; see OFF_DenOfEvilPatch's comment
 // for the full explanation of why no decouple site exists in this build.
-static constexpr uint64_t OFF_FallenAngelPatch1 = 0x5e6eee;
-static constexpr uint64_t OFF_FallenAngelPatch3 = 0x5e6eee;
+static constexpr uint64_t OFF_FallenAngelPatch = 0x5e6eee;
 // Note: the debug build's codegen dropped the duplicate copy of these
 // immediates that profile.exe wrote into a stack struct for an
 // EVENTS_InvokeHandlerList notification call (that call site doesn't exist
 // in this build) — only one copy of each stat/amount immediate remains, so
-// both Patch1/Patch2 constants below point at the same instruction. Patching
-// the same address twice is harmless.
-static constexpr uint64_t OFF_BlackBookPatch1 = 0x5ed713;
-static constexpr uint64_t OFF_BlackBookPatch2 = 0x5ed713;
-static constexpr uint64_t OFF_GoldenBirdStatPatch1 = 0x5806c1;
-static constexpr uint64_t OFF_GoldenBirdStatPatch2 = 0x5806c1;
-static constexpr uint64_t OFF_GoldenBirdAmountPatch1 = 0x5806b7;
-static constexpr uint64_t OFF_GoldenBirdAmountPatch2 = 0x5806b7;
-static constexpr uint64_t OFF_SkillBookStatPatch1 = 0x58078b;
-static constexpr uint64_t OFF_SkillBookStatPatch2 = 0x58078b;
-static constexpr uint64_t OFF_SkillBookAmountPatch1 = 0x58078f;
-static constexpr uint64_t OFF_SkillBookAmountPatch2 = 0x58078f;
+// the old Patch1/Patch2 aliases resolved to the same instruction. Each reward
+// now owns and writes that site exactly once.
+static constexpr uint64_t OFF_BlackBookPatch = 0x5ed713;
+static constexpr uint64_t OFF_GoldenBirdStatPatch = 0x5806c1;
+static constexpr uint64_t OFF_GoldenBirdAmountPatch = 0x5806b7;
+static constexpr uint64_t OFF_SkillBookStatPatch = 0x58078b;
+static constexpr uint64_t OFF_SkillBookAmountPatch = 0x58078f;
 static constexpr uint64_t OFF_AkaraRingItem = 0x5d9a52;
 static constexpr uint64_t OFF_AkaraRingItemQuality = 0x5d9a4d;
 static constexpr uint64_t OFF_AkaraRingCallSite = 0x5d9a6d;
@@ -260,34 +253,27 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 
 	if (g_questPluginOptions.DenOfEvilRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty. No decouple patch needed here anymore —
-		// see the comment by OFF_DenOfEvilPatch1's declaration.
-		(void)context->PatchBytes(OFF_DenOfEvilPatch1, EXP_DenOfEvilPatch, sizeof(EXP_DenOfEvilPatch), &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
-		(void)context->PatchBytes(OFF_DenOfEvilPatch3, EXP_DenOfEvilPatch, sizeof(EXP_DenOfEvilPatch), &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
+		// see the comment by OFF_DenOfEvilPatch's declaration.
+		(void)context->PatchBytes(OFF_DenOfEvilPatch, EXP_DenOfEvilPatch, sizeof(EXP_DenOfEvilPatch), &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
 	}
 	if (g_questPluginOptions.IzualRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty. No decouple patch needed here anymore —
-		// see the comment by OFF_FallenAngelPatch1's declaration.
-		(void)context->PatchBytes(OFF_FallenAngelPatch1, EXP_FallenAngelPatch, sizeof(EXP_FallenAngelPatch), &g_questPluginOptions.IzualSkillPointReward, 1);
-		(void)context->PatchBytes(OFF_FallenAngelPatch3, EXP_FallenAngelPatch, sizeof(EXP_FallenAngelPatch), &g_questPluginOptions.IzualSkillPointReward, 1);
+		// see the comment by OFF_FallenAngelPatch's declaration.
+		(void)context->PatchBytes(OFF_FallenAngelPatch, EXP_FallenAngelPatch, sizeof(EXP_FallenAngelPatch), &g_questPluginOptions.IzualSkillPointReward, 1);
 	}
 	if (g_questPluginOptions.BlackBookRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty
-		(void)context->PatchBytes(OFF_BlackBookPatch1, EXP_BlackBookPatch, sizeof(EXP_BlackBookPatch), &g_questPluginOptions.BlackBookStatPointReward, 1);
-		(void)context->PatchBytes(OFF_BlackBookPatch2, EXP_BlackBookPatch, sizeof(EXP_BlackBookPatch), &g_questPluginOptions.BlackBookStatPointReward, 1);
+		(void)context->PatchBytes(OFF_BlackBookPatch, EXP_BlackBookPatch, sizeof(EXP_BlackBookPatch), &g_questPluginOptions.BlackBookStatPointReward, 1);
 	}
 	if (g_questPluginOptions.GoldenBirdRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		(void)context->PatchBytes(OFF_GoldenBirdStatPatch1, EXP_GoldenBirdStatPatch, sizeof(EXP_GoldenBirdStatPatch), &g_questPluginOptions.GoldenBirdRewardStat, 1);
-		(void)context->PatchBytes(OFF_GoldenBirdStatPatch2, EXP_GoldenBirdStatPatch, sizeof(EXP_GoldenBirdStatPatch), &g_questPluginOptions.GoldenBirdRewardStat, 1);
-		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch1, EXP_GoldenBirdAmountPatch, sizeof(EXP_GoldenBirdAmountPatch), &g_questPluginOptions.GoldenBirdRewardAmount, 4);
-		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch2, EXP_GoldenBirdAmountPatch, sizeof(EXP_GoldenBirdAmountPatch), &g_questPluginOptions.GoldenBirdRewardAmount, 4);
+		(void)context->PatchBytes(OFF_GoldenBirdStatPatch, EXP_GoldenBirdStatPatch, sizeof(EXP_GoldenBirdStatPatch), &g_questPluginOptions.GoldenBirdRewardStat, 1);
+		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch, EXP_GoldenBirdAmountPatch, sizeof(EXP_GoldenBirdAmountPatch), &g_questPluginOptions.GoldenBirdRewardAmount, 4);
 	}
 	if (g_questPluginOptions.SkillBookRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		(void)context->PatchBytes(OFF_SkillBookAmountPatch1, EXP_SkillBookAmountPatch, sizeof(EXP_SkillBookAmountPatch), &g_questPluginOptions.SkillBookRewardAmount, 1);
-		(void)context->PatchBytes(OFF_SkillBookAmountPatch2, EXP_SkillBookAmountPatch, sizeof(EXP_SkillBookAmountPatch), &g_questPluginOptions.SkillBookRewardAmount, 1);
-		(void)context->PatchBytes(OFF_SkillBookStatPatch1, EXP_SkillBookStatPatch, sizeof(EXP_SkillBookStatPatch), &g_questPluginOptions.SkillBookRewardStat, 1);
-		(void)context->PatchBytes(OFF_SkillBookStatPatch2, EXP_SkillBookStatPatch, sizeof(EXP_SkillBookStatPatch), &g_questPluginOptions.SkillBookRewardStat, 1);
+		(void)context->PatchBytes(OFF_SkillBookAmountPatch, EXP_SkillBookAmountPatch, sizeof(EXP_SkillBookAmountPatch), &g_questPluginOptions.SkillBookRewardAmount, 1);
+		(void)context->PatchBytes(OFF_SkillBookStatPatch, EXP_SkillBookStatPatch, sizeof(EXP_SkillBookStatPatch), &g_questPluginOptions.SkillBookRewardStat, 1);
 	}
 
 	if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::SamePerDifficulty)

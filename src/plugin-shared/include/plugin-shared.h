@@ -379,7 +379,7 @@ static_assert(sizeof(NpcItemCacheEntry) == 12, "NpcItemCacheEntry size mismatch"
 
 // Per-NPC vendor state entry (0x78 bytes, stride confirmed by Ghidra).
 struct VendorChainEntry {
-	uint16_t         npcId;        // +0x00  matches (uint16_t)pNpc->unitFlags
+	uint16_t         npcId;        // +0x00  matches the low 16 bits of pNpc->classId
 	uint8_t          _pad0[0x36];  // +0x02..+0x37
 	uint64_t         qwTicks;      // +0x38  GetTickCount64() refresh timestamp
 	NpcItemCacheEntry* pItemCache; // +0x40
@@ -443,7 +443,7 @@ static_assert(sizeof(D2StatListStrc) == 112, "D2StatListStrc must be 112 bytes")
 // known uses are named; gaps are explicit padding so offsets stay correct.
 struct D2UnitStrc {
 	D2UnitType       dwUnitType;     // +0x00
-	uint32_t         unitFlags;      // +0x04
+	uint32_t         classId;        // +0x04, class/TXT record ID (UNITS_GetClassId)
 	uint8_t          _pad0[31];      // +0x09..+0x27 (skips an unnamed byte at +0x08)
 	uint32_t         seedLow;        // +0x28
 	uint32_t         seedHigh;       // +0x2c
@@ -457,12 +457,24 @@ struct D2UnitStrc {
 	uint8_t     itemTableEntry; // +0x1bd
 	uint8_t     _pad5[2];       // +0x1be..+0x1bf
 };
+static_assert(offsetof(D2UnitStrc, dwUnitType)     == 0x00,  "D2UnitStrc layout mismatch");
+static_assert(offsetof(D2UnitStrc, classId)        == 0x04,  "D2UnitStrc layout mismatch");
 static_assert(offsetof(D2UnitStrc, seedLow)        == 0x28,  "D2UnitStrc layout mismatch");
 static_assert(offsetof(D2UnitStrc, seedHigh)       == 0x2c,  "D2UnitStrc layout mismatch");
 static_assert(offsetof(D2UnitStrc, statList)       == 0x88,  "D2UnitStrc layout mismatch");
 static_assert(offsetof(D2UnitStrc, dwFlags)        == 0x124, "D2UnitStrc layout mismatch");
 static_assert(offsetof(D2UnitStrc, itemTableEntry) == 0x1bd, "D2UnitStrc layout mismatch");
 static_assert(sizeof(D2UnitStrc) == 448, "D2UnitStrc must be 448 bytes");
+
+// Keep shared consumers on the canonical header fields instead of recreating
+// partial D2UnitStrc layouts in individual plugin DLLs.
+[[nodiscard]] constexpr D2UnitType PSh_UnitType(const D2UnitStrc& unit) noexcept {
+	return unit.dwUnitType;
+}
+
+[[nodiscard]] constexpr uint32_t PSh_UnitClassId(const D2UnitStrc& unit) noexcept {
+	return unit.classId;
+}
 
 // ── Memory / call-site patching ─────────────────────────────────────────────
 //

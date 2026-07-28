@@ -244,7 +244,7 @@ static void __fastcall Hook_TCDropFunction(void* p1, void* p2, uint32_t p3, void
     D2UnitStrc* player = nullptr;
     if (damageEvent) {
         player = *reinterpret_cast<D2UnitStrc**>(static_cast<uint8_t*>(damageEvent) + 0x10);
-        if (player && player->dwUnitType != D2UnitType::Player)
+        if (player && PSh_UnitType(*player) != D2UnitType::Player)
             player = nullptr;
     }
     g_currentDropPlayer = player;
@@ -293,7 +293,7 @@ static int __fastcall Hook_ConditionCalcEval(uint8_t expansion, D2UnitStrc* unit
 static void Hook_FillStoreInventory(D2GameStrc* pGame, D2UnitStrc* pPlayer, D2UnitStrc* pNpc)
 {
 	// ── Find the VendorChainEntry for this NPC ───────────────────────────────
-	const uint16_t npcId = pNpc ? (uint16_t)pNpc->unitFlags : (uint16_t)-1;
+	const uint16_t npcId = pNpc ? static_cast<uint16_t>(PSh_UnitClassId(*pNpc)) : static_cast<uint16_t>(-1);
 
 	VendorChainEntry* entryArr   = pGame->pVendorChain;
 	uint64_t          entryCount = pGame->nVendorChain;

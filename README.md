@@ -11,6 +11,16 @@ A collection of gameplay plugins for Diablo II: Resurrected, built on top of [D2
 
 Open the project with CMake (the root `CMakeLists.txt`) and build with the MSVC toolchain. The output is a set of `.dll` files, one per plugin.
 
+### Hook ownership gate
+
+`hook-manifest.json` is the source of truth for every executable memory write made by the five plugin DLLs. Each entry declares one owner, feature, write kind, RVA, guarded byte span, expected bytes, and source file for D2R `3.2.92777`.
+
+CMake validates the manifest during configuration and before every build. A duplicate ID, unknown owner, malformed byte guard, or overlap between any two write spans stops the build. Run `ctest -C Release --test-dir build --output-on-failure` to exercise both the valid inventory and the overlap-rejection fixture.
+
+Any change that adds, removes, moves, or resizes a hook or patch must update the manifest in the same change.
+
+`plugin-shared` also owns the single canonical `D2UnitStrc` layout. Consumers use its minimal `PSh_UnitType` and `PSh_UnitClassId` accessors instead of declaring local views; the field at `+0x04` is the class/TXT record ID returned by `UNITS_GetClassId`, not a flags field.
+
 ## Installation
 
 1. Build the project (or obtain pre-built DLLs).

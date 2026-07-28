@@ -520,7 +520,7 @@ int __fastcall Hook_GetUseState(int* playerUnit, int64_t* pSkill)
 int __fastcall Hook_CanBePickedUpWithTelekinesis(D2UnitStrc* ItemUnit)
 {
 	// ITEMS_CheckItemTypeId(ItemUnit, ITEM_TYPE_XXX) --> 140245230 if you want to check this yourself
-	return ItemUnit != nullptr && ItemUnit->dwUnitType == D2UnitType::Item;
+	return ItemUnit != nullptr && PSh_UnitType(*ItemUnit) == D2UnitType::Item;
 }
 
 // ── Hook: SKILLS_SrvDo169_MonDoSelfHeal ──────────────────────────────────────

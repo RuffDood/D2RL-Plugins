@@ -1,0 +1,576 @@
+{
+  "schemaVersion": 1,
+  "targetBuild": "3.2.92777",
+  "sites": [
+    {
+      "id": "items.vendorOverhaul.fillStoreInventory",
+      "owner": "plugin-items",
+      "feature": "items.vendorOverhaul",
+      "kind": "inline-hook",
+      "rva": "0x53C9F0",
+      "length": 5,
+      "expectedBytes": "48 89 5C 24 10",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.vendorOverhaul.nightmareScale",
+      "owner": "plugin-items",
+      "feature": "items.vendorOverhaul",
+      "kind": "byte-patch",
+      "rva": "0x540F88",
+      "length": 1,
+      "expectedBytes": "06",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.vendorOverhaul.nightmareBase",
+      "owner": "plugin-items",
+      "feature": "items.vendorOverhaul",
+      "kind": "byte-patch",
+      "rva": "0x540F8A",
+      "length": 4,
+      "expectedBytes": "A0 0F 00 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.vendorOverhaul.hellScale",
+      "owner": "plugin-items",
+      "feature": "items.vendorOverhaul",
+      "kind": "byte-patch",
+      "rva": "0x54104D",
+      "length": 1,
+      "expectedBytes": "04",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.vendorOverhaul.hellBase",
+      "owner": "plugin-items",
+      "feature": "items.vendorOverhaul",
+      "kind": "byte-patch",
+      "rva": "0x54104F",
+      "length": 4,
+      "expectedBytes": "E8 03 00 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.vendorOverhaul.hellUberScale",
+      "owner": "plugin-items",
+      "feature": "items.vendorOverhaul",
+      "kind": "byte-patch",
+      "rva": "0x541084",
+      "length": 1,
+      "expectedBytes": "07",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.vendorOverhaul.hellUberBase",
+      "owner": "plugin-items",
+      "feature": "items.vendorOverhaul",
+      "kind": "byte-patch",
+      "rva": "0x541086",
+      "length": 4,
+      "expectedBytes": "88 13 00 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.gambleFilter.noRingAmuletGuarantee",
+      "owner": "plugin-items",
+      "feature": "items.gambleFilter",
+      "kind": "byte-patch",
+      "rva": "0x541A28",
+      "length": 1,
+      "expectedBytes": "7D",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.gambleFilter.bitfield",
+      "owner": "plugin-items",
+      "feature": "items.gambleFilter",
+      "kind": "inline-hook",
+      "rva": "0x541880",
+      "length": 6,
+      "expectedBytes": "40 56 41 54 41 55",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.disableGoldPenalty",
+      "owner": "plugin-items",
+      "feature": "items.disableGoldPenalty",
+      "kind": "nop",
+      "rva": "0x424AD1",
+      "length": 5,
+      "expectedBytes": "E8 DA 11 00 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.magicItemsSpawnIdentified",
+      "owner": "plugin-items",
+      "feature": "items.magicItemsSpawnIdentified",
+      "kind": "nop",
+      "rva": "0x442D2A",
+      "length": 5,
+      "expectedBytes": "E8 C1 AB F2 FF",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.rareItemsSpawnIdentified",
+      "owner": "plugin-items",
+      "feature": "items.rareItemsSpawnIdentified",
+      "kind": "nop",
+      "rva": "0x58BE1A",
+      "length": 5,
+      "expectedBytes": "E8 D1 1A DE FF",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.inventoryGoldLimit",
+      "owner": "plugin-items",
+      "feature": "items.inventoryGoldLimit",
+      "kind": "inline-hook",
+      "rva": "0x34B320",
+      "length": 7,
+      "expectedBytes": "48 83 EC 28 45 33 C0",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.runewordQualities.magic",
+      "owner": "plugin-items",
+      "feature": "items.runewordQualities.magic",
+      "kind": "byte-patch",
+      "rva": "0x372638",
+      "length": 4,
+      "expectedBytes": "40 24 37 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.runewordQualities.set",
+      "owner": "plugin-items",
+      "feature": "items.runewordQualities.set",
+      "kind": "byte-patch",
+      "rva": "0x37263C",
+      "length": 4,
+      "expectedBytes": "40 24 37 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.runewordQualities.rare",
+      "owner": "plugin-items",
+      "feature": "items.runewordQualities.rare",
+      "kind": "byte-patch",
+      "rva": "0x372640",
+      "length": 4,
+      "expectedBytes": "40 24 37 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.runewordQualities.unique",
+      "owner": "plugin-items",
+      "feature": "items.runewordQualities.unique",
+      "kind": "byte-patch",
+      "rva": "0x372644",
+      "length": 4,
+      "expectedBytes": "40 24 37 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.runewordQualities.crafted",
+      "owner": "plugin-items",
+      "feature": "items.runewordQualities.crafted",
+      "kind": "byte-patch",
+      "rva": "0x372648",
+      "length": 4,
+      "expectedBytes": "40 24 37 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.runewordQualities.tempered",
+      "owner": "plugin-items",
+      "feature": "items.runewordQualities.tempered",
+      "kind": "byte-patch",
+      "rva": "0x37264C",
+      "length": 4,
+      "expectedBytes": "40 24 37 00",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.playerConditionCalc.compileTxtCall",
+      "owner": "plugin-items",
+      "feature": "items.playerConditionCalc",
+      "kind": "call-site",
+      "rva": "0x3A85A2",
+      "length": 5,
+      "expectedBytes": "E8 C9 73 F5 FF",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.playerConditionCalc.createCompiledStructCall",
+      "owner": "plugin-items",
+      "feature": "items.playerConditionCalc",
+      "kind": "call-site",
+      "rva": "0x3A8682",
+      "length": 5,
+      "expectedBytes": "E8 39 E7 FF FF",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.playerConditionCalc.tcDropFunction",
+      "owner": "plugin-items",
+      "feature": "items.playerConditionCalc",
+      "kind": "inline-hook",
+      "rva": "0x441300",
+      "length": 6,
+      "expectedBytes": "40 53 55 56 57 41",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.playerConditionCalc.conditionGate",
+      "owner": "plugin-items",
+      "feature": "items.playerConditionCalc",
+      "kind": "inline-hook",
+      "rva": "0x444920",
+      "length": 5,
+      "expectedBytes": "48 89 5C 24 08",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.playerConditionCalc.conditionCalcEval",
+      "owner": "plugin-items",
+      "feature": "items.playerConditionCalc",
+      "kind": "inline-hook",
+      "rva": "0x3B5380",
+      "length": 5,
+      "expectedBytes": "48 89 5C 24 08",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "levels.disableAct1Path.spawnCall",
+      "owner": "plugin-levels",
+      "feature": "levels.disableAct1Path",
+      "kind": "byte-patch",
+      "rva": "0x3FF5DE",
+      "length": 5,
+      "expectedBytes": "E8 3D 02 00 00",
+      "source": "src/plugin-levels/levels-main.cpp"
+    },
+    {
+      "id": "levels.disableAct1Path.guardBranch",
+      "owner": "plugin-levels",
+      "feature": "levels.disableAct1Path",
+      "kind": "byte-patch",
+      "rva": "0x3FF5EB",
+      "length": 1,
+      "expectedBytes": "7E",
+      "source": "src/plugin-levels/levels-main.cpp"
+    },
+    {
+      "id": "misc.playersCommandLimit.parseCall",
+      "owner": "plugin-misc",
+      "feature": "misc.playersCommandLimit",
+      "kind": "call-site",
+      "rva": "0x18885B",
+      "length": 5,
+      "expectedBytes": "E8 44 1B 15 01",
+      "source": "src/plugin-misc/misc-main.cpp"
+    },
+    {
+      "id": "misc.playersCommandLimit.applyCall",
+      "owner": "plugin-misc",
+      "feature": "misc.playersCommandLimit",
+      "kind": "call-site",
+      "rva": "0x18887F",
+      "length": 5,
+      "expectedBytes": "E8 9C 67 BA 00",
+      "source": "src/plugin-misc/misc-main.cpp"
+    },
+    {
+      "id": "misc.playerCountCaps.getBonus",
+      "owner": "plugin-misc",
+      "feature": "misc.monsterPlayerCountCaps",
+      "kind": "inline-hook",
+      "rva": "0x542F40",
+      "length": 16,
+      "expectedBytes": "48 89 5C 24 18 55 57 41 56 48 83 EC 40 49 8B D9",
+      "source": "src/plugin-misc/misc-main.cpp"
+    },
+    {
+      "id": "quests.denOfEvil.skillPoints",
+      "owner": "plugin-quests",
+      "feature": "quests.denOfEvil",
+      "kind": "byte-patch",
+      "rva": "0x5DE5A0",
+      "length": 1,
+      "expectedBytes": "01",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.izual.skillPoints",
+      "owner": "plugin-quests",
+      "feature": "quests.izual",
+      "kind": "byte-patch",
+      "rva": "0x5E6EEE",
+      "length": 1,
+      "expectedBytes": "02",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.blackBook.statPoints",
+      "owner": "plugin-quests",
+      "feature": "quests.blackBook",
+      "kind": "byte-patch",
+      "rva": "0x5ED713",
+      "length": 1,
+      "expectedBytes": "04",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.goldenBird.stat",
+      "owner": "plugin-quests",
+      "feature": "quests.goldenBird",
+      "kind": "byte-patch",
+      "rva": "0x5806C1",
+      "length": 1,
+      "expectedBytes": "07",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.goldenBird.amount",
+      "owner": "plugin-quests",
+      "feature": "quests.goldenBird",
+      "kind": "byte-patch",
+      "rva": "0x5806B7",
+      "length": 4,
+      "expectedBytes": "00 14 00 00",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.radamentSkillBook.amount",
+      "owner": "plugin-quests",
+      "feature": "quests.radamentSkillBook",
+      "kind": "byte-patch",
+      "rva": "0x58078F",
+      "length": 1,
+      "expectedBytes": "01",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.radamentSkillBook.stat",
+      "owner": "plugin-quests",
+      "feature": "quests.radamentSkillBook",
+      "kind": "byte-patch",
+      "rva": "0x58078B",
+      "length": 1,
+      "expectedBytes": "05",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.akaraCainRing.item",
+      "owner": "plugin-quests",
+      "feature": "quests.akaraCainRing",
+      "kind": "byte-patch",
+      "rva": "0x5D9A52",
+      "length": 4,
+      "expectedBytes": "72 69 6E 20",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.akaraCainRing.quality",
+      "owner": "plugin-quests",
+      "feature": "quests.akaraCainRing",
+      "kind": "byte-patch",
+      "rva": "0x5D9A4D",
+      "length": 4,
+      "expectedBytes": "8B 53 1C 41",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.akaraCainRing.difficultyCall",
+      "owner": "plugin-quests",
+      "feature": "quests.akaraCainRing",
+      "kind": "call-site",
+      "rva": "0x5D9A6D",
+      "length": 5,
+      "expectedBytes": "E8 BE DA F3 FF",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.ormusGidbinnRing.item",
+      "owner": "plugin-quests",
+      "feature": "quests.ormusGidbinnRing",
+      "kind": "byte-patch",
+      "rva": "0x5E9BC3",
+      "length": 4,
+      "expectedBytes": "72 69 6E 20",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.ormusGidbinnRing.quality",
+      "owner": "plugin-quests",
+      "feature": "quests.ormusGidbinnRing",
+      "kind": "byte-patch",
+      "rva": "0x5E9BD6",
+      "length": 1,
+      "expectedBytes": "C7",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.ormusGidbinnRing.difficultyCall",
+      "owner": "plugin-quests",
+      "feature": "quests.ormusGidbinnRing",
+      "kind": "call-site",
+      "rva": "0x5E9BDE",
+      "length": 5,
+      "expectedBytes": "E8 4D D9 F2 FF",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.qualKehkRunes.item1",
+      "owner": "plugin-quests",
+      "feature": "quests.qualKehkRunes",
+      "kind": "byte-patch",
+      "rva": "0x23A02C0",
+      "length": 3,
+      "expectedBytes": "72 30 37",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.qualKehkRunes.item2",
+      "owner": "plugin-quests",
+      "feature": "quests.qualKehkRunes",
+      "kind": "byte-patch",
+      "rva": "0x23A02C4",
+      "length": 3,
+      "expectedBytes": "72 30 38",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.qualKehkRunes.item3",
+      "owner": "plugin-quests",
+      "feature": "quests.qualKehkRunes",
+      "kind": "byte-patch",
+      "rva": "0x23A02C8",
+      "length": 3,
+      "expectedBytes": "72 30 39",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.qualKehkRunes.difficultyCall",
+      "owner": "plugin-quests",
+      "feature": "quests.qualKehkRunes",
+      "kind": "call-site",
+      "rva": "0x54C9AC",
+      "length": 5,
+      "expectedBytes": "E8 7F AB FC FF",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.imbueAllowSockets.guard1",
+      "owner": "plugin-quests",
+      "feature": "quests.imbueAllowSockets",
+      "kind": "nop",
+      "rva": "0x36B123",
+      "length": 2,
+      "expectedBytes": "0F 85",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "quests.imbueAllowSockets.guard2",
+      "owner": "plugin-quests",
+      "feature": "quests.imbueAllowSockets",
+      "kind": "nop",
+      "rva": "0x36B61B",
+      "length": 2,
+      "expectedBytes": "75 6A",
+      "source": "src/plugin-quests/quests-main.cpp"
+    },
+    {
+      "id": "skills.manaCosts.compileSkillsTxt",
+      "owner": "plugin-skills",
+      "feature": "skills.manaCostsLifeOrStamina",
+      "kind": "inline-hook",
+      "rva": "0x302380",
+      "length": 24,
+      "expectedBytes": "48 89 5C 24 10 48 89 74 24 18 48 89 7C 24 20 55 41 54 41 55 41 56 41 57",
+      "source": "src/plugin-skills/skills-main.cpp"
+    },
+    {
+      "id": "skills.manaCosts.checkStat",
+      "owner": "plugin-skills",
+      "feature": "skills.manaCostsLifeOrStamina",
+      "kind": "inline-hook",
+      "rva": "0x340900",
+      "length": 14,
+      "expectedBytes": "40 55 56 41 54 41 57 48 83 EC 28 45 33 C0",
+      "source": "src/plugin-skills/skills-main.cpp"
+    },
+    {
+      "id": "skills.manaCosts.clientPredict",
+      "owner": "plugin-skills",
+      "feature": "skills.manaCostsLifeOrStamina",
+      "kind": "inline-hook",
+      "rva": "0x2188B0",
+      "length": 20,
+      "expectedBytes": "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20",
+      "source": "src/plugin-skills/skills-main.cpp"
+    },
+    {
+      "id": "skills.manaCosts.getUseStateCall",
+      "owner": "plugin-skills",
+      "feature": "skills.manaCostsLifeOrStamina",
+      "kind": "call-site",
+      "rva": "0x21B180",
+      "length": 5,
+      "expectedBytes": "E8 DB 41 12 00",
+      "source": "src/plugin-skills/skills-main.cpp"
+    },
+    {
+      "id": "skills.consume",
+      "owner": "plugin-skills",
+      "feature": "skills.manaCostsOrChargedPctDrainStat",
+      "kind": "inline-hook",
+      "rva": "0x436830",
+      "length": 16,
+      "expectedBytes": "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 48 83",
+      "source": "src/plugin-skills/skills-main.cpp"
+    },
+    {
+      "id": "skills.classicWhirlwind",
+      "owner": "plugin-skills",
+      "feature": "skills.classicWhirlwind",
+      "kind": "byte-patch",
+      "rva": "0x5691E2",
+      "length": 5,
+      "expectedBytes": "E8 19 1A 00 00",
+      "source": "src/plugin-skills/skills-main.cpp"
+    },
+    {
+      "id": "skills.whirlwindCtC",
+      "owner": "plugin-skills",
+      "feature": "skills.whirlwindCtC",
+      "kind": "byte-patch",
+      "rva": "0x589736",
+      "length": 6,
+      "expectedBytes": "0F 85 C1 00 00 00",
+      "source": "src/plugin-skills/skills-main.cpp"
+    },
+    {
+      "id": "skills.telekinesisPicksUpEverything",
+      "owner": "plugin-skills",
+      "feature": "skills.telekinesisPicksUpEverything",
+      "kind": "call-site",
+      "rva": "0x554936",
+      "length": 5,
+      "expectedBytes": "E8 35 A8 DE FF",
+      "source": "src/plugin-skills/skills-main.cpp"
+    },
+    {
+      "id": "skills.selfHealParams",
+      "owner": "plugin-skills",
+      "feature": "skills.selfHealParams",
+      "kind": "inline-hook",
+      "rva": "0x57D030",
+      "length": 20,
+      "expectedBytes": "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 48 83 EC 30 4C 8B",
+      "source": "src/plugin-skills/skills-main.cpp"
+    }
+  ]
+}
