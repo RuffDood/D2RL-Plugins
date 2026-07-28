@@ -48,6 +48,11 @@
             "bitfield": 4
         },
 
+		// Raise the gamble generation limit from vanilla 14 to the fixed grid capacity 32.
+		"gambleScreenLimit": {
+			"enabled": false
+		},
+
         // Vendor overhaul: replaces the vanilla random-item generator for shops.
         "vendorOverhaul": {
             "enabled": false,

@@ -30,4 +30,14 @@ if(BUILD_TESTING)
 		NAME repair-costs-cap-policy
 		COMMAND repair-costs-cap-policy-tests
 	)
+
+	add_executable(gamble-screen-limit-policy-tests
+		tests/gamble-screen-limit-policy-tests.cpp
+	)
+	target_link_libraries(gamble-screen-limit-policy-tests PRIVATE plugin-shared)
+	target_include_directories(gamble-screen-limit-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME gamble-screen-limit-policy
+		COMMAND gamble-screen-limit-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()

@@ -93,6 +93,16 @@
       "source": "src/plugin-items/items-main.cpp"
     },
     {
+      "id": "items.gambleScreenLimit.generationLimit",
+      "owner": "plugin-items",
+      "feature": "items.gambleScreenLimit",
+      "kind": "byte-patch",
+      "rva": "0x541A7E",
+      "length": 1,
+      "expectedBytes": "0E",
+      "source": "src/plugin-items/gamble-screen-limit.cpp"
+    },
+    {
       "id": "items.disableGoldPenalty",
       "owner": "plugin-items",
       "feature": "items.disableGoldPenalty",
