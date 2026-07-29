@@ -360,7 +360,10 @@ D2RL::ConsoleCommandResult __cdecl Status(
     return D2RL::ConsoleCommandResult::Handled;
 }
 
-bool ValidateRuntime(bool validateUiDispatch) noexcept {
+bool ValidateRuntime(
+    bool validateConfirmationUi,
+    bool validateUiDispatch
+) noexcept {
     constexpr std::array<std::uint8_t, 29> sendPacketExpected{
         0x48, 0x83, 0xEC, 0x28, 0x88, 0x4C, 0x24, 0x48,
         0x48, 0x8D, 0x4C, 0x24, 0x48, 0x66, 0x89, 0x54,
@@ -390,10 +393,23 @@ bool ValidateRuntime(bool validateUiDispatch) noexcept {
         0xE8, 0x7B, 0x1C, 0xA6, 0x00, 0x0F, 0xB6, 0x90,
         0x18, 0x01, 0x00, 0x00, 0x84
     };
-    return Context->CheckExpectedBytes(SendFiveBytePacketRva, sendPacketExpected.data(), sendPacketExpected.size())
-        && Context->CheckExpectedBytes(IsVirtualKeyDownRva, isVirtualKeyDownExpected.data(), isVirtualKeyDownExpected.size())
-        && Context->CheckExpectedBytes(GetLocalizedStringByKeyRva, localizedStringByKeyExpected.data(), localizedStringByKeyExpected.size())
-        && Context->CheckExpectedBytes(ShowAssignAllStatsConfirmationRva, statsConfirmationExpected.data(), statsConfirmationExpected.size())
+    return Context->CheckExpectedBytes(
+            SendFiveBytePacketRva,
+            sendPacketExpected.data(),
+            sendPacketExpected.size())
+        && Context->CheckExpectedBytes(
+            IsVirtualKeyDownRva,
+            isVirtualKeyDownExpected.data(),
+            isVirtualKeyDownExpected.size())
+        && (!validateConfirmationUi
+            || (Context->CheckExpectedBytes(
+                    GetLocalizedStringByKeyRva,
+                    localizedStringByKeyExpected.data(),
+                    localizedStringByKeyExpected.size())
+                && Context->CheckExpectedBytes(
+                    ShowAssignAllStatsConfirmationRva,
+                    statsConfirmationExpected.data(),
+                    statsConfirmationExpected.size())))
         && (!validateUiDispatch
             || Context->CheckExpectedBytes(
                 UiDispatchMessageRva,
@@ -472,11 +488,15 @@ bool Load(
 
     if (Settings.enabled) {
         IsVirtualKeyDown = At<IsVirtualKeyDownFn>(IsVirtualKeyDownRva);
-        ShowAssignAllStatsConfirmation = At<ShowAssignAllStatsConfirmationFn>(
-            ShowAssignAllStatsConfirmationRva
-        );
+        if (Settings.confirmShiftAllocation) {
+            ShowAssignAllStatsConfirmation = At<ShowAssignAllStatsConfirmationFn>(
+                ShowAssignAllStatsConfirmationRva
+            );
+        }
 
-        const auto brokerModule = GetModuleHandleW(ExternalUiMessageBrokerModule);
+        const auto brokerModule = Settings.confirmShiftAllocation
+            ? GetModuleHandleW(ExternalUiMessageBrokerModule)
+            : nullptr;
         const auto registerBroker = brokerModule
             ? reinterpret_cast<RegisterUiMessageInterceptorFn>(
                 GetProcAddress(brokerModule, RegisterUiMessageInterceptorExport))
@@ -492,7 +512,10 @@ bool Load(
         }
 
         if (!ValidateRuntime(
-                !UsingExternalUiMessageBroker.load(std::memory_order_acquire))) {
+                Settings.confirmShiftAllocation,
+                Settings.confirmShiftAllocation
+                    && !UsingExternalUiMessageBroker.load(
+                        std::memory_order_acquire))) {
             ReleaseExternalUiMessageBroker();
             context->LogError(
                 "plugin-skills: Bulk Skill Point Allocation runtime signature mismatch.");
@@ -505,7 +528,8 @@ bool Load(
             0x00, 0x48, 0x8B, 0x05, 0x20, 0x67, 0x3D, 0x02,
             0x48, 0x33, 0xC4, 0x48, 0x89
         };
-        if (!context->InstallInlineHook(
+        if (Settings.confirmShiftAllocation
+            && !context->InstallInlineHook(
                 GetLocalizedStringByKeyRva,
                 localizedStringByKeyExpected.data(),
                 static_cast<std::uint32_t>(localizedStringByKeyExpected.size()),
@@ -524,7 +548,8 @@ bool Load(
             0xE8, 0x7B, 0x1C, 0xA6, 0x00, 0x0F, 0xB6, 0x90,
             0x18, 0x01, 0x00, 0x00, 0x84
         };
-        if (!UsingExternalUiMessageBroker.load(std::memory_order_acquire)
+        if (Settings.confirmShiftAllocation
+            && !UsingExternalUiMessageBroker.load(std::memory_order_acquire)
             && !context->InstallInlineHook(
                     UiDispatchMessageRva,
                     uiDispatchExpected.data(),
@@ -555,7 +580,10 @@ bool Load(
                 "plugin-skills: Bulk Skill Point Allocation skill-packet hook failed.");
             return false;
         }
-        BrokerReady.store(true, std::memory_order_release);
+        BrokerReady.store(
+            Settings.confirmShiftAllocation
+                && !UsingExternalUiMessageBroker.load(std::memory_order_acquire),
+            std::memory_order_release);
     }
 
     if (!context->RegisterConsoleCommand(
@@ -576,9 +604,13 @@ bool Load(
         Settings.enabled ? "true" : "false",
         Settings.skillPointsPerCtrlClick,
         Settings.confirmShiftAllocation ? "enabled" : "disabled",
-        UsingExternalUiMessageBroker.load(std::memory_order_acquire)
-            ? "RemoteStash"
-            : (Settings.enabled ? "plugin-skills" : "inactive"));
+        !Settings.enabled
+            ? "inactive"
+            : (!Settings.confirmShiftAllocation
+                ? "not-needed"
+                : (UsingExternalUiMessageBroker.load(std::memory_order_acquire)
+                    ? "RemoteStash"
+                    : "plugin-skills")));
     context->LogInfo(activeMessage);
     return true;
 }
