@@ -222,6 +222,11 @@
 		// Keep quick-moved Cube placement vanilla unless explicitly enabled.
 		"cubeQuickMoveBottomRight": {
 			"enabled": false
+		},
+
+		// Keep equipped-item Ctrl-click behavior vanilla unless explicitly enabled.
+		"equippedItemToCube": {
+			"enabled": false
 		}
     },
 

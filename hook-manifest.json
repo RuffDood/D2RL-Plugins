@@ -1231,6 +1231,26 @@
       "length": 5,
       "expectedBytes": "E8 04 48 E4 FF",
       "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.equippedItemToCube.queuePacket",
+      "owner": "plugin-misc",
+      "feature": "misc.equippedItemToCube",
+      "kind": "inline-hook",
+      "rva": "0x0EE2A0",
+      "length": 32,
+      "expectedBytes": "48 89 5C 24 18 55 56 57 48 81 EC 30 02 00 00 48 8B 05 12 D0 8D 02 48 33 C4 48 89 84 24 20 02 00",
+      "source": "src/plugin-misc/equipped-item-to-cube.cpp"
+    },
+    {
+      "id": "misc.equippedItemToCube.equippedClick",
+      "owner": "plugin-misc",
+      "feature": "misc.equippedItemToCube",
+      "kind": "inline-hook",
+      "rva": "0x2CACF0",
+      "length": 32,
+      "expectedBytes": "48 89 54 24 10 53 55 57 41 55 48 83 EC 78 48 8B D9 E8 0A CB FD FF 41 B8 1A 01 00 00 48 8D 15 4D",
+      "source": "src/plugin-misc/equipped-item-to-cube.cpp"
     }
   ]
 }

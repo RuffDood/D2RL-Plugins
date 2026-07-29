@@ -21,4 +21,15 @@ if(BUILD_TESTING)
 		NAME cube-quick-move-policy
 		COMMAND cube-quick-move-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(equipped-item-to-cube-policy-tests
+		tests/equipped-item-to-cube-policy-tests.cpp
+	)
+	target_link_libraries(equipped-item-to-cube-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		equipped-item-to-cube-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME equipped-item-to-cube-policy
+		COMMAND equipped-item-to-cube-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()

@@ -2,6 +2,7 @@
 #include <plugin-shared.h>
 #include <plugin-shared-json.h>
 #include "cube-quick-move.h"
+#include "equipped-item-to-cube.h"
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -142,6 +143,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (!RuffnecKk::CubeQuickMove::Load(context, misc)) {
 		return false;
 	}
+	if (!RuffnecKk::EquippedItemToCube::Load(context, misc)) {
+		return false;
+	}
 
 	if (g_PlayersCommandLimit > 8) {
 		Real_PlayersAtoi    = reinterpret_cast<PlayersAtoi_t>(context->exeBase + OFF_Players_Atoi);
@@ -165,6 +169,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	RuffnecKk::EquippedItemToCube::Unload();
 	RuffnecKk::CubeQuickMove::Unload();
 	// Call-site patches installed via context->PatchRel32 are reverted automatically
 	// by D2RLoader on unload (ASSUMPTION — verify against real loader behavior before
