@@ -150,6 +150,17 @@ if(BUILD_TESTING)
 		COMMAND extended-item-stats-transport-tests
 	)
 
+	add_executable(extended-item-stats-policy-tests
+		tests/extended-item-stats-policy-tests.cpp
+	)
+	target_link_libraries(extended-item-stats-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		extended-item-stats-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME extended-item-stats-policy
+		COMMAND extended-item-stats-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
+
 	add_executable(extended-item-stats-tooltip-tests
 		tests/extended-item-stats-tooltip-tests.cpp
 	)

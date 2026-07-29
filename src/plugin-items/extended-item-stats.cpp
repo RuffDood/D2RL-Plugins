@@ -1,5 +1,6 @@
 #include <D2RLPlugin/api.h>
 #include "extended-item-stats.h"
+#include "extended-item-stats-policy.h"
 #include "extended-item-stats-transport.h"
 #include "extended-item-stats-tooltip.h"
 #include "extended-item-stats-overlay.h"
@@ -137,6 +138,7 @@ std::atomic<std::uint32_t> TooltipProbeLogs{};
 std::atomic<bool> TooltipColorMapLogged{};
 bool TooltipHookInstalled{};
 bool TooltipDelegated{};
+std::atomic<bool> FeatureEnabled{};
 HWND GameWindow{};
 std::atomic<void*> LastTooltipPanel{};
 std::atomic<void*> LastHoveredUnit{};
@@ -1593,18 +1595,38 @@ auto Status(D2R::Game::Client*, const D2RL::ConsoleCommandContext* command, void
 
 extern "C" __declspec(dllexport) bool __cdecl
 ExtendedItemStatsOwnsTooltipPipeline() noexcept {
-    return TooltipHookInstalled;
+    return FeatureEnabled.load(std::memory_order_acquire) && TooltipHookInstalled;
 }
 
 extern "C" __declspec(dllexport) void* __cdecl
 ExtendedItemStatsTransformTooltip(void* result, void* item) noexcept {
-    return TransformScrollableTooltip(result, item);
+    return FeatureEnabled.load(std::memory_order_acquire)
+        ? TransformScrollableTooltip(result, item)
+        : result;
 }
 
 bool RuffnecKk::ExtendedItemStats::Load(
-    const D2RL::PluginContext* context) noexcept {
+    const D2RL::PluginContext* context,
+    const nlohmann::json& itemsConfig) noexcept {
     if (!context) return false;
     Context = context;
+    Config config{};
+    try {
+        config = ParseConfig(itemsConfig);
+    } catch (const std::exception& exception) {
+        const auto message = std::string(
+            "plugin-items: invalid items.extendedItemStats (")
+            + exception.what() + ").";
+        context->LogError(message.c_str());
+        return false;
+    }
+    if (!config.enabled) {
+        FeatureEnabled.store(false, std::memory_order_release);
+        context->LogInfo(
+            "plugin-items: Extended Item Stats 0.3.17 by RuffnecKk disabled; "
+            "config=items.extendedItemStats.");
+        return true;
+    }
     Base = reinterpret_cast<std::uint8_t*>(context->exeBase);
     if (!Base) {
         context->LogError("ExtendedItemStats: D2R executable base is unavailable.");
@@ -1628,6 +1650,7 @@ bool RuffnecKk::ExtendedItemStats::Load(
         context->LogError("ExtendedItemStats: native signature or hook installation failed; plugin refused.");
         return false;
     }
+    FeatureEnabled.store(true, std::memory_order_release);
     if (Settings.scrollableTooltips && !InstallTooltipInput()) {
         context->LogWarn(
             "ExtendedItemStats: tooltip input listener could not start; scrolling input is unavailable.");
@@ -1658,12 +1681,13 @@ bool RuffnecKk::ExtendedItemStats::Load(
         + std::to_string(Settings.maxItemBytes)
         + "; tooltip owner="
         + (TooltipHookInstalled ? "ExtendedItemStats" : (TooltipDelegated ? "Transmogrify" : "none"))
-        + "; external configuration=none.";
+        + "; config=items.extendedItemStats.";
     context->LogInfo(message.c_str());
     return true;
 }
 
 void RuffnecKk::ExtendedItemStats::Unload() noexcept {
+    FeatureEnabled.store(false, std::memory_order_release);
     ruffneck::extended_item_stats::tooltip_overlay::Remove();
     RemoveTooltipInput();
     {

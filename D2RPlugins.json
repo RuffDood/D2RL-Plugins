@@ -160,6 +160,11 @@
             "chancePercent": 5,
             "allowSetItems": false,
             "allowIndestructibleItems": false
+        },
+
+        // Support larger item data and make oversized item tooltips scrollable.
+        "extendedItemStats": {
+            "enabled": true
         }
     },
 

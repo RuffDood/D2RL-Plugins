@@ -607,7 +607,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	const auto itemsConfig = PSh_Json_GetSection(cfg, "items");
 	g_pluginOptions.Load(context, itemsConfig);
 	g_exeBase = context->exeBase;
-	if (!RuffnecKk::ExtendedItemStats::Load(context)) {
+	if (!RuffnecKk::ExtendedItemStats::Load(context, itemsConfig)) {
 		return false;
 	}
 	if (!RuffnecKk::GambleScreenLimit::Load(context, itemsConfig)) {

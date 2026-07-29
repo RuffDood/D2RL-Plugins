@@ -15,7 +15,7 @@ DLL, change the PluginPack installation layout, or replace the single
 | `plugin-items.dll` | Charm Aura Trigger Fix | `items.charmAuraTriggerFix` |
 | `plugin-items.dll` | Enhanced Damage Min/Max Fix | `items.enhancedDamageMinMaxFix` |
 | `plugin-items.dll` | unified EthItemRules | `items.etherealItemRules` |
-| `plugin-items.dll` | Extended Item Stats | internal; no public key |
+| `plugin-items.dll` | Extended Item Stats | `items.extendedItemStats` |
 | `plugin-items.dll` | Repair Costs Cap | `items.repairCostsCap` |
 | `plugin-items.dll` | Qty Display Fix | `items.qtyDisplayIssue` |
 | `plugin-misc.dll` | Cube Quick Move Bottom-Right | `misc.cubeQuickMoveBottomRight` |
@@ -33,13 +33,13 @@ explicitly outside this contribution.
 ## Default behavior
 
 The shipped `D2RPlugins.json` is the player-facing default. Charm Aura Trigger
-Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube are
-enabled by default. Every other newly added configurable effect remains
-disabled, and its remaining values match vanilla where a vanilla value exists.
+Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and
+Extended Item Stats are enabled by default. Every other newly added configurable
+effect remains disabled, and its remaining values match vanilla where a vanilla value exists.
 The Larzuk table contains the 15 visible vanilla socket rules but its independent
-switch is disabled, so it installs no hook. Extended Item Stats has no public
-switch: it supplies bounded 4096-byte item transport and only changes tooltip
-presentation when an oversized payload actually requires it.
+switch is disabled, so it installs no hook. Extended Item Stats supplies bounded
+4096-byte item transport and only changes tooltip presentation when an oversized
+payload actually requires it; its public switch can disable the entire feature.
 
 ## Hook ownership and compatibility
 

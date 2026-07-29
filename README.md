@@ -40,7 +40,7 @@ CMake validates the manifest during configuration and before every build. A dupl
 1. Copy the five DLLs to either `<D2R>/d2rloader/plugins/` or `<D2R>/mods/<mod>/d2rloader/plugins/`.
 2. Copy `D2RPlugins.json` to the active mod data directory as `<modDirectory>/D2RPlugins.json`, or beside `D2RLoader.exe` for the global fallback.
 
-The shipped JSON enables four selected fixes by default: Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube. Other newly added configurable features remain disabled. `ExtendedItemStats` is internal infrastructure with no public key: normal vanilla items are unchanged, while the pack safely supports item payloads up to 4096 bytes and windows only oversized tooltips.
+The shipped JSON enables five selected features by default: Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and Extended Item Stats. Other newly added configurable features remain disabled. `items.extendedItemStats` informs players that the pack supports item payloads up to 4096 bytes and makes only oversized tooltips scrollable; setting `enabled=false` leaves its hooks and input listeners uninstalled.
 
 See [RUFFNECKK-INTEGRATION.md](RUFFNECKK-INTEGRATION.md) for the complete
 feature inventory, hook-ownership decisions, compatibility limits, final cold
