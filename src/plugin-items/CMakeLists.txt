@@ -50,4 +50,15 @@ if(BUILD_TESTING)
 		NAME ground-item-label-limit-policy
 		COMMAND ground-item-label-limit-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(enhanced-damage-min-max-fix-policy-tests
+		tests/enhanced-damage-min-max-fix-policy-tests.cpp
+	)
+	target_link_libraries(enhanced-damage-min-max-fix-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		enhanced-damage-min-max-fix-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME enhanced-damage-min-max-fix-policy
+		COMMAND enhanced-damage-min-max-fix-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()

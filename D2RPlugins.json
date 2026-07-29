@@ -59,6 +59,11 @@
 			"limit": 64
 		},
 
+		// Restore the off-weapon Enhanced Damage component when flat min/max damage is present.
+		"enhancedDamageMinMaxFix": {
+			"enabled": false
+		},
+
         // Vendor overhaul: replaces the vanilla random-item generator for shops.
         "vendorOverhaul": {
             "enabled": false,

@@ -173,6 +173,16 @@
       "source": "src/plugin-items/ground-item-label-limit.cpp"
     },
     {
+      "id": "items.enhancedDamageMinMaxFix.evaluateAndUpdateStat",
+      "owner": "plugin-items",
+      "feature": "items.enhancedDamageMinMaxFix",
+      "kind": "inline-hook",
+      "rva": "0x2FA430",
+      "length": 15,
+      "expectedBytes": "4C 89 4C 24 20 4C 89 44 24 18 89 54 24 10 53",
+      "source": "src/plugin-items/enhanced-damage-min-max-fix.cpp"
+    },
+    {
       "id": "items.disableGoldPenalty",
       "owner": "plugin-items",
       "feature": "items.disableGoldPenalty",
