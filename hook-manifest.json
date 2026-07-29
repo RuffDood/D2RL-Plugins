@@ -841,6 +841,106 @@
       "length": 29,
       "expectedBytes": "40 53 56 57 48 83 EC 20 4C 89 7C 24 58 4C 8B F9 E8 7B 1C A6 00 0F B6 90 18 01 00 00 84",
       "source": "src/plugin-skills/bulk-skill-point-allocation.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.dispatch9C",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x12E2C0",
+      "length": 32,
+      "expectedBytes": "40 53 48 81 EC 50 01 00 00 48 8B 05 F8 CF 89 02 48 33 C4 48 89 84 24 40 01 00 00 48 8B D9 33 D2",
+      "source": "src/plugin-items/extended-item-stats.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.dispatch9D",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x12E490",
+      "length": 32,
+      "expectedBytes": "40 53 48 81 EC 60 01 00 00 48 8B 05 28 CE 89 02 48 33 C4 48 89 84 24 50 01 00 00 48 8B D9 33 D2",
+      "source": "src/plugin-items/extended-item-stats.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.decodeItem",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x374BF0",
+      "length": 14,
+      "expectedBytes": "40 55 53 41 55 41 57 48 8B EC 48 83 EC 68",
+      "source": "src/plugin-items/extended-item-stats.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.readItemMetadata",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x374FF0",
+      "length": 27,
+      "expectedBytes": "48 83 EC 38 48 8B 44 24 60 C7 44 24 28 69 00 00 00 48 89 44 24 20 E8 05 00 00 00",
+      "source": "src/plugin-items/extended-item-stats.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.serializeItem",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x375EE0",
+      "length": 26,
+      "expectedBytes": "48 89 5C 24 08 57 48 83 EC 60 48 8B D9 41 8B F9 48 8D 4C 24 38 E8 26 57 6A 00",
+      "source": "src/plugin-items/extended-item-stats.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.queueServerPacket",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x4817F0",
+      "length": 22,
+      "expectedBytes": "40 55 56 57 48 83 EC 40 49 8B E8 48 8B F2 48 8B F9 48 85 C9 75 1F",
+      "source": "src/plugin-items/extended-item-stats.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.resolveHoveredUnit",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x2A7810",
+      "length": 32,
+      "expectedBytes": "48 83 EC 28 44 8B 81 C4 05 00 00 41 83 F8 FF 75 10 83 B9 C8 05 00 00 06 75 07 33 C0 48 83 C4 28",
+      "source": "src/plugin-items/extended-item-stats.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.resolveHoveredWidget",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x2A89C0",
+      "length": 32,
+      "expectedBytes": "40 57 41 56 48 83 EC 28 48 89 5C 24 40 4C 8B F2 48 89 74 24 20 48 8B D9 33 FF 48 C7 44 24 50 FF",
+      "source": "src/plugin-items/extended-item-stats.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.getStatsDescription",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x2DC4B0",
+      "length": 32,
+      "expectedBytes": "48 89 5C 24 20 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 C0 FB FF FF 48 81 EC 40 05 00 00 48",
+      "source": "src/plugin-items/extended-item-stats.cpp"
+    },
+    {
+      "id": "items.extendedItemStats.buildItemTooltip",
+      "owner": "plugin-items",
+      "feature": "items.extendedItemStats",
+      "kind": "inline-hook",
+      "rva": "0x2BD480",
+      "length": 32,
+      "expectedBytes": "40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 F8 B1 FF FF B8 08 4F 00 00 E8 41 3C 01 01 48",
+      "source": "src/plugin-items/extended-item-stats.cpp"
     }
   ]
 }

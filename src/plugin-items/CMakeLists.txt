@@ -1,8 +1,64 @@
+include(FetchContent)
+
+FetchContent_Declare(
+	imgui
+	GIT_REPOSITORY https://github.com/ocornut/imgui.git
+	GIT_TAG v1.91.5
+)
+FetchContent_Declare(
+	minhook
+	GIT_REPOSITORY https://github.com/TsudaKageyu/minhook.git
+	GIT_TAG v1.3.4
+)
+FetchContent_MakeAvailable(imgui minhook)
+
+add_library(plugin-items-extended-imgui STATIC
+	${imgui_SOURCE_DIR}/imgui.cpp
+	${imgui_SOURCE_DIR}/imgui_draw.cpp
+	${imgui_SOURCE_DIR}/imgui_tables.cpp
+	${imgui_SOURCE_DIR}/imgui_widgets.cpp
+	${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp
+)
+target_include_directories(plugin-items-extended-imgui PUBLIC
+	${imgui_SOURCE_DIR}
+	${imgui_SOURCE_DIR}/backends
+)
+target_compile_features(plugin-items-extended-imgui PUBLIC cxx_std_20)
+target_compile_definitions(
+	plugin-items-extended-imgui PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(plugin-items-extended-imgui PUBLIC dxgi)
+
+add_library(plugin-items-extended-transport STATIC
+	extended-item-stats-transport.cpp
+)
+target_compile_features(plugin-items-extended-transport PUBLIC cxx_std_20)
+target_include_directories(
+	plugin-items-extended-transport PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+add_library(plugin-items-extended-tooltip STATIC
+	extended-item-stats-tooltip.cpp
+)
+target_compile_features(plugin-items-extended-tooltip PUBLIC cxx_std_20)
+target_include_directories(
+	plugin-items-extended-tooltip PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 file(GLOB PLUGIN_SOURCES CONFIGURE_DEPENDS *.cpp)
+list(REMOVE_ITEM PLUGIN_SOURCES
+	${CMAKE_CURRENT_SOURCE_DIR}/extended-item-stats-transport.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/extended-item-stats-tooltip.cpp
+)
 
 add_library(plugin-items SHARED ${PLUGIN_SOURCES} plugin.rc)
 
-target_link_libraries(plugin-items PRIVATE plugin-shared)
+target_link_libraries(plugin-items PRIVATE
+	plugin-shared
+	plugin-items-extended-transport
+	plugin-items-extended-tooltip
+	plugin-items-extended-imgui
+	minhook
+	Xinput
+	dxgi
+)
 
 set_target_properties(plugin-items PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
@@ -82,5 +138,25 @@ if(BUILD_TESTING)
 	add_test(
 		NAME charm-aura-trigger-fix-policy
 		COMMAND charm-aura-trigger-fix-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
+
+	add_executable(extended-item-stats-transport-tests
+		tests/extended-item-stats-transport-tests.cpp
+	)
+	target_link_libraries(
+		extended-item-stats-transport-tests PRIVATE plugin-items-extended-transport)
+	add_test(
+		NAME extended-item-stats-transport
+		COMMAND extended-item-stats-transport-tests
+	)
+
+	add_executable(extended-item-stats-tooltip-tests
+		tests/extended-item-stats-tooltip-tests.cpp
+	)
+	target_link_libraries(
+		extended-item-stats-tooltip-tests PRIVATE plugin-items-extended-tooltip)
+	add_test(
+		NAME extended-item-stats-tooltip
+		COMMAND extended-item-stats-tooltip-tests
 	)
 endif()

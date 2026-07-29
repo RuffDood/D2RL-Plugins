@@ -1,6 +1,7 @@
 ﻿#include <D2RLPlugin/api.h>
 #include "charm-aura-trigger-fix.h"
 #include "enhanced-damage-min-max-fix.h"
+#include "extended-item-stats.h"
 #include "gamble-screen-limit.h"
 #include "ground-item-label-limit.h"
 #include "item-durability.h"
@@ -604,6 +605,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	const auto itemsConfig = PSh_Json_GetSection(cfg, "items");
 	g_pluginOptions.Load(context, itemsConfig);
 	g_exeBase = context->exeBase;
+	if (!RuffnecKk::ExtendedItemStats::Load(context)) {
+		return false;
+	}
 	if (!RuffnecKk::GambleScreenLimit::Load(context, itemsConfig)) {
 		return false;
 	}
@@ -752,6 +756,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
 	ItemsEthereal_Reset();
 	RuffnecKk::GroundItemLabelLimit::Unload();
 	RuffnecKk::GambleScreenLimit::Unload();
+	RuffnecKk::ExtendedItemStats::Unload();
 	// Hooks/patches installed via context->InstallInlineHook/PatchBytes/PatchRel32 are
 	// reverted automatically by D2RLoader on unload (ASSUMPTION — verify against real
 	// loader behavior before relying on this in production).

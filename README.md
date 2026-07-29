@@ -1,62 +1,76 @@
 # D2RL-Plugins
 
-A collection of gameplay plugins for Diablo II: Resurrected, built on top of [D2RLoader](https://discord.gg/fv9mchnAVn). Each plugin is a DLL that hooks into the game executable to extend or modify behavior without replacing any game files.
+A collection of gameplay plugins for Diablo II: Resurrected, built for [D2RLoader](https://discord.gg/fv9mchnAVn). The five DLLs hook the game without replacing game files.
 
 ## Requirements
 
-- **D2RLoader** must be installed and running. These plugins are loaded by D2RLoader and cannot function without it.
-- **MSVC 2022** (Visual Studio 2022) or later is required to compile the project.
+- D2RLoader 1.0.1 or later.
+- MSVC 2022 and CMake 3.24 or later to build from source.
 
 ## Building
 
-Open the project with CMake (the root `CMakeLists.txt`) and build with the MSVC toolchain. The output is a set of `.dll` files, one per plugin.
+Configure the root `CMakeLists.txt` and build with the MSVC x64 toolchain. CMake fetches the pinned ImGui and MinHook dependencies used by `plugin-items.dll`.
+
+```powershell
+cmake -S . -B build -A x64
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure
+```
+
+The Release build produces these runtime DLLs under `build/bin/Release/`:
+
+- `plugin-items.dll`
+- `plugin-levels.dll`
+- `plugin-misc.dll`
+- `plugin-quests.dll`
+- `plugin-skills.dll`
+
+`plugin-shared` is linked statically and is not a sixth runtime DLL.
 
 ### Hook ownership gate
 
-`hook-manifest.json` is the source of truth for every executable memory write made by the five plugin DLLs. Each entry declares one owner, feature, write kind, RVA, guarded byte span, expected bytes, and source file for D2R `3.2.92777`.
+`hook-manifest.json` is the source of truth for every executable memory write made by the five DLLs. Each entry declares one owner, feature, write kind, RVA, guarded byte span, expected bytes, and source file for D2R `3.2.92777`.
 
-CMake validates the manifest during configuration and before every build. A duplicate ID, unknown owner, malformed byte guard, or overlap between any two write spans stops the build. Run `ctest -C Release --test-dir build --output-on-failure` to exercise both the valid inventory and the overlap-rejection fixture.
+CMake validates the manifest during configuration and before every build. A duplicate ID, unknown owner, malformed byte guard, or overlap between write spans stops the build. Any change that adds, removes, moves, or resizes a hook or patch must update the manifest in the same commit.
 
-Any change that adds, removes, moves, or resizes a hook or patch must update the manifest in the same change.
-
-`plugin-shared` also owns the single canonical `D2UnitStrc` layout. Consumers use its minimal `PSh_UnitType` and `PSh_UnitClassId` accessors instead of declaring local views; the field at `+0x04` is the class/TXT record ID returned by `UNITS_GetClassId`, not a flags field.
+`plugin-shared` owns the canonical minimal `D2UnitStrc` accessors. Feature modules must not duplicate incompatible unit layouts.
 
 ## Installation
 
-1. Build the project (or obtain pre-built DLLs).
-2. Copy all plugin DLLs into the `/plugins` folder. This folder lives in one of two places depending on your setup:
-   - The Diablo II: Resurrected install directory (e.g. `C:\Program Files (x86)\Diablo II Resurrected\plugins\`)
-   - Your mod's `.mpq` folder (e.g. `<mod>/<mod.mpq>/plugins/`)
-3. **`plugin-shared.dll` is required** and must be present in the `/plugins` folder for any of the other plugins to work. It provides shared utilities used by all plugins at runtime.
-4. Open `PluginPack.sample.ini` and copy the sections and keys you want to enable into your `D2RLoader.ini`. All features are optional and disabled by default — nothing takes effect until you explicitly enable it in the ini.
+1. Copy the five DLLs to either `<D2R>/d2rloader/plugins/` or `<D2R>/mods/<mod>/d2rloader/plugins/`.
+2. Copy `D2RPlugins.json` to the active mod data directory as `<modDirectory>/D2RPlugins.json`, or beside `D2RLoader.exe` for the global fallback.
+
+The shipped JSON preserves vanilla behavior for every configurable feature. `ExtendedItemStats` is internal infrastructure with no public key: normal vanilla items are unchanged, while the pack safely supports item payloads up to 4096 bytes and windows only oversized tooltips.
 
 ## Plugins
 
-| DLL | INI Section | Description |
-|-----|-------------|-------------|
-| `plugin-shared.dll` | *(none)* | Shared runtime library — required by all plugins |
-| `plugin-items.dll` | `[PluginPack.Items]` | Item spawn flags, gold limits, runeword quality unlock, gamble filter, vendor overhaul, resist caps, TreasureClass condition improvements |
-| `plugin-levels.dll` | `[PluginPack.Levels]` | Level/area tweaks (e.g. disabling the Act 1 dirt path overlay) |
-| `plugin-misc.dll` | `[PluginPack.Misc]` | Miscellaneous tweaks (e.g. `/players` command limit) |
-| `plugin-quests.dll` | `[PluginPack.Quests]` | Quest reward overrides — skill/stat point counts, ring and rune rewards, per-difficulty variants |
-| `plugin-skills.dll` | `[PluginPack.Skills]` | Skill mana system extensions — life/stamina costs, classic Whirlwind, CtC on WW, Telekinesis pickup, charged item drain chance, Param1/Param2-driven self-heal (heal-to/heal-by, life/mana) |
+| DLL | JSON section | Description |
+|---|---|---|
+| `plugin-items.dll` | `items` | Item rules, fixes, limits, vendor options, 4096-byte item transport, and scrollable oversized tooltips |
+| `plugin-levels.dll` | `levels` | Level and area tweaks |
+| `plugin-misc.dll` | `misc` | Miscellaneous tweaks such as the `/players` command limit |
+| `plugin-quests.dll` | `quests` | Quest reward overrides |
+| `plugin-skills.dll` | `skills` | Skill-system extensions and bulk skill-point allocation |
 
 ## Configuration
 
-`PluginPack.sample.ini` contains every available option with its default value, commented out, with descriptions. Copy the keys you want into the `D2RLoader.ini` under the matching section header.
+`D2RPlugins.json` contains every public option with documented, vanilla-preserving defaults. Change only the feature blocks you want to enable.
 
-Example snippet:
-
-```ini
-[PluginPack.Items]
-DisableGoldPenalty=1
-EnableInventoryGoldLimitChange=1
-InventoryGoldLimit=25000
-
-[PluginPack.Skills]
-EnableClassicWW=1
+```jsonc
+{
+  "items": {
+    "gambleScreenLimit": {
+      "enabled": true
+    }
+  },
+  "skills": {
+    "bulkSkillPointAllocation": {
+      "enabled": true,
+      "skillPointsPerCtrlClick": 5
+    }
+  }
+}
 ```
-
 
 ## License
 
