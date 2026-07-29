@@ -751,6 +751,36 @@
       "length": 20,
       "expectedBytes": "48 89 5C 24 10 48 89 6C 24 18 56 57 41 56 48 83 EC 30 4C 8B",
       "source": "src/plugin-skills/skills-main.cpp"
+    },
+    {
+      "id": "skills.bulkSkillPointAllocation.sendPacket",
+      "owner": "plugin-skills",
+      "feature": "skills.bulkSkillPointAllocation",
+      "kind": "inline-hook",
+      "rva": "0x0EC700",
+      "length": 29,
+      "expectedBytes": "48 83 EC 28 88 4C 24 48 48 8D 4C 24 48 66 89 54 24 49 BA 05 00 00 00 66 44 89 44 24 4B",
+      "source": "src/plugin-skills/bulk-skill-point-allocation.cpp"
+    },
+    {
+      "id": "skills.bulkSkillPointAllocation.localizedString",
+      "owner": "plugin-skills",
+      "feature": "skills.bulkSkillPointAllocation",
+      "kind": "inline-hook",
+      "rva": "0x5F4B90",
+      "length": 29,
+      "expectedBytes": "4C 8B DC 55 53 57 49 8D 6B A1 48 81 EC B0 00 00 00 48 8B 05 20 67 3D 02 48 33 C4 48 89",
+      "source": "src/plugin-skills/bulk-skill-point-allocation.cpp"
+    },
+    {
+      "id": "skills.bulkSkillPointAllocation.uiDispatch",
+      "owner": "plugin-skills",
+      "feature": "skills.bulkSkillPointAllocation",
+      "kind": "inline-hook",
+      "rva": "0x843D90",
+      "length": 29,
+      "expectedBytes": "40 53 56 57 48 83 EC 20 4C 89 7C 24 58 4C 8B F9 E8 7B 1C A6 00 0F B6 90 18 01 00 00 84",
+      "source": "src/plugin-skills/bulk-skill-point-allocation.cpp"
     }
   ]
 }

@@ -1,4 +1,5 @@
 #include <D2RLPlugin/api.h>
+#include "bulk-skill-point-allocation.h"
 #include "plugin-shared.h"
 #include "skills-private.h"
 #include <Windows.h>
@@ -605,7 +606,8 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 
 	auto cfg = PSh_Json_LoadConfig(context);
-	g_skillPluginOptions.Load(context, PSh_Json_GetSection(cfg, "skills"));
+	const auto skillsConfig = PSh_Json_GetSection(cfg, "skills");
+	g_skillPluginOptions.Load(context, skillsConfig);
 	g_ExeBase = context->exeBase;
 	g_Context = context;
 
@@ -680,10 +682,15 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		}
 	}
 
+	if (!RuffnecKk::BulkSkillPointAllocation::Load(context, skillsConfig)) {
+		return false;
+	}
+
 	return true;
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	RuffnecKk::BulkSkillPointAllocation::Unload();
 	// Hooks/patches installed via context->InstallInlineHook/PatchBytes/PatchRel32 are
 	// reverted automatically by D2RLoader on unload (ASSUMPTION — verify against real
 	// loader behavior before relying on this in production).

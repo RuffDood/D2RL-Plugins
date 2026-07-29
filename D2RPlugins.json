@@ -151,6 +151,16 @@
         // Telekinesis picks up any item (not just gold and scrolls).
         "telekinesisPicksUpEverything": false,
 
+		// Allocate skill points in native batches with Ctrl or all at once with Shift.
+		"bulkSkillPointAllocation": {
+			"enabled": false,
+			"skillPointsPerCtrlClick": 5,
+			"confirmShiftAllocation": false,
+			"diagnostics": false,
+			"shiftConfirmationKey": "shiftConfirmation",
+			"shiftConfirmationFallback": "Invest all currently usable skill points in this skill?"
+		},
+
         // Give charged items a % chance to not consume a charge on use.
         // statId is the character stat (0–511) that holds the skip-chance (0–100%).
         "chargedPctDrainStat": {
