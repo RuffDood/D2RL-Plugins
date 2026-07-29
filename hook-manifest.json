@@ -413,6 +413,36 @@
       "source": "src/plugin-items/item-durability.cpp"
     },
     {
+      "id": "items.charmAuraTriggerFix.actTransition",
+      "owner": "plugin-items",
+      "feature": "items.charmAuraTriggerFix",
+      "kind": "inline-hook",
+      "rva": "0x502D00",
+      "length": 15,
+      "expectedBytes": "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18",
+      "source": "src/plugin-items/charm-aura-trigger-fix.cpp"
+    },
+    {
+      "id": "items.charmAuraTriggerFix.attachSound",
+      "owner": "plugin-items",
+      "feature": "items.charmAuraTriggerFix",
+      "kind": "inline-hook",
+      "rva": "0x491960",
+      "length": 15,
+      "expectedBytes": "48 89 5C 24 08 48 89 74 24 18 57 48 83 EC 20",
+      "source": "src/plugin-items/charm-aura-trigger-fix.cpp"
+    },
+    {
+      "id": "items.charmAuraTriggerFix.playerModeFinalize",
+      "owner": "plugin-items",
+      "feature": "items.charmAuraTriggerFix",
+      "kind": "inline-hook",
+      "rva": "0x42D2C0",
+      "length": 16,
+      "expectedBytes": "48 89 5C 24 20 4C 89 44 24 18 55 56 57 48 83 EC",
+      "source": "src/plugin-items/charm-aura-trigger-fix.cpp"
+    },
+    {
       "id": "items.repairCostsCap.transactionCost",
       "owner": "plugin-items",
       "feature": "items.repairCostsCap",

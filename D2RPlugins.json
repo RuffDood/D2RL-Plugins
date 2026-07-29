@@ -17,6 +17,13 @@
 			"diagnostics": false
 		},
 
+		// Restore inventory charm auras after zone transitions, corpse recovery,
+		// and town respawns. Disabled preserves vanilla behavior.
+		"charmAuraTriggerFix": {
+			"enabled": false,
+			"diagnostics": false
+		},
+
 		// Cap NPC repair prices and optionally apply permanent durability wear.
 		// maximumGold is shared by individual repairs and the Repair All total;
 		// 2147483647 and zero durability wear preserve vanilla behavior.

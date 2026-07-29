@@ -72,4 +72,15 @@ if(BUILD_TESTING)
 		NAME item-durability-policy
 		COMMAND item-durability-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(charm-aura-trigger-fix-policy-tests
+		tests/charm-aura-trigger-fix-policy-tests.cpp
+	)
+	target_link_libraries(charm-aura-trigger-fix-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		charm-aura-trigger-fix-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME charm-aura-trigger-fix-policy
+		COMMAND charm-aura-trigger-fix-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()
