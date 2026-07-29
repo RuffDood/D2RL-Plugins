@@ -240,7 +240,7 @@ bool Load(
         }
     }
 
-    if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
             "prevent-merc-death-in-town",
             Status,
             "Show the persistent-damage protection status."

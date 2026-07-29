@@ -4,6 +4,8 @@
 #include "larzuk-sockets.h"
 #include "quests-private.h"
 #include <plugin-shared-json.h>
+#include <limits>
+#include <stdexcept>
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -52,7 +54,7 @@ static constexpr uint64_t OFF_QualKehkCallSite    = 0x54c9ac;
 static constexpr uint64_t OFF_ImbueSocket1 = 0x36b123;
 static constexpr uint64_t OFF_ImbueSocket2 = 0x36b61b;
 
-// ── Expected original bytes (verified against d2r_debug_91923.exe) ───────────
+// ── Expected original bytes (verified against the D2R.exe 3.2.92777 reference image) ────
 // D2RLoader requires non-null expected bytes for PatchBytes/PatchRel32 calls
 // so it can verify the patch site before writing.
 static constexpr uint8_t EXP_DenOfEvilPatch[1]        = { 0x01 };
@@ -119,12 +121,49 @@ static int* __fastcall Hook_QualKehkRuneDiffReward(const D2GameStrc* pGame, void
 
 // ── JSON loading ──────────────────────────────────────────────────────────────
 
-static RewardType ParseRewardMode(const nlohmann::json& obj)
+static int64_t ReadBoundedInteger(
+	const nlohmann::json& object,
+	const char* key,
+	int64_t fallback,
+	int64_t minimum,
+	int64_t maximum,
+	const char* setting)
+{
+	const auto entry = object.find(key);
+	if (entry == object.end()) {
+		return fallback;
+	}
+	if (!entry->is_number_integer()) {
+		throw std::runtime_error(std::string("plugin-quests: ") + setting + " must be an integer.");
+	}
+
+	int64_t value{};
+	if (entry->is_number_unsigned()) {
+		const auto unsignedValue = entry->get<uint64_t>();
+		if (unsignedValue > static_cast<uint64_t>(maximum)) {
+			throw std::runtime_error(std::string("plugin-quests: ") + setting + " is out of range.");
+		}
+		value = static_cast<int64_t>(unsignedValue);
+	}
+	else {
+		value = entry->get<int64_t>();
+	}
+	if (value < minimum || value > maximum) {
+		throw std::runtime_error(std::string("plugin-quests: ") + setting + " is out of range.");
+	}
+	return value;
+}
+
+static RewardType ParseRewardMode(const nlohmann::json& obj, bool allowDifferent = true)
 {
 	std::string mode = obj.value("mode", "disabled");
 	if (mode == "same")      return RewardType::SamePerDifficulty;
-	if (mode == "different") return RewardType::DifferentPerDifficulty;
-	return RewardType::Disabled;
+	if (mode == "different" && allowDifferent) return RewardType::DifferentPerDifficulty;
+	if (mode == "disabled") return RewardType::Disabled;
+	throw std::runtime_error(
+		allowDifferent
+			? "plugin-quests: quest reward mode must be disabled, same, or different."
+			: "plugin-quests: this quest reward mode must be disabled or same.");
 }
 
 // Encode a JSON string item code (e.g. "rin", "r07") to a little-endian uint32_t.
@@ -132,6 +171,10 @@ static RewardType ParseRewardMode(const nlohmann::json& obj)
 static uint32_t ParseItemCode(const nlohmann::json& obj, const char* key, const char* fallback)
 {
 	std::string code = obj.value(key, fallback);
+	if (code.size() != 3) {
+		throw std::runtime_error(
+			std::string("plugin-quests: item code '") + code + "' must contain exactly 3 characters.");
+	}
 	return PSh_EncodeItemCode(code.c_str());
 }
 
@@ -142,6 +185,9 @@ static ItemQuestReward<uint32_t> ReadItemCodeReward(const nlohmann::json& obj,
 	r.Reward = ParseItemCode(obj, itemKey, fallback);
 
 	auto pd = obj.value("perDifficulty", nlohmann::json::array());
+	if (!pd.is_array()) {
+		throw std::runtime_error("plugin-quests: perDifficulty must be an array.");
+	}
 	for (int i = 0; i < 3; i++) {
 		if (i < static_cast<int>(pd.size()) && pd[i].is_object())
 			r.RewardPerDifficulty[i] = ParseItemCode(pd[i], "item", fallback);
@@ -155,12 +201,17 @@ static ItemQuestReward<uint8_t> ReadQualityReward(const nlohmann::json& obj,
                                                    const char* qualKey, uint8_t fallback)
 {
 	ItemQuestReward<uint8_t> r;
-	r.Reward = static_cast<uint8_t>(obj.value(qualKey, static_cast<int>(fallback)));
+	r.Reward = static_cast<uint8_t>(ReadBoundedInteger(
+		obj, qualKey, fallback, 2, 9, "quest reward quality"));
 
 	auto pd = obj.value("perDifficulty", nlohmann::json::array());
+	if (!pd.is_array()) {
+		throw std::runtime_error("plugin-quests: perDifficulty must be an array.");
+	}
 	for (int i = 0; i < 3; i++) {
 		if (i < static_cast<int>(pd.size()) && pd[i].is_object())
-			r.RewardPerDifficulty[i] = static_cast<uint8_t>(pd[i].value("quality", static_cast<int>(fallback)));
+			r.RewardPerDifficulty[i] = static_cast<uint8_t>(ReadBoundedInteger(
+				pd[i], "quality", fallback, 2, 9, "quest reward perDifficulty quality"));
 		else
 			r.RewardPerDifficulty[i] = r.Reward;
 	}
@@ -170,26 +221,34 @@ static ItemQuestReward<uint8_t> ReadQualityReward(const nlohmann::json& obj,
 void QuestPluginOptions::Load(const D2RL::PluginContext* /*context*/, const nlohmann::json& cfg)
 {
 	auto doe = cfg.value("denOfEvil", nlohmann::json::object());
-	DenOfEvilRewardEnabled    = ParseRewardMode(doe);
-	DenOfEvilSkillPointReward = static_cast<uint8_t>(doe.value("skillPoints", 1));
+	DenOfEvilRewardEnabled = ParseRewardMode(doe, false);
+	DenOfEvilSkillPointReward = static_cast<uint8_t>(ReadBoundedInteger(
+		doe, "skillPoints", 1, 0, 255, "quests.denOfEvil.skillPoints"));
 
 	auto iz = cfg.value("izual", nlohmann::json::object());
-	IzualRewardEnabled    = ParseRewardMode(iz);
-	IzualSkillPointReward = static_cast<uint8_t>(iz.value("skillPoints", 2));
+	IzualRewardEnabled = ParseRewardMode(iz, false);
+	IzualSkillPointReward = static_cast<uint8_t>(ReadBoundedInteger(
+		iz, "skillPoints", 2, 0, 255, "quests.izual.skillPoints"));
 
 	auto bb = cfg.value("blackBook", nlohmann::json::object());
-	BlackBookRewardEnabled   = ParseRewardMode(bb);
-	BlackBookStatPointReward = static_cast<uint8_t>(bb.value("statPoints", 5));
+	BlackBookRewardEnabled = ParseRewardMode(bb, false);
+	BlackBookStatPointReward = static_cast<uint8_t>(ReadBoundedInteger(
+		bb, "statPoints", 5, 0, 255, "quests.blackBook.statPoints"));
 
 	auto gb = cfg.value("goldenBird", nlohmann::json::object());
-	GoldenBirdRewardEnabled = ParseRewardMode(gb);
-	GoldenBirdRewardStat    = static_cast<uint8_t>(gb.value("stat", 7));
-	GoldenBirdRewardAmount  = static_cast<uint32_t>(gb.value("amount", 0x1400)); // in 256ths for HP/MP
+	GoldenBirdRewardEnabled = ParseRewardMode(gb, false);
+	GoldenBirdRewardStat = static_cast<uint8_t>(ReadBoundedInteger(
+		gb, "stat", 7, 0, 255, "quests.goldenBird.stat"));
+	GoldenBirdRewardAmount = static_cast<uint32_t>(ReadBoundedInteger(
+		gb, "amount", 0x1400, 0, std::numeric_limits<uint32_t>::max(),
+		"quests.goldenBird.amount")); // in 256ths for HP/MP
 
 	auto sb = cfg.value("radamentSkillBook", nlohmann::json::object());
-	SkillBookRewardEnabled = ParseRewardMode(sb);
-	SkillBookRewardStat    = static_cast<uint8_t>(sb.value("stat", 5));
-	SkillBookRewardAmount  = static_cast<uint8_t>(sb.value("amount", 1));
+	SkillBookRewardEnabled = ParseRewardMode(sb, false);
+	SkillBookRewardStat = static_cast<uint8_t>(ReadBoundedInteger(
+		sb, "stat", 5, 0, 255, "quests.radamentSkillBook.stat"));
+	SkillBookRewardAmount = static_cast<uint8_t>(ReadBoundedInteger(
+		sb, "amount", 1, 0, 255, "quests.radamentSkillBook.amount"));
 
 	auto akara = cfg.value("akaraCainRing", nlohmann::json::object());
 	AkaraCainRingRewardEnabled = ParseRewardMode(akara);
@@ -206,17 +265,42 @@ void QuestPluginOptions::Load(const D2RL::PluginContext* /*context*/, const nloh
 	static const char* runeDefaults[3] = { "r07", "r08", "r09" };
 	auto items = qk.value("items", nlohmann::json::array());
 	auto perDiff = qk.value("perDifficulty", nlohmann::json::array());
+	if (!items.is_array() || !perDiff.is_array()) {
+		throw std::runtime_error(
+			"plugin-quests: quests.qualKehkRunes items and perDifficulty must be arrays.");
+	}
 	for (int slot = 0; slot < 3; slot++) {
 		const char* def = runeDefaults[slot];
-		std::string sameCode = (slot < static_cast<int>(items.size()) && items[slot].is_string())
-		                       ? items[slot].get<std::string>() : def;
+		if (slot < static_cast<int>(items.size()) && !items[slot].is_string()) {
+			throw std::runtime_error("plugin-quests: quests.qualKehkRunes.items entries must be strings.");
+		}
+		std::string sameCode = slot < static_cast<int>(items.size())
+			? items[slot].get<std::string>() : def;
+		if (sameCode.size() != 3) {
+			throw std::runtime_error(
+				"plugin-quests: quests.qualKehkRunes item codes must contain exactly 3 characters.");
+		}
 		QualKehkRuneItems[slot].Reward = PSh_EncodeItemCode(sameCode.c_str());
 		for (int di = 0; di < 3; di++) {
 			uint32_t code = QualKehkRuneItems[slot].Reward;
-			if (di < static_cast<int>(perDiff.size()) && perDiff[di].is_array()) {
+			if (di < static_cast<int>(perDiff.size())) {
+				if (!perDiff[di].is_array()) {
+					throw std::runtime_error(
+						"plugin-quests: quests.qualKehkRunes.perDifficulty rows must be arrays.");
+				}
 				auto& row = perDiff[di];
-				if (slot < static_cast<int>(row.size()) && row[slot].is_string())
-					code = PSh_EncodeItemCode(row[slot].get<std::string>().c_str());
+				if (slot < static_cast<int>(row.size())) {
+					if (!row[slot].is_string()) {
+						throw std::runtime_error(
+							"plugin-quests: quests.qualKehkRunes.perDifficulty entries must be strings.");
+					}
+					const auto difficultyCode = row[slot].get<std::string>();
+					if (difficultyCode.size() != 3) {
+						throw std::runtime_error(
+							"plugin-quests: quests.qualKehkRunes item codes must contain exactly 3 characters.");
+					}
+					code = PSh_EncodeItemCode(difficultyCode.c_str());
+				}
 			}
 			QualKehkRuneItems[slot].RewardPerDifficulty[di] = code;
 		}
@@ -242,6 +326,11 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 	return &PluginInfo;
 }
 
+static void CleanupPluginQuestsState() noexcept
+{
+	RuffnecKk::ForceLarzukSockets::Unload();
+}
+
 D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
 	if (!PSh_ValidatePluginTarget(context)) {
 		return false;
@@ -249,9 +338,16 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 
 	g_context = context;
 
-	auto cfg = PSh_Json_LoadConfig(context);
-	const auto questsConfig = PSh_Json_GetSection(cfg, "quests");
-	g_questPluginOptions.Load(context, questsConfig);
+	nlohmann::json questsConfig;
+	try {
+		auto cfg = PSh_Json_LoadConfig(context);
+		questsConfig = PSh_Json_GetSection(cfg, "quests");
+		g_questPluginOptions.Load(context, questsConfig);
+	}
+	catch (const std::exception& error) {
+		PSh_Json_LogConfigError(context, error);
+		return false;
+	}
 	const auto expected = [context](uint64_t rva, const auto& bytes) noexcept {
 		return context->CheckExpectedBytes(rva, bytes, sizeof(bytes));
 	};
@@ -295,6 +391,11 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 			&& expected(OFF_ImbueSocket2, EXP_ImbueSocket2);
 	if (!signaturesValid) {
 		context->LogError("plugin-quests: configured eezstreet patch-set signature mismatch; no quest patch was applied.");
+		return false;
+	}
+	PSh_HookTransactionScope hookTransaction(&CleanupPluginQuestsState);
+	if (!hookTransaction.IsActive()) {
+		context->LogError("plugin-quests: could not initialize the deferred hook transaction.");
 		return false;
 	}
 	if (!RuffnecKk::ForceLarzukSockets::Load(context, questsConfig)) {
@@ -429,12 +530,16 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		}
 	}
 
+	const auto commit = hookTransaction.Commit(context);
+	if (!commit.success) {
+		context->LogError(
+			"plugin-quests: deferred hook commit was incomplete; the DLL remains loaded to keep any installed callbacks valid.");
+		return true;
+	}
+
 	return true;
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
-	RuffnecKk::ForceLarzukSockets::Unload();
-	// Patches installed via context->PatchBytes/PatchRel32 are reverted automatically
-	// by D2RLoader on unload (ASSUMPTION — verify against real loader behavior before
-	// relying on this in production).
+	CleanupPluginQuestsState();
 }

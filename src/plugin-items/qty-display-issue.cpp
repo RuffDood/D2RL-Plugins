@@ -61,7 +61,7 @@ bool Load(const D2RL::PluginContext* context, const nlohmann::json& itemsConfig)
 
 	if (Settings.enabled && !InstallPatch()) return false;
 
-	if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
 			"qty-display-issue",
 			Status,
 			"Show the socketed-stackable quantity fix status.")) {

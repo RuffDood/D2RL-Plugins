@@ -601,7 +601,7 @@ bool Load(
 		}
 	}
 
-	if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
 		"charm-aura-trigger-fix",
 		Status,
 		"Show charm-aura trigger-fix status and refresh counters.")) {

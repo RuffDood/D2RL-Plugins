@@ -288,7 +288,7 @@ bool Load(
         return false;
     }
 
-    if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
             "equipped-item-to-cube",
             Status,
             "Show equipped-item Ctrl-click status.")) {

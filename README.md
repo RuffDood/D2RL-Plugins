@@ -60,6 +60,11 @@ player test batches.
 
 `D2RPlugins.json` contains every public option with documented defaults. Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and Extended Item Stats are enabled in the shipped player configuration; other new configurable features remain disabled. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Single keys and combinations are accepted; with `consume=true`, a successfully captured shortcut does not also reach the game, while the key keeps its normal behavior outside the Cube. Vendor Stock Refresh is available as `items.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels. Prevent Merc Death in Town is available as `misc.preventMercDeathInTown`; enabling it suppresses only projected-lethal persistent-damage ticks against mercenaries currently in town.
 
+If the mod-local JSON is missing, the pack uses the global JSON beside
+`D2RLoader.exe`. If a configuration file exists but is malformed or contains an
+invalid high-risk value, the affected DLL refuses to load and writes the exact
+reason to its log instead of silently applying a different configuration.
+
 ```jsonc
 {
   "items": {

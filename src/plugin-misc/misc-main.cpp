@@ -5,6 +5,7 @@
 #include "equipped-item-to-cube.h"
 #include "transmute-hotkey.h"
 #include "prevent-merc-death-in-town.h"
+#include <limits>
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -28,7 +29,7 @@ static constexpr uint64_t OFF_SetPlayerCount      = 0xd2f020;  // FUN_140d2f020(
 // worth capping independently.
 static constexpr uint64_t OFF_GetPlayerCountBonus = 0x542f40;
 
-// Expected original bytes (verified against d2r_debug_91923.exe). D2RLoader
+// Expected original bytes (verified against the D2R.exe 3.2.92777 reference image). D2RLoader
 // requires non-null expected bytes for PatchRel32/InstallInlineHook calls so it
 // can verify the patch site before writing.
 static constexpr uint8_t EXP_Players_AtoiCall[5]  = { 0xE8, 0x44, 0x1B, 0x15, 0x01 };
@@ -132,16 +133,53 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 	return &PluginInfo;
 }
 
+static void CleanupPluginMiscState() noexcept
+{
+	RuffnecKk::PreventMercDeathInTown::Unload();
+	RuffnecKk::TransmuteHotkey::Unload();
+	RuffnecKk::EquippedItemToCube::Unload();
+	RuffnecKk::CubeQuickMove::Unload();
+}
+
 D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
 	if (!PSh_ValidatePluginTarget(context)) {
 		return false;
 	}
 
-	auto cfg = PSh_Json_LoadConfig(context);
-	auto misc = PSh_Json_GetSection(cfg, "misc");
-	g_PlayersCommandLimit = misc.value("playersCommandLimit", 8);
-	g_MonsterHpPlayerCountCap = misc.value("monsterHpPlayerCountCap", 0);
-	g_MonsterExperiencePlayerCountCap = misc.value("monsterExperiencePlayerCountCap", 0);
+	nlohmann::json misc;
+	try {
+		auto cfg = PSh_Json_LoadConfig(context);
+		misc = PSh_Json_GetSection(cfg, "misc");
+		const auto readPlayerCount = [&misc](
+			const char* key,
+			int fallback,
+			int minimum,
+			const char* setting) -> int {
+			const auto entry = misc.find(key);
+			if (entry == misc.end()) {
+				return fallback;
+			}
+			if (!entry->is_number_integer()) {
+				throw std::runtime_error(std::string("plugin-misc: ") + setting + " must be an integer.");
+			}
+			const auto value = entry->get<int64_t>();
+			if (value < minimum || value > std::numeric_limits<int>::max()) {
+				throw std::runtime_error(std::string("plugin-misc: ") + setting + " is out of range.");
+			}
+			return static_cast<int>(value);
+		};
+		g_PlayersCommandLimit = readPlayerCount(
+			"playersCommandLimit", 8, 1, "misc.playersCommandLimit");
+		g_MonsterHpPlayerCountCap = readPlayerCount(
+			"monsterHpPlayerCountCap", 0, 0, "misc.monsterHpPlayerCountCap");
+		g_MonsterExperiencePlayerCountCap = readPlayerCount(
+			"monsterExperiencePlayerCountCap", 0, 0,
+			"misc.monsterExperiencePlayerCountCap");
+	}
+	catch (const std::exception& error) {
+		PSh_Json_LogConfigError(context, error);
+		return false;
+	}
 	if (g_PlayersCommandLimit > 8
 		&& (!context->CheckExpectedBytes(OFF_Players_AtoiCall, EXP_Players_AtoiCall, sizeof(EXP_Players_AtoiCall))
 			|| !context->CheckExpectedBytes(OFF_Players_ApplyCall, EXP_Players_ApplyCall, sizeof(EXP_Players_ApplyCall)))) {
@@ -151,6 +189,11 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if ((g_MonsterHpPlayerCountCap > 0 || g_MonsterExperiencePlayerCountCap > 0)
 		&& !context->CheckExpectedBytes(OFF_GetPlayerCountBonus, EXP_GetPlayerCountBonus, sizeof(EXP_GetPlayerCountBonus))) {
 		context->LogError("plugin-misc: monster player-count cap signature mismatch; hook refused.");
+		return false;
+	}
+	PSh_HookTransactionScope hookTransaction(&CleanupPluginMiscState);
+	if (!hookTransaction.IsActive()) {
+		context->LogError("plugin-misc: could not initialize the deferred hook transaction.");
 		return false;
 	}
 	if (!RuffnecKk::CubeQuickMove::Load(context, misc)) {
@@ -190,15 +233,16 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		}
 	}
 
+	const auto commit = hookTransaction.Commit(context);
+	if (!commit.success) {
+		context->LogError(
+			"plugin-misc: deferred hook commit was incomplete; the DLL remains loaded to keep any installed callbacks valid.");
+		return true;
+	}
+
 	return true;
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
-	RuffnecKk::PreventMercDeathInTown::Unload();
-	RuffnecKk::TransmuteHotkey::Unload();
-	RuffnecKk::EquippedItemToCube::Unload();
-	RuffnecKk::CubeQuickMove::Unload();
-	// Call-site patches installed via context->PatchRel32 are reverted automatically
-	// by D2RLoader on unload (ASSUMPTION — verify against real loader behavior before
-	// relying on this in production).
+	CleanupPluginMiscState();
 }

@@ -1674,7 +1674,7 @@ bool RuffnecKk::ExtendedItemStats::Load(
                 "ExtendedItemStats: native-styled tooltip scrollbar could not start; text scrolling remains available.");
         }
     }
-    if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
             "extended-item-stats", Status, "Show extended item transport status.")) {
         context->LogWarn("ExtendedItemStats: status command could not be registered.");
     }

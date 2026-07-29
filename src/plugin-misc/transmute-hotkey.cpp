@@ -648,7 +648,7 @@ bool Load(
         return false;
     }
 
-    if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
             "transmute-hotkey",
             Status,
             "Show Transmute hotkey status and counters."

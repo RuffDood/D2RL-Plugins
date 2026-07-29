@@ -3,6 +3,9 @@
 #include <D2RLPlugin/context.h>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <string>
+#include <vector>
 
 #define PLUGINID_ITEMS	0xEE000001
 #define PLUGINID_LEVELS 0xEE000002
@@ -531,6 +534,81 @@ extern "C" void* PSh_AllocNear(void* hint, size_t size) noexcept;
 // calls outside plugin-shared.
 #define PSH_MANIFEST_SITE(id) id
 
+struct PSh_HookTransactionCommitResult {
+	bool success{};
+	size_t completedOperations{};
+	size_t totalOperations{};
+};
+
+using PSh_HookTransactionCleanupFn = void(*)() noexcept;
+
+bool PSh_HookTransactionBegin() noexcept;
+void PSh_HookTransactionAbort() noexcept;
+bool PSh_HookTransactionIsCollecting() noexcept;
+bool PSh_HookTransactionEnqueue(
+	const char* label,
+	bool required,
+	std::function<bool()> action) noexcept;
+PSh_HookTransactionCommitResult PSh_HookTransactionCommit(
+	const D2RL::PluginContext* context) noexcept;
+
+class PSh_HookTransactionScope {
+public:
+	explicit PSh_HookTransactionScope(PSh_HookTransactionCleanupFn cleanup) noexcept
+		: cleanup_(cleanup), active_(PSh_HookTransactionBegin())
+	{
+	}
+
+	PSh_HookTransactionScope(const PSh_HookTransactionScope&) = delete;
+	PSh_HookTransactionScope& operator=(const PSh_HookTransactionScope&) = delete;
+
+	~PSh_HookTransactionScope() noexcept
+	{
+		if (!active_ || finalized_) {
+			return;
+		}
+		PSh_HookTransactionAbort();
+		if (cleanup_) {
+			cleanup_();
+		}
+	}
+
+	[[nodiscard]] bool IsActive() const noexcept { return active_; }
+
+	PSh_HookTransactionCommitResult Commit(
+		const D2RL::PluginContext* context) noexcept
+	{
+		finalized_ = true;
+		return PSh_HookTransactionCommit(context);
+	}
+
+private:
+	PSh_HookTransactionCleanupFn cleanup_{};
+	bool active_{};
+	bool finalized_{};
+};
+
+inline bool PSh_ManifestSiteIsValid(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t rva,
+	const void* expected,
+	uint32_t expectedSize) noexcept
+{
+	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
+		&& (expected == nullptr || expectedSize == 0
+			|| context->CheckExpectedBytes(rva, expected, expectedSize));
+}
+
+inline std::vector<uint8_t> PSh_CopyHookBytes(const void* bytes, uint32_t size)
+{
+	if (bytes == nullptr || size == 0) {
+		return {};
+	}
+	const auto* begin = static_cast<const uint8_t*>(bytes);
+	return { begin, begin + size };
+}
+
 inline bool PSh_ManifestPatchBytes(
 	const D2RL::PluginContext* context,
 	const char* manifestId,
@@ -540,8 +618,30 @@ inline bool PSh_ManifestPatchBytes(
 	const void* bytes,
 	uint32_t size) noexcept
 {
-	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
-		&& context->PatchBytes(rva, expected, expectedSize, bytes, size);
+	if (!PSh_ManifestSiteIsValid(context, manifestId, rva, expected, expectedSize)
+		|| bytes == nullptr || size == 0) {
+		return false;
+	}
+	if (!PSh_HookTransactionIsCollecting()) {
+		return context->PatchBytes(rva, expected, expectedSize, bytes, size);
+	}
+	try {
+		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
+		auto bytesCopy = PSh_CopyHookBytes(bytes, size);
+		return PSh_HookTransactionEnqueue(manifestId, true,
+			[context, rva, expectedCopy = std::move(expectedCopy),
+				bytesCopy = std::move(bytesCopy)]() noexcept {
+				return context->PatchBytes(
+					rva,
+					expectedCopy.empty() ? nullptr : expectedCopy.data(),
+					static_cast<uint32_t>(expectedCopy.size()),
+					bytesCopy.data(),
+					static_cast<uint32_t>(bytesCopy.size()));
+			});
+	}
+	catch (...) {
+		return false;
+	}
 }
 
 inline bool PSh_ManifestPatchNop(
@@ -552,8 +652,27 @@ inline bool PSh_ManifestPatchNop(
 	uint32_t expectedSize,
 	uint32_t size) noexcept
 {
-	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
-		&& context->PatchNop(rva, expected, expectedSize, size);
+	if (!PSh_ManifestSiteIsValid(context, manifestId, rva, expected, expectedSize)
+		|| size == 0) {
+		return false;
+	}
+	if (!PSh_HookTransactionIsCollecting()) {
+		return context->PatchNop(rva, expected, expectedSize, size);
+	}
+	try {
+		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
+		return PSh_HookTransactionEnqueue(manifestId, true,
+			[context, rva, size, expectedCopy = std::move(expectedCopy)]() noexcept {
+				return context->PatchNop(
+					rva,
+					expectedCopy.empty() ? nullptr : expectedCopy.data(),
+					static_cast<uint32_t>(expectedCopy.size()),
+					size);
+			});
+	}
+	catch (...) {
+		return false;
+	}
 }
 
 inline bool PSh_ManifestPatchWriteU8(
@@ -564,8 +683,26 @@ inline bool PSh_ManifestPatchWriteU8(
 	uint32_t expectedSize,
 	uint8_t value) noexcept
 {
-	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
-		&& context->PatchWriteU8(rva, expected, expectedSize, value);
+	if (!PSh_ManifestSiteIsValid(context, manifestId, rva, expected, expectedSize)) {
+		return false;
+	}
+	if (!PSh_HookTransactionIsCollecting()) {
+		return context->PatchWriteU8(rva, expected, expectedSize, value);
+	}
+	try {
+		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
+		return PSh_HookTransactionEnqueue(manifestId, true,
+			[context, rva, value, expectedCopy = std::move(expectedCopy)]() noexcept {
+				return context->PatchWriteU8(
+					rva,
+					expectedCopy.empty() ? nullptr : expectedCopy.data(),
+					static_cast<uint32_t>(expectedCopy.size()),
+					value);
+			});
+	}
+	catch (...) {
+		return false;
+	}
 }
 
 inline bool PSh_ManifestPatchRel32(
@@ -578,8 +715,30 @@ inline bool PSh_ManifestPatchRel32(
 	uint32_t size,
 	D2RL::Rel32PatchKind kind) noexcept
 {
-	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
-		&& context->PatchRel32(rva, expected, expectedSize, targetRva, size, kind);
+	if (!PSh_ManifestSiteIsValid(context, manifestId, rva, expected, expectedSize)
+		|| size == 0) {
+		return false;
+	}
+	if (!PSh_HookTransactionIsCollecting()) {
+		return context->PatchRel32(rva, expected, expectedSize, targetRva, size, kind);
+	}
+	try {
+		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
+		return PSh_HookTransactionEnqueue(manifestId, true,
+			[context, rva, targetRva, size, kind,
+				expectedCopy = std::move(expectedCopy)]() noexcept {
+				return context->PatchRel32(
+					rva,
+					expectedCopy.empty() ? nullptr : expectedCopy.data(),
+					static_cast<uint32_t>(expectedCopy.size()),
+					targetRva,
+					size,
+					kind);
+			});
+	}
+	catch (...) {
+		return false;
+	}
 }
 
 inline bool PSh_ManifestPatchCallRel32(
@@ -591,8 +750,15 @@ inline bool PSh_ManifestPatchCallRel32(
 	uint64_t targetRva,
 	uint32_t size = 5) noexcept
 {
-	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
-		&& context->PatchCallRel32(rva, expected, expectedSize, targetRva, size);
+	return PSh_ManifestPatchRel32(
+		context,
+		manifestId,
+		rva,
+		expected,
+		expectedSize,
+		targetRva,
+		size,
+		D2RL::Rel32PatchKind::Call);
 }
 
 template <typename Function>
@@ -605,8 +771,60 @@ inline bool PSh_ManifestInstallInlineHook(
 	Function target,
 	Function* original = nullptr) noexcept
 {
-	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
-		&& context->InstallInlineHook(rva, expected, expectedSize, target, original);
+	if (!PSh_ManifestSiteIsValid(context, manifestId, rva, expected, expectedSize)
+		|| target == nullptr) {
+		return false;
+	}
+	if (!PSh_HookTransactionIsCollecting()) {
+		return context->InstallInlineHook(rva, expected, expectedSize, target, original);
+	}
+	try {
+		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
+		return PSh_HookTransactionEnqueue(manifestId, true,
+			[context, rva, target, original,
+				expectedCopy = std::move(expectedCopy)]() noexcept {
+				return context->InstallInlineHook(
+					rva,
+					expectedCopy.empty() ? nullptr : expectedCopy.data(),
+					static_cast<uint32_t>(expectedCopy.size()),
+					target,
+					original);
+			});
+	}
+	catch (...) {
+		return false;
+	}
+}
+
+inline bool PSh_RegisterConsoleCommand(
+	const D2RL::PluginContext* context,
+	const char* name,
+	D2RL::ConsoleCommandCallback callback,
+	const char* description = nullptr,
+	void* userData = nullptr) noexcept
+{
+	if (!context || !name || *name == '\0' || !callback) {
+		return false;
+	}
+	if (!PSh_HookTransactionIsCollecting()) {
+		return context->RegisterConsoleCommand(name, callback, description, userData);
+	}
+	try {
+		std::string nameCopy(name);
+		std::string descriptionCopy(description ? description : "");
+		return PSh_HookTransactionEnqueue(name, false,
+			[context, callback, userData, nameCopy = std::move(nameCopy),
+				descriptionCopy = std::move(descriptionCopy)]() noexcept {
+				return context->RegisterConsoleCommand(
+					nameCopy.c_str(),
+					callback,
+					descriptionCopy.empty() ? nullptr : descriptionCopy.c_str(),
+					userData);
+			});
+	}
+	catch (...) {
+		return false;
+	}
 }
 
 extern "C" bool PSh_ManifestPatchCallSite(
@@ -648,7 +866,7 @@ extern "C" int PSh_GetStat(uintptr_t exeBase, D2UnitStrc* unit, int statId) noex
 // ── Utilities ─────────────────────────────────────────────────────────────────
 constexpr uint32_t PSh_EncodeItemCode(const char* itemCode)
 {
-	if (!itemCode) return 0;
+	if (!itemCode || itemCode[0] == '\0' || itemCode[1] == '\0' || itemCode[2] == '\0') return 0;
 	const char lastChar = 0x20;
 	return ((uint32_t)itemCode[0]) |
 		(((uint32_t)itemCode[1]) << 8) |

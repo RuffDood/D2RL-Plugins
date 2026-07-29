@@ -555,7 +555,7 @@ bool Load(
             std::memory_order_release);
     }
 
-    if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
             "bulk-skill-points",
             Status,
             "Show bulk skill allocation settings and counters."

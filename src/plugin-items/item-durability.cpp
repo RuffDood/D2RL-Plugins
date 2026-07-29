@@ -436,7 +436,7 @@ bool Load(
 		if (!InstallChanges()) return false;
 	}
 
-	if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
 			"item-durability",
 			Status,
 			"Show item durability policy and session counters.")) {

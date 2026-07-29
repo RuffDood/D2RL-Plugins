@@ -22,7 +22,7 @@
 static constexpr uint64_t OFF_DisableAct1DirtPath1 = 0x3ff5de;
 static constexpr uint64_t OFF_DisableAct1DirtPath2 = 0x3ff5eb;
 
-// Expected original bytes (verified against d2r_debug_91923.exe). D2RLoader
+// Expected original bytes (verified against the D2R.exe 3.2.92777 reference image). D2RLoader
 // requires non-null expected bytes for PatchBytes calls so it can verify the
 // patch site before writing.
 static constexpr uint8_t EXP_DisableAct1DirtPath1[5] = { 0xE8, 0x3D, 0x02, 0x00, 0x00 };
@@ -61,16 +61,28 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 	}
 
-	auto cfg = PSh_Json_LoadConfig(context);
-	g_pluginOptions.Load(context, PSh_Json_GetSection(cfg, "levels"));
+	try {
+		auto cfg = PSh_Json_LoadConfig(context);
+		g_pluginOptions.Load(context, PSh_Json_GetSection(cfg, "levels"));
+	}
+	catch (const std::exception& error) {
+		PSh_Json_LogConfigError(context, error);
+		return false;
+	}
+	if (g_pluginOptions.bDisableAct1Path
+		&& (!context->CheckExpectedBytes(OFF_DisableAct1DirtPath1, EXP_DisableAct1DirtPath1, sizeof(EXP_DisableAct1DirtPath1))
+			|| !context->CheckExpectedBytes(OFF_DisableAct1DirtPath2, EXP_DisableAct1DirtPath2, sizeof(EXP_DisableAct1DirtPath2)))) {
+		context->LogError("plugin-levels: Disable Act 1 Path signature mismatch; no patch was applied.");
+		return false;
+	}
+	PSh_HookTransactionScope hookTransaction(nullptr);
+	if (!hookTransaction.IsActive()) {
+		context->LogError("plugin-levels: could not initialize the deferred hook transaction.");
+		return false;
+	}
 
 	if (g_pluginOptions.bDisableAct1Path)
 	{
-		if (!context->CheckExpectedBytes(OFF_DisableAct1DirtPath1, EXP_DisableAct1DirtPath1, sizeof(EXP_DisableAct1DirtPath1))
-			|| !context->CheckExpectedBytes(OFF_DisableAct1DirtPath2, EXP_DisableAct1DirtPath2, sizeof(EXP_DisableAct1DirtPath2))) {
-			context->LogError("plugin-levels: Disable Act 1 Path signature mismatch; no patch was applied.");
-			return false;
-		}
 		unsigned char patch1[] = { 0x90, 0x90, 0x90, 0x90, 0x90 };
 		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("levels.disableAct1Path.spawnCall"),
 			OFF_DisableAct1DirtPath1, EXP_DisableAct1DirtPath1, sizeof(EXP_DisableAct1DirtPath1), patch1, sizeof(patch1))) {
@@ -88,12 +100,15 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 			return false;
 		}
 	}
+	const auto commit = hookTransaction.Commit(context);
+	if (!commit.success) {
+		context->LogError(
+			"plugin-levels: deferred hook commit was incomplete; the DLL remains loaded to keep any installed callbacks valid.");
+		return true;
+	}
 
 	return true;
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
-	// Byte patches installed via context->PatchBytes are reverted automatically by
-	// D2RLoader on unload (ASSUMPTION — verify against real loader behavior before
-	// relying on this in production).
 }

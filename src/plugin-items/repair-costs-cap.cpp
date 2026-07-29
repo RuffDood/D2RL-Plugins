@@ -480,7 +480,7 @@ bool Load(const D2RL::PluginContext* context, const nlohmann::json& itemsConfig)
 
 	if (Settings.enabled && (!ValidateSignatures() || !InstallChanges())) return false;
 
-	if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
 			"repair-costs-cap",
 			Status,
 			"Show the configured NPC repair policy and session statistics.")) {

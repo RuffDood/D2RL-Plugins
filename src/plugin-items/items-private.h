@@ -36,7 +36,7 @@ struct ItemPluginOptions {
 	uint32_t VOHSuperiorUpgradeChance;
 	uint32_t VOHLowQualityDowngradeChance;
 	bool bEnableVOHRandomRareVendorItems;
-	uint32_t VOHRareItemChance;	// In 1024ths
+	uint32_t VOHRareItemChance;	// Denominator for the 1-in-N rare-item chance
 
 	// Vendor difficulty upgrade patches (0 = keep vanilla, >0 = override).
 	// "Nightmare upgrade" = uberCode (exceptional) path.
@@ -61,3 +61,16 @@ struct ItemPluginOptions {
 
 	bool Load(const D2RL::PluginContext* context, const nlohmann::json& cfg);
 };
+
+inline constexpr bool PSh_Items_IsValidVendorLevelScale(int scale) noexcept
+{
+	return scale == 0 || (scale > 0 && (scale & (scale - 1)) == 0);
+}
+
+inline constexpr bool PSh_Items_ShouldGenerateRareVendorItem(
+	bool enabled,
+	uint32_t randomValue,
+	uint32_t chanceDenominator) noexcept
+{
+	return enabled && chanceDenominator != 0 && randomValue % chanceDenominator == 0;
+}

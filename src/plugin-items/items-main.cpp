@@ -11,6 +11,8 @@
 #include "repair-costs-cap.h"
 #include "vendor-stock-refresh.h"
 #include <cstring>
+#include <limits>
+#include <stdexcept>
 #include <vector>
 #include <windows.h>
 
@@ -41,7 +43,7 @@ static constexpr uint64_t OFF_GetInventoryGoldLimit      = 0x34b320; // D2GAME_G
 // handled by the JA at 0x372474, which jumps straight to 0x3722e4 -- the real
 // "keep validating normally" continuation. Writing 0x003722e4 to an entry
 // redirects that quality to that same continuation, i.e. treats it exactly
-// like Normal quality. (Read directly from d2r_debug_91923.exe and confirmed
+// like Normal quality. (Read directly from the D2R.exe 3.2.92777 reference image and confirmed
 // against the live jump-table bytes; see docs/offset-migration-status.md.)
 static constexpr uint64_t OFF_GoldPenaltyCall            = 0x424ad1; // lone CALL site that applies the gold penalty (D2GAME_ApplyDeathGoldPenalty)
 static constexpr uint64_t OFF_RunewordQualityJumpTable   = 0x372638; // inside ITEMS_ValidateRuneword
@@ -90,7 +92,7 @@ static constexpr uint64_t OFF_HellUltraBaseImm    = 0x54104f; // ADD EAX,0x3e8 �
 static constexpr uint64_t OFF_HellUberScaleByte   = 0x541084; // SHL EAX,0x7  → ×128
 static constexpr uint64_t OFF_HellUberBaseImm     = 0x541086; // ADD EAX,0x1388 → +5000
 
-// ── Expected original bytes (verified against d2r_debug_91923.exe) ───────────
+// ── Expected original bytes (verified against the D2R.exe 3.2.92777 reference image) ────
 // D2RLoader requires non-null expected bytes for PatchBytes/PatchRel32/
 // InstallInlineHook calls so it can verify the patch site before writing.
 static constexpr uint8_t EXP_FillStoreInventory[5]         = { 0x48, 0x89, 0x5C, 0x24, 0x10 };
@@ -388,9 +390,12 @@ static void Hook_FillStoreInventory(D2GameStrc* pGame, D2UnitStrc* pPlayer, D2Un
 			                                   ci.nMagicMin,
 			                                   ci.nMagicMax + (uint8_t)nMagicBase - 1u);
 			for (uint32_t j = 0; j < nMagic; ++j) {
-				uint32_t roll = (AdvanceGameRng(pGame) % 1024);
-				D2ItemQuality quality = g_pluginOptions.bEnableVOHRandomRareVendorItems &&
-					roll < g_pluginOptions.VOHRareItemChance ? D2ItemQuality::Rare : D2ItemQuality::Magic;
+				const uint32_t randomValue = AdvanceGameRng(pGame);
+				D2ItemQuality quality = PSh_Items_ShouldGenerateRareVendorItem(
+					g_pluginOptions.bEnableVOHRandomRareVendorItems,
+					randomValue,
+					g_pluginOptions.VOHRareItemChance)
+					? D2ItemQuality::Rare : D2ItemQuality::Magic;
 
 				if (!Fn_GenerateStoreItem(pNpc, ci.dwCode, pGame, 0, (int)quality, itemLevel, playerLevel)) {
 					++nSpawned;
@@ -503,6 +508,39 @@ static int __fastcall Hook_GetInventoryGoldLimit(int64_t unitPtr)
 
 // ── INI loading ───────────────────────────────────────────────────────────────
 
+static int64_t ReadConfigInteger(
+	const nlohmann::json& object,
+	const char* key,
+	int64_t fallback,
+	int64_t minimum,
+	int64_t maximum,
+	const char* setting)
+{
+	const auto entry = object.find(key);
+	if (entry == object.end()) {
+		return fallback;
+	}
+	if (!entry->is_number_integer()) {
+		throw std::runtime_error(std::string("plugin-items: ") + setting + " must be an integer.");
+	}
+
+	int64_t value{};
+	if (entry->is_number_unsigned()) {
+		const auto unsignedValue = entry->get<uint64_t>();
+		if (unsignedValue > static_cast<uint64_t>(maximum)) {
+			throw std::runtime_error(std::string("plugin-items: ") + setting + " is out of range.");
+		}
+		value = static_cast<int64_t>(unsignedValue);
+	}
+	else {
+		value = entry->get<int64_t>();
+	}
+	if (value < minimum || value > maximum) {
+		throw std::runtime_error(std::string("plugin-items: ") + setting + " is out of range.");
+	}
+	return value;
+}
+
 bool ItemPluginOptions::Load(const D2RL::PluginContext* context, const nlohmann::json& cfg)
 {
 	bMagicItemsSpawnIdentified = cfg.value("magicItemsSpawnIdentified", false);
@@ -514,8 +552,11 @@ bool ItemPluginOptions::Load(const D2RL::PluginContext* context, const nlohmann:
 		std::string mode = goldLimit.value("mode", "disabled");
 		if      (mode == "perLevel") InventoryGoldLimitChange = GoldOption::PerLevel;
 		else if (mode == "flat")     InventoryGoldLimitChange = GoldOption::Flat;
-		else                         InventoryGoldLimitChange = GoldOption::Disabled;
-		InventoryGoldLimit = goldLimit.value("value", 10000u);
+		else if (mode == "disabled") InventoryGoldLimitChange = GoldOption::Disabled;
+		else throw std::runtime_error("plugin-items: items.inventoryGoldLimit.mode is invalid.");
+		InventoryGoldLimit = static_cast<uint32_t>(ReadConfigInteger(
+			goldLimit, "value", 10000, 0, std::numeric_limits<uint32_t>::max(),
+			"items.inventoryGoldLimit.value"));
 	}
 
 	// Index 0=Magic 1=Set 2=Rare 3=Unique 4=Crafted 5=Tempered
@@ -531,27 +572,60 @@ bool ItemPluginOptions::Load(const D2RL::PluginContext* context, const nlohmann:
 		std::string mode = gamble.value("mode", "disabled");
 		if      (mode == "noRingAmuletGuarantee") GambleFilter = GambleOption::NoRingAmuletGuarantee;
 		else if (mode == "bitfield")              GambleFilter = GambleOption::Bitfield;
-		else                                      GambleFilter = GambleOption::Disabled;
+		else if (mode == "disabled")              GambleFilter = GambleOption::Disabled;
+		else throw std::runtime_error("plugin-items: items.gambleFilter.mode is invalid.");
 		GambleBitfield = gamble.value("bitfield", 4);
 	}
 
 	{
 		auto voh = cfg.value("vendorOverhaul", nlohmann::json::object());
 		bEnableVendorOverhaul             = voh.value("enabled", false);
-		VOHNormalItemLevelMaxThreshold    = voh.value("normalItemLevelMaxThreshold", 25u);
-		VOHMagicMinLevelThreshold         = voh.value("magicMinLevelThreshold", 0u);
-		VOHSuperiorLevelMinLevelThreshold = voh.value("superiorMinLevelThreshold", 5u);
-		VOHLowQualityMaxLevelThreshold    = voh.value("lowQualityMaxLevelThreshold", 5u);
-		VOHSuperiorUpgradeChance          = voh.value("superiorUpgradeChance", 25u);
-		VOHLowQualityDowngradeChance      = voh.value("lowQualityDowngradeChance", 10u);
+		VOHNormalItemLevelMaxThreshold = static_cast<uint32_t>(ReadConfigInteger(
+			voh, "normalItemLevelMaxThreshold", 25, 0, std::numeric_limits<uint32_t>::max(),
+			"items.vendorOverhaul.normalItemLevelMaxThreshold"));
+		VOHMagicMinLevelThreshold = static_cast<uint32_t>(ReadConfigInteger(
+			voh, "magicMinLevelThreshold", 0, 0, std::numeric_limits<uint32_t>::max(),
+			"items.vendorOverhaul.magicMinLevelThreshold"));
+		VOHSuperiorLevelMinLevelThreshold = static_cast<uint32_t>(ReadConfigInteger(
+			voh, "superiorMinLevelThreshold", 5, 0, std::numeric_limits<uint32_t>::max(),
+			"items.vendorOverhaul.superiorMinLevelThreshold"));
+		VOHLowQualityMaxLevelThreshold = static_cast<uint32_t>(ReadConfigInteger(
+			voh, "lowQualityMaxLevelThreshold", 5, 0, std::numeric_limits<uint32_t>::max(),
+			"items.vendorOverhaul.lowQualityMaxLevelThreshold"));
+		VOHSuperiorUpgradeChance = static_cast<uint32_t>(ReadConfigInteger(
+			voh, "superiorUpgradeChance", 25, 0, 100,
+			"items.vendorOverhaul.superiorUpgradeChance"));
+		VOHLowQualityDowngradeChance = static_cast<uint32_t>(ReadConfigInteger(
+			voh, "lowQualityDowngradeChance", 10, 0, 100,
+			"items.vendorOverhaul.lowQualityDowngradeChance"));
 		bEnableVOHRandomRareVendorItems   = voh.value("randomRareItems", false);
-		VOHRareItemChance                 = voh.value("rareItemChance", 1024u);
-		VendorNightmareUpgradeBaseChance  = voh.value("nightmareBaseChance", 4000);
-		VendorHellUberUpgradeBaseChance   = voh.value("hellUberBaseChance", 5000);
-		VendorHellUpgradeBaseChance       = voh.value("hellBaseChance", 1000);
-		VendorNightmareUpgradeLevelScale  = voh.value("nightmareLevelScale", 64);
-		VendorHellUberUpgradeLevelScale   = voh.value("hellUberLevelScale", 128);
-		VendorHellUpgradeLevelScale       = voh.value("hellLevelScale", 16);
+		VOHRareItemChance = static_cast<uint32_t>(ReadConfigInteger(
+			voh, "rareItemChance", 1024, 1, std::numeric_limits<uint32_t>::max(),
+			"items.vendorOverhaul.rareItemChance"));
+		VendorNightmareUpgradeBaseChance = static_cast<int>(ReadConfigInteger(
+			voh, "nightmareBaseChance", 4000, 0, std::numeric_limits<int>::max(),
+			"items.vendorOverhaul.nightmareBaseChance"));
+		VendorHellUberUpgradeBaseChance = static_cast<int>(ReadConfigInteger(
+			voh, "hellUberBaseChance", 5000, 0, std::numeric_limits<int>::max(),
+			"items.vendorOverhaul.hellUberBaseChance"));
+		VendorHellUpgradeBaseChance = static_cast<int>(ReadConfigInteger(
+			voh, "hellBaseChance", 1000, 0, std::numeric_limits<int>::max(),
+			"items.vendorOverhaul.hellBaseChance"));
+		VendorNightmareUpgradeLevelScale = static_cast<int>(ReadConfigInteger(
+			voh, "nightmareLevelScale", 64, 0, 1 << 30,
+			"items.vendorOverhaul.nightmareLevelScale"));
+		VendorHellUberUpgradeLevelScale = static_cast<int>(ReadConfigInteger(
+			voh, "hellUberLevelScale", 128, 0, 1 << 30,
+			"items.vendorOverhaul.hellUberLevelScale"));
+		VendorHellUpgradeLevelScale = static_cast<int>(ReadConfigInteger(
+			voh, "hellLevelScale", 16, 0, 1 << 30,
+			"items.vendorOverhaul.hellLevelScale"));
+		if (!PSh_Items_IsValidVendorLevelScale(VendorNightmareUpgradeLevelScale)
+			|| !PSh_Items_IsValidVendorLevelScale(VendorHellUberUpgradeLevelScale)
+			|| !PSh_Items_IsValidVendorLevelScale(VendorHellUpgradeLevelScale)) {
+			context->LogError("plugin-items: vendor level scales must be 0 or a power of two.");
+			return false;
+		}
 	}
 
 	bEnablePlayerConditionCalc = cfg.value("playerConditionCalc", false);
@@ -614,14 +688,35 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 	return &PluginInfo;
 }
 
+static void CleanupPluginItemsState() noexcept
+{
+	RuffnecKk::VendorStockRefresh::Unload();
+	RuffnecKk::QtyDisplayIssue::Unload();
+	RuffnecKk::RepairCostsCap::Unload();
+	RuffnecKk::EnhancedDamageMinMaxFix::Unload();
+	RuffnecKk::CharmAuraTriggerFix::Unload();
+	RuffnecKk::ItemDurability::Unload();
+	ItemsEthereal_Reset();
+	RuffnecKk::GroundItemLabelLimit::Unload();
+	RuffnecKk::GambleScreenLimit::Unload();
+	RuffnecKk::ExtendedItemStats::Unload();
+}
+
 D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
 	if (!PSh_ValidatePluginTarget(context)) {
 		return false;
 	}
 
-	auto cfg = PSh_Json_LoadConfig(context);
-	const auto itemsConfig = PSh_Json_GetSection(cfg, "items");
-	if (!g_pluginOptions.Load(context, itemsConfig)) {
+	nlohmann::json itemsConfig;
+	try {
+		auto cfg = PSh_Json_LoadConfig(context);
+		itemsConfig = PSh_Json_GetSection(cfg, "items");
+		if (!g_pluginOptions.Load(context, itemsConfig)) {
+			return false;
+		}
+	}
+	catch (const std::exception& error) {
+		PSh_Json_LogConfigError(context, error);
 		return false;
 	}
 	const auto expected = [context](uint64_t rva, const auto& bytes) noexcept {
@@ -679,6 +774,11 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 	}
 	g_exeBase = context->exeBase;
+	PSh_HookTransactionScope hookTransaction(&CleanupPluginItemsState);
+	if (!hookTransaction.IsActive()) {
+		context->LogError("plugin-items: could not initialize the deferred hook transaction.");
+		return false;
+	}
 	if (!RuffnecKk::ExtendedItemStats::Load(context, itemsConfig)) {
 		return false;
 	}
@@ -689,9 +789,6 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 	}
 	if (!ItemsEthereal_Install(context, itemsConfig)) {
-		return false;
-	}
-	if (!RuffnecKk::ItemDurability::Load(context, itemsConfig)) {
 		return false;
 	}
 	if (!RuffnecKk::CharmAuraTriggerFix::Load(context, itemsConfig)) {
@@ -902,21 +999,23 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 	}
 
+	// Item Durability is activated last because its optional item-record broker
+	// has no cross-plugin unregister contract. All other fallible validation and
+	// hook requests have completed before that broker can receive our callback.
+	if (!RuffnecKk::ItemDurability::Load(context, itemsConfig)) {
+		return false;
+	}
+
+	const auto commit = hookTransaction.Commit(context);
+	if (!commit.success) {
+		context->LogError(
+			"plugin-items: deferred hook commit was incomplete; the DLL remains loaded to keep any installed callbacks valid.");
+		return true;
+	}
+
 	return true;
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
-	RuffnecKk::VendorStockRefresh::Unload();
-	RuffnecKk::QtyDisplayIssue::Unload();
-	RuffnecKk::RepairCostsCap::Unload();
-	RuffnecKk::EnhancedDamageMinMaxFix::Unload();
-	RuffnecKk::CharmAuraTriggerFix::Unload();
-	RuffnecKk::ItemDurability::Unload();
-	ItemsEthereal_Reset();
-	RuffnecKk::GroundItemLabelLimit::Unload();
-	RuffnecKk::GambleScreenLimit::Unload();
-	RuffnecKk::ExtendedItemStats::Unload();
-	// Hooks/patches installed via context->InstallInlineHook/PatchBytes/PatchRel32 are
-	// reverted automatically by D2RLoader on unload (ASSUMPTION — verify against real
-	// loader behavior before relying on this in production).
+	CleanupPluginItemsState();
 }

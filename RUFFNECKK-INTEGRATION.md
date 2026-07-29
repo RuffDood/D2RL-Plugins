@@ -42,7 +42,7 @@ payload actually requires it; its public switch can disable the entire feature.
 
 ## Internal hook safety
 
-`hook-manifest.json` contains 132 uniquely owned write sites. Configuration and
+`hook-manifest.json` contains 135 uniquely owned write sites. Configuration and
 every build fail if two owners overlap. Shared call paths use one owner and
 call-through consumers:
 
@@ -57,13 +57,31 @@ call-through consumers:
   Optional features therefore compose without requiring a player-selected load
   order or compatibility setting.
 
-The final D2R `3.2.92777` validation built all five Release DLLs from one commit,
-passed 20/20 CTest tests, and completed vanilla-default and jointly enabled cold
-starts at 24/24 startup stages. In the active run, all 16 integrated features
-reached their intended active paths. D2RLoader
-reported `scanned=16 active=14 disabled=2
-rejected=0 failed=0`; the two disabled entries were lower-priority global
-duplicates of mod-local plugins. No fresh crash was produced.
+## Configuration and startup safety
+
+The loader accepts a missing mod-local JSON and then checks the global fallback.
+Once a file exists, malformed JSON, an unreadable file, a non-object root, an
+invalid named section, or an out-of-range high-risk value rejects that DLL with
+the exact file and reason in its log. An invalid mod-local file never silently
+falls back to a different global configuration.
+
+D2RLoader does not undo a successful executable-memory write when a plugin later
+returns a load failure. The five DLLs therefore preflight all required signatures
+first and defer their hook, patch, and console-command requests into one startup
+transaction. A deterministic preflight failure applies nothing. A commit refusal
+stops later required operations and deliberately keeps the DLL loaded, preventing
+already-installed callbacks from pointing into an unloaded module.
+
+The final D2R `3.2.92777` validation built all five Release DLLs and passed 25/25
+CTest tests. Isolated cold starts were completed from both supported locations:
+all five DLLs mod-local with a mod-local JSON, and all five DLLs global with the
+global fallback JSON. Each run reported
+`scanned=5 active=5 disabled=0 rejected=0 failed=0`; the global run committed
+24/24 item operations, 0/0 level operations, 6/6 misc operations, 0/0 quest
+operations, and 2/2 skill operations. A deliberately malformed mod-local JSON
+made all five DLLs fail closed while the sampled vanilla resistance-cap bytes
+remained unchanged. Every runtime test restored the 36 temporarily neutralized
+files byte-for-byte and left no game process running.
 
 ## Player test plan
 

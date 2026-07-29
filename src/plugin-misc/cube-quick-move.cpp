@@ -456,7 +456,7 @@ bool Load(
         return false;
     }
 
-    if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
             "cube-quick-move",
             Status,
             "Show Cube quick-move placement status and counters."

@@ -240,7 +240,7 @@ bool Load(
 		if (!InstallHook()) return false;
 	}
 
-	if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
 			"enhanced-damage-min-max-fix",
 			Status,
 			"Show off-weapon Enhanced Damage repair counters.")) {

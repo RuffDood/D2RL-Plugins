@@ -2,6 +2,119 @@
 #include <D2RLPlugin/logging.h>
 #include <Windows.h>
 #include <cstring>
+#include <utility>
+
+namespace {
+
+struct DeferredHookOperation {
+	std::string label;
+	bool required{};
+	std::function<bool()> action;
+};
+
+struct HookTransactionState {
+	bool collecting{};
+	std::vector<DeferredHookOperation> operations;
+};
+
+HookTransactionState Transaction;
+
+} // namespace
+
+bool PSh_HookTransactionBegin() noexcept
+{
+	if (Transaction.collecting) {
+		return false;
+	}
+	try {
+		Transaction.operations.clear();
+		Transaction.operations.reserve(256);
+		Transaction.collecting = true;
+		return true;
+	}
+	catch (...) {
+		Transaction.operations.clear();
+		Transaction.collecting = false;
+		return false;
+	}
+}
+
+void PSh_HookTransactionAbort() noexcept
+{
+	Transaction.collecting = false;
+	Transaction.operations.clear();
+}
+
+bool PSh_HookTransactionIsCollecting() noexcept
+{
+	return Transaction.collecting;
+}
+
+bool PSh_HookTransactionEnqueue(
+	const char* label,
+	bool required,
+	std::function<bool()> action) noexcept
+{
+	if (!Transaction.collecting || !label || *label == '\0' || !action) {
+		return false;
+	}
+	try {
+		Transaction.operations.push_back({ label, required, std::move(action) });
+		return true;
+	}
+	catch (...) {
+		return false;
+	}
+}
+
+PSh_HookTransactionCommitResult PSh_HookTransactionCommit(
+	const D2RL::PluginContext* context) noexcept
+{
+	PSh_HookTransactionCommitResult result{};
+	if (!Transaction.collecting) {
+		return result;
+	}
+
+	Transaction.collecting = false;
+	auto operations = std::move(Transaction.operations);
+	Transaction.operations.clear();
+	result.totalOperations = operations.size();
+	for (const auto& operation : operations) {
+		bool installed{};
+		try {
+			installed = operation.action();
+		}
+		catch (...) {
+			installed = false;
+		}
+		if (installed) {
+			++result.completedOperations;
+			continue;
+		}
+		if (!operation.required) {
+			D2RL::LogWarnF(
+				context,
+				"PluginPack: optional deferred operation '%s' was refused.",
+				operation.label.c_str());
+			continue;
+		}
+		D2RL::LogErrorF(
+			context,
+			"PluginPack: deferred hook operation '%s' was refused after %zu/%zu operations.",
+			operation.label.c_str(),
+			result.completedOperations,
+			result.totalOperations);
+		return result;
+	}
+
+	result.success = true;
+	D2RL::LogInfoF(
+		context,
+		"PluginPack: deferred load committed %zu/%zu operations.",
+		result.completedOperations,
+		result.totalOperations);
+	return result;
+}
 
 extern "C" void* PSh_AllocNear(void* hint, size_t size) noexcept
 {
@@ -24,16 +137,14 @@ extern "C" void* PSh_AllocNear(void* hint, size_t size) noexcept
 	return nullptr;
 }
 
-extern "C" bool PSh_ManifestPatchCallSite(
+static bool PSh_ManifestPatchCallSiteImmediate(
 	const D2RL::PluginContext* context,
-	const char* manifestId,
 	uint64_t callOffset,
 	const void* expected,
 	uint32_t expectedSize,
 	void* hookFn) noexcept
 {
-	if (!PSh_ValidatePluginTarget(context) || manifestId == nullptr
-		|| *manifestId == '\0' || hookFn == nullptr)
+	if (!PSh_ValidatePluginTarget(context) || hookFn == nullptr)
 		return false;
 
 	void* callSite = reinterpret_cast<void*>(context->exeBase + callOffset);
@@ -81,4 +192,48 @@ extern "C" bool PSh_ManifestPatchCallSite(
 	// The relay intentionally remains allocated for the process lifetime. This
 	// keeps an in-flight native call safe while D2RLoader owns/restores the CALL.
 	return true;
+}
+
+extern "C" bool PSh_ManifestPatchCallSite(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t callOffset,
+	const void* expected,
+	uint32_t expectedSize,
+	void* hookFn) noexcept
+{
+	if (!PSh_ManifestSiteIsValid(
+			context,
+			manifestId,
+			callOffset,
+			expected,
+			expectedSize)
+		|| hookFn == nullptr) {
+		return false;
+	}
+	if (!PSh_HookTransactionIsCollecting()) {
+		return PSh_ManifestPatchCallSiteImmediate(
+			context,
+			callOffset,
+			expected,
+			expectedSize,
+			hookFn);
+	}
+
+	try {
+		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
+		return PSh_HookTransactionEnqueue(manifestId, true,
+			[context, callOffset, hookFn,
+				expectedCopy = std::move(expectedCopy)]() noexcept {
+				return PSh_ManifestPatchCallSiteImmediate(
+					context,
+					callOffset,
+					expectedCopy.empty() ? nullptr : expectedCopy.data(),
+					static_cast<uint32_t>(expectedCopy.size()),
+					hookFn);
+			});
+	}
+	catch (...) {
+		return false;
+	}
 }

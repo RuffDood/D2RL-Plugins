@@ -597,7 +597,7 @@ bool Load(
         }
     }
 
-    if (!context->RegisterConsoleCommand(
+	if (!PSh_RegisterConsoleCommand(context,
             "vendor-stock-refresh",
             Status,
             "Show vendor stock refresh status and counters."

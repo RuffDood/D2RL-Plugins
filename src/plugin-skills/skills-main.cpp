@@ -96,7 +96,7 @@ static constexpr uint64_t OFF_MonDoSelfHeal          = 0x57d030; // SKILLS_SrvDo
 static constexpr uint64_t OFF_EvaluateSkillFormula   = 0x3b5160; // SKILLS_EvaluateSkillFormula
 static constexpr uint64_t OFF_SetUnitStat            = 0x2f7d10; // STATLIST_SetUnitStat
 
-// ── Expected original bytes (verified against d2r_debug_91923.exe) ───────────
+// ── Expected original bytes (verified against the D2R.exe 3.2.92777 reference image) ────
 // D2RLoader requires non-null expected bytes for PatchBytes/PatchRel32/
 // InstallInlineHook calls so it can verify the patch site before writing.
 static constexpr uint8_t EXP_CompileSkillsTxt[24] = {
@@ -579,7 +579,22 @@ void SkillPluginOptions::Load(const D2RL::PluginContext* /*context*/, const nloh
 
 	auto drain = cfg.value("chargedPctDrainStat", nlohmann::json::object());
 	bEnableChargedPctDrainStat = drain.value("enabled", false);
-	ChargedPctDrainStat        = drain.value("statId", 0);
+	const auto statEntry = drain.find("statId");
+	if (statEntry == drain.end()) {
+		ChargedPctDrainStat = 0;
+	}
+	else {
+		if (!statEntry->is_number_integer()) {
+			throw std::runtime_error(
+				"plugin-skills: skills.chargedPctDrainStat.statId must be an integer.");
+		}
+		const auto statId = statEntry->get<int64_t>();
+		if (statId < 0 || statId > 511) {
+			throw std::runtime_error(
+				"plugin-skills: skills.chargedPctDrainStat.statId must be between 0 and 511.");
+		}
+		ChargedPctDrainStat = static_cast<int>(statId);
+	}
 
 	bEnableSelfHealParams = cfg.value("selfHealParams", false);
 }
@@ -601,13 +616,27 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 	return &PluginInfo;
 }
 
+static void CleanupPluginSkillsState() noexcept
+{
+	RuffnecKk::BulkSkillPointAllocation::Unload();
+	g_SkillsRecords = nullptr;
+	g_SkillsCount = 0;
+}
+
 D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
 	if (!PSh_ValidatePluginTarget(context))
 		return false;
 
-	auto cfg = PSh_Json_LoadConfig(context);
-	const auto skillsConfig = PSh_Json_GetSection(cfg, "skills");
-	g_skillPluginOptions.Load(context, skillsConfig);
+	nlohmann::json skillsConfig;
+	try {
+		auto cfg = PSh_Json_LoadConfig(context);
+		skillsConfig = PSh_Json_GetSection(cfg, "skills");
+		g_skillPluginOptions.Load(context, skillsConfig);
+	}
+	catch (const std::exception& error) {
+		PSh_Json_LogConfigError(context, error);
+		return false;
+	}
 	const auto expected = [context](uint64_t rva, const auto& bytes) noexcept {
 		return context->CheckExpectedBytes(rva, bytes, sizeof(bytes));
 	};
@@ -635,6 +664,11 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	}
 	g_ExeBase = context->exeBase;
 	g_Context = context;
+	PSh_HookTransactionScope hookTransaction(&CleanupPluginSkillsState);
+	if (!hookTransaction.IsActive()) {
+		context->LogError("plugin-skills: could not initialize the deferred hook transaction.");
+		return false;
+	}
 
 	if (g_skillPluginOptions.bEnableManaCostsLife || g_skillPluginOptions.bEnableManaCostsStamina) {
 		// Entry hook on DATATBLS_CompileSkillsTxt itself -- see the comment above
@@ -732,14 +766,16 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 	}
 
+	const auto commit = hookTransaction.Commit(context);
+	if (!commit.success) {
+		context->LogError(
+			"plugin-skills: deferred hook commit was incomplete; the DLL remains loaded to keep any installed callbacks valid.");
+		return true;
+	}
+
 	return true;
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
-	RuffnecKk::BulkSkillPointAllocation::Unload();
-	// Hooks/patches installed via context->InstallInlineHook/PatchBytes/PatchRel32 are
-	// reverted automatically by D2RLoader on unload (ASSUMPTION — verify against real
-	// loader behavior before relying on this in production).
-	g_SkillsRecords = nullptr;
-	g_SkillsCount   = 0;
+	CleanupPluginSkillsState();
 }

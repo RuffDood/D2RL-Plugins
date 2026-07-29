@@ -192,4 +192,14 @@ if(BUILD_TESTING)
 		NAME vendor-stock-refresh-policy
 		COMMAND vendor-stock-refresh-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(vendor-overhaul-policy-tests
+		tests/vendor-overhaul-policy-tests.cpp
+	)
+	target_link_libraries(vendor-overhaul-policy-tests PRIVATE plugin-shared)
+	target_include_directories(vendor-overhaul-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME vendor-overhaul-policy
+		COMMAND vendor-overhaul-policy-tests
+	)
 endif()
