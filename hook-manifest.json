@@ -961,6 +961,276 @@
       "length": 24,
       "expectedBytes": "40 57 41 56 48 83 EC 28 44 8B F2 48 8B F9 48 85 C9 74 0A E8 58 64 FD FF",
       "source": "src/plugin-quests/larzuk-sockets.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call0FA33D",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x0FA33D",
+      "length": 5,
+      "expectedBytes": "E8 6E C2 28 00",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call15A25C",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x15A25C",
+      "length": 5,
+      "expectedBytes": "E8 4F C3 22 00",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call15E760",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x15E760",
+      "length": 5,
+      "expectedBytes": "E8 4B 7E 22 00",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call15F94F",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x15F94F",
+      "length": 5,
+      "expectedBytes": "E8 5C 6C 22 00",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call2C7306",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x2C7306",
+      "length": 5,
+      "expectedBytes": "E8 A5 F2 0B 00",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call38CC86",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x38CC86",
+      "length": 5,
+      "expectedBytes": "E8 25 99 FF FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call40FFCB",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x40FFCB",
+      "length": 5,
+      "expectedBytes": "E8 E0 65 F7 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call417356",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x417356",
+      "length": 5,
+      "expectedBytes": "E8 55 F2 F6 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call42AB9F",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x42AB9F",
+      "length": 5,
+      "expectedBytes": "E8 0C BA F5 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call471D62",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x471D62",
+      "length": 5,
+      "expectedBytes": "E8 49 48 F1 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4A90C7",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4A90C7",
+      "length": 5,
+      "expectedBytes": "E8 E4 D4 ED FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4AB3B5",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4AB3B5",
+      "length": 5,
+      "expectedBytes": "E8 F6 B1 ED FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4AD94B",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4AD94B",
+      "length": 5,
+      "expectedBytes": "E8 60 8C ED FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4B4B5C",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4B4B5C",
+      "length": 5,
+      "expectedBytes": "E8 4F 1A ED FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4B88ED",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4B88ED",
+      "length": 5,
+      "expectedBytes": "E8 BE DC EC FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4BBA73",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4BBA73",
+      "length": 5,
+      "expectedBytes": "E8 38 AB EC FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4C21D6",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4C21D6",
+      "length": 5,
+      "expectedBytes": "E8 D5 43 EC FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4C4181",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4C4181",
+      "length": 5,
+      "expectedBytes": "E8 2A 24 EC FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4C78D2",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4C78D2",
+      "length": 5,
+      "expectedBytes": "E8 D9 EC EB FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4F2C8B",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4F2C8B",
+      "length": 5,
+      "expectedBytes": "E8 20 39 E9 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4FBC0E",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4FBC0E",
+      "length": 5,
+      "expectedBytes": "E8 9D A9 E8 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call4FC395",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x4FC395",
+      "length": 5,
+      "expectedBytes": "E8 16 A2 E8 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call527DC2",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x527DC2",
+      "length": 5,
+      "expectedBytes": "E8 E9 E7 E5 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call528053",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x528053",
+      "length": 5,
+      "expectedBytes": "E8 58 E5 E5 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call541230",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x541230",
+      "length": 5,
+      "expectedBytes": "E8 7B 53 E4 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call54128F",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x54128F",
+      "length": 5,
+      "expectedBytes": "E8 1C 53 E4 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
+    },
+    {
+      "id": "misc.cubeQuickMoveBottomRight.call541DA7",
+      "owner": "plugin-misc",
+      "feature": "misc.cubeQuickMoveBottomRight",
+      "kind": "call-site",
+      "rva": "0x541DA7",
+      "length": 5,
+      "expectedBytes": "E8 04 48 E4 FF",
+      "source": "src/plugin-misc/cube-quick-move.cpp"
     }
   ]
 }

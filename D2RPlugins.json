@@ -217,7 +217,12 @@
         // Set to 1 to remove that stat's /players scaling entirely. The two
         // caps are independent of each other and of the real /players value.
         "monsterHpPlayerCountCap": 0,
-        "monsterExperiencePlayerCountCap": 0
+        "monsterExperiencePlayerCountCap": 0,
+
+		// Keep quick-moved Cube placement vanilla unless explicitly enabled.
+		"cubeQuickMoveBottomRight": {
+			"enabled": false
+		}
     },
 
     // ── Quests ────────────────────────────────────────────────────────────────

@@ -9,3 +9,16 @@ set_target_properties(plugin-misc PROPERTIES
 	LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 	ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
+
+if(BUILD_TESTING)
+	add_executable(cube-quick-move-policy-tests
+		tests/cube-quick-move-policy-tests.cpp
+	)
+	target_link_libraries(cube-quick-move-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		cube-quick-move-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME cube-quick-move-policy
+		COMMAND cube-quick-move-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
+endif()

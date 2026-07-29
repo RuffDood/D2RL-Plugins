@@ -48,7 +48,7 @@ The shipped JSON preserves vanilla behavior for every configurable feature. `Ext
 |---|---|---|
 | `plugin-items.dll` | `items` | Item rules, fixes, limits, vendor options, 4096-byte item transport, and scrollable oversized tooltips |
 | `plugin-levels.dll` | `levels` | Level and area tweaks |
-| `plugin-misc.dll` | `misc` | Miscellaneous tweaks such as the `/players` command limit |
+| `plugin-misc.dll` | `misc` | Miscellaneous tweaks, including optional bottom-right Cube quick-move placement |
 | `plugin-quests.dll` | `quests` | Quest reward overrides, including configurable Larzuk socket counts |
 | `plugin-skills.dll` | `skills` | Skill-system extensions and bulk skill-point allocation |
 

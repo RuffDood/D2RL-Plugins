@@ -1,6 +1,7 @@
 #include <D2RLPlugin/api.h>
 #include <plugin-shared.h>
 #include <plugin-shared-json.h>
+#include "cube-quick-move.h"
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -121,7 +122,7 @@ static constexpr D2RL::PluginInfo PluginInfo {
 	.version    = "2.0.1",
 	.author     = "eezstreet",
 	.description = "Miscellaneous changes.",
-	.flags      = D2RL::PluginFlags::None,
+	.flags      = D2RL::PluginFlags::NativeHooks,
 };
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginInfo* {
@@ -138,6 +139,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	g_PlayersCommandLimit = misc.value("playersCommandLimit", 8);
 	g_MonsterHpPlayerCountCap = misc.value("monsterHpPlayerCountCap", 0);
 	g_MonsterExperiencePlayerCountCap = misc.value("monsterExperiencePlayerCountCap", 0);
+	if (!RuffnecKk::CubeQuickMove::Load(context, misc)) {
+		return false;
+	}
 
 	if (g_PlayersCommandLimit > 8) {
 		Real_PlayersAtoi    = reinterpret_cast<PlayersAtoi_t>(context->exeBase + OFF_Players_Atoi);
@@ -161,6 +165,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	RuffnecKk::CubeQuickMove::Unload();
 	// Call-site patches installed via context->PatchRel32 are reverted automatically
 	// by D2RLoader on unload (ASSUMPTION — verify against real loader behavior before
 	// relying on this in production).
