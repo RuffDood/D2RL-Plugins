@@ -951,6 +951,16 @@
       "length": 33,
       "expectedBytes": "BA 00 08 00 00 41 B8 2F 07 00 00 48 8B CB E8 BA 01 0B 00 85 C0 75 0F 4C 8B C7 48 8D 55 D0 48 8B CB",
       "source": "src/plugin-items/qty-display-issue.cpp"
+    },
+    {
+      "id": "quests.larzukSockets.addSockets",
+      "owner": "plugin-quests",
+      "feature": "quests.larzukSockets",
+      "kind": "inline-hook",
+      "rva": "0x375560",
+      "length": 24,
+      "expectedBytes": "40 57 41 56 48 83 EC 28 44 8B F2 48 8B F9 48 85 C9 74 0A E8 58 64 FD FF",
+      "source": "src/plugin-quests/larzuk-sockets.cpp"
     }
   ]
 }

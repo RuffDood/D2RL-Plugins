@@ -1,6 +1,7 @@
 #include <D2RLPlugin/api.h>
 #include <D2RLPlugin/logging.h>
 #include <plugin-shared.h>
+#include "larzuk-sockets.h"
 #include "quests-private.h"
 #include <plugin-shared-json.h>
 
@@ -234,7 +235,7 @@ static constexpr D2RL::PluginInfo PluginInfo {
 	.version    = "2.0.1",
 	.author     = "eezstreet",
 	.description = "Various quest-related changes.",
-	.flags      = D2RL::PluginFlags::None,
+	.flags      = D2RL::PluginFlags::NativeHooks,
 };
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginInfo* {
@@ -249,7 +250,11 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	g_context = context;
 
 	auto cfg = PSh_Json_LoadConfig(context);
-	g_questPluginOptions.Load(context, PSh_Json_GetSection(cfg, "quests"));
+	const auto questsConfig = PSh_Json_GetSection(cfg, "quests");
+	g_questPluginOptions.Load(context, questsConfig);
+	if (!RuffnecKk::ForceLarzukSockets::Load(context, questsConfig)) {
+		return false;
+	}
 
 	if (g_questPluginOptions.DenOfEvilRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty. No decouple patch needed here anymore —
@@ -334,6 +339,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	RuffnecKk::ForceLarzukSockets::Unload();
 	// Patches installed via context->PatchBytes/PatchRel32 are reverted automatically
 	// by D2RLoader on unload (ASSUMPTION — verify against real loader behavior before
 	// relying on this in production).

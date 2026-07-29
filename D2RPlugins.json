@@ -300,6 +300,34 @@
             ]
         },
 
+		// These are vanilla Larzuk socket counts. Change only the desired rules.
+		// Equal bounds force an exact value; different bounds roll inclusively.
+		// Set any rule to null to delegate that difficulty and quality to vanilla.
+		"larzukSockets": {
+			"normal": {
+				"magic": { "minSockets": 1, "maxSockets": 2 },
+				"rare": { "minSockets": 1, "maxSockets": 1 },
+				"set": { "minSockets": 1, "maxSockets": 1 },
+				"unique": { "minSockets": 1, "maxSockets": 1 },
+				"crafted": { "minSockets": 1, "maxSockets": 1 }
+			},
+			"nightmare": {
+				"magic": { "minSockets": 1, "maxSockets": 2 },
+				"rare": { "minSockets": 1, "maxSockets": 1 },
+				"set": { "minSockets": 1, "maxSockets": 1 },
+				"unique": { "minSockets": 1, "maxSockets": 1 },
+				"crafted": { "minSockets": 1, "maxSockets": 1 }
+			},
+			"hell": {
+				"magic": { "minSockets": 1, "maxSockets": 2 },
+				"rare": { "minSockets": 1, "maxSockets": 1 },
+				"set": { "minSockets": 1, "maxSockets": 1 },
+				"unique": { "minSockets": 1, "maxSockets": 1 },
+				"crafted": { "minSockets": 1, "maxSockets": 1 }
+			},
+			"diagnostics": false
+		},
+
         // Allow the Imbue quest reward to be used on socketed items.
         "imbueAllowSockets": false
     }
