@@ -45,16 +45,27 @@ int main(int argc, char** argv) {
     static_assert(ResolveSockets({1, 4}, 6, 7) == 4);
 
     const auto missing = ParseConfig(nlohmann::json::object());
+    assert(!missing.enabled);
     assert(!HasRules(missing.rules));
-    assert(!missing.diagnostics);
 
     const auto directVanilla = ParseConfig(nlohmann::json::parse(
-        R"json({"larzukSockets":{"normal":{"magic":null}}})json"
+        R"json({"larzukSockets":{"enabled":true,"normal":{"magic":null}}})json"
     ));
+    assert(directVanilla.enabled);
     assert(!HasRules(directVanilla.rules));
 
     assert(Throws([] {
         ParseConfig(nlohmann::json::parse(R"json({"larzukSockets":true})json"));
+    }));
+    assert(Throws([] {
+        ParseConfig(nlohmann::json::parse(
+            R"json({"larzukSockets":{"normal":{"magic":null}}})json"
+        ));
+    }));
+    assert(Throws([] {
+        ParseConfig(nlohmann::json::parse(
+            R"json({"larzukSockets":{"enabled":false,"diagnostics":false}})json"
+        ));
     }));
     assert(Throws([] {
         ParseConfig(nlohmann::json::parse(
@@ -72,8 +83,8 @@ int main(int argc, char** argv) {
     assert(shippedConfig.is_open());
     const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
     const auto shipped = ParseConfig(root.at("quests"));
+    assert(!shipped.enabled);
     assert(HasRules(shipped.rules));
-    assert(!shipped.diagnostics);
     for (std::size_t difficulty = 0; difficulty < DifficultyCount; ++difficulty) {
         const auto* magic = FindRule(shipped.rules, static_cast<std::uint8_t>(difficulty), 4);
         assert(magic && magic->has_value());

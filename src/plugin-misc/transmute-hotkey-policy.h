@@ -29,7 +29,6 @@ struct Config {
     Hotkey hotkey{'T', InputDevice::Keyboard, true, true, false};
     std::string hotkeyText{"CTRL+SHIFT+T"};
     bool consume{true};
-    bool diagnostics{};
 };
 
 inline std::string UpperTrim(std::string_view value) {
@@ -104,15 +103,6 @@ inline bool ParseMainKey(
     return false;
 }
 
-inline bool IsSafeHotkey(const Hotkey& hotkey) noexcept {
-    if (hotkey.virtualKey == 0) return false;
-    if (hotkey.device == InputDevice::Mouse) return true;
-    const auto printable = (hotkey.virtualKey >= 'A' && hotkey.virtualKey <= 'Z')
-        || (hotkey.virtualKey >= '0' && hotkey.virtualKey <= '9')
-        || hotkey.virtualKey == 0x20;
-    return !printable || hotkey.control || hotkey.alt;
-}
-
 inline bool ParseHotkey(std::string_view text, Hotkey& hotkey) {
     Hotkey parsed{};
     bool hasMainKey{};
@@ -144,7 +134,7 @@ inline bool ParseHotkey(std::string_view text, Hotkey& hotkey) {
         if (separator == std::string_view::npos) break;
         begin = separator + 1;
     }
-    if (!hasMainKey || !IsSafeHotkey(parsed)) return false;
+    if (!hasMainKey || parsed.virtualKey == 0) return false;
     hotkey = parsed;
     return true;
 }
@@ -184,8 +174,7 @@ inline Config ParseConfig(const nlohmann::json& miscConfig) {
     }
     for (const auto& [key, value] : entry->items()) {
         (void)value;
-        if (key != "enabled" && key != "hotkey"
-            && key != "consume" && key != "diagnostics") {
+        if (key != "enabled" && key != "hotkey" && key != "consume") {
             throw std::invalid_argument(
                 "misc.transmuteHotkey contains unknown key '" + key + "'");
         }
@@ -199,18 +188,13 @@ inline Config ParseConfig(const nlohmann::json& miscConfig) {
     if (entry->contains("consume") && !entry->at("consume").is_boolean()) {
         throw std::invalid_argument("misc.transmuteHotkey.consume must be a boolean");
     }
-    if (entry->contains("diagnostics")
-        && !entry->at("diagnostics").is_boolean()) {
-        throw std::invalid_argument("misc.transmuteHotkey.diagnostics must be a boolean");
-    }
     parsed.enabled = entry->value("enabled", false);
     parsed.hotkeyText = entry->value("hotkey", std::string("CTRL+SHIFT+T"));
     if (!ParseHotkey(parsed.hotkeyText, parsed.hotkey)) {
         throw std::invalid_argument(
-            "misc.transmuteHotkey.hotkey is invalid or unsafe");
+            "misc.transmuteHotkey.hotkey is invalid or unsupported");
     }
     parsed.consume = entry->value("consume", true);
-    parsed.diagnostics = entry->value("diagnostics", false);
     return parsed;
 }
 

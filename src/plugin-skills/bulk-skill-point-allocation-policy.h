@@ -26,7 +26,6 @@ struct Policy {
 	bool enabled{};
 	std::uint32_t skillPointsPerCtrlClick{DefaultSkillPointsPerCtrlClick};
 	bool confirmShiftAllocation{};
-	bool diagnostics{};
 	std::string shiftConfirmationKey{DefaultShiftConfirmationLocalizationKey};
 	std::string shiftConfirmationFallback{DefaultShiftConfirmation};
 };
@@ -61,7 +60,6 @@ inline Policy ParseConfig(const nlohmann::json& skillsConfig) {
 		if (key != "enabled"
 			&& key != "skillPointsPerCtrlClick"
 			&& key != "confirmShiftAllocation"
-			&& key != "diagnostics"
 			&& key != "shiftConfirmationKey"
 			&& key != "shiftConfirmationFallback") {
 			throw std::invalid_argument(
@@ -94,13 +92,6 @@ inline Policy ParseConfig(const nlohmann::json& skillsConfig) {
 				"skills.bulkSkillPointAllocation.confirmShiftAllocation must be a boolean");
 		}
 		policy.confirmShiftAllocation = entry->at("confirmShiftAllocation").get<bool>();
-	}
-	if (entry->contains("diagnostics")) {
-		if (!entry->at("diagnostics").is_boolean()) {
-			throw std::invalid_argument(
-				"skills.bulkSkillPointAllocation.diagnostics must be a boolean");
-		}
-		policy.diagnostics = entry->at("diagnostics").get<bool>();
 	}
 	if (entry->contains("shiftConfirmationKey")) {
 		if (!entry->at("shiftConfirmationKey").is_string()) {

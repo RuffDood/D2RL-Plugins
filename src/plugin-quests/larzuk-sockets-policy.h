@@ -38,8 +38,8 @@ constexpr std::size_t QualityCount = 5;
 using RuleMatrix = std::array<std::array<std::optional<SocketRule>, QualityCount>, DifficultyCount>;
 
 struct Config {
+    bool enabled{};
     RuleMatrix rules{};
-    bool diagnostics{};
 };
 
 constexpr std::optional<std::size_t> QualityIndex(std::int32_t quality) noexcept {
@@ -178,17 +178,15 @@ inline Config ParseConfig(const nlohmann::json& questsConfig) {
     }
     RequireAllowedKeys(
         *entry,
-        {"normal", "nightmare", "hell", "diagnostics"},
+        {"enabled", "normal", "nightmare", "hell"},
         "quests.larzukSockets"
     );
-    if (entry->contains("diagnostics")) {
-        if (!entry->at("diagnostics").is_boolean()) {
-            throw std::invalid_argument(
-                "quests.larzukSockets.diagnostics must be a boolean"
-            );
-        }
-        parsed.diagnostics = entry->at("diagnostics").get<bool>();
+    if (!entry->contains("enabled") || !entry->at("enabled").is_boolean()) {
+        throw std::invalid_argument(
+            "quests.larzukSockets.enabled must be a boolean"
+        );
     }
+    parsed.enabled = entry->at("enabled").get<bool>();
 
     constexpr std::array<std::string_view, DifficultyCount> difficultyNames{
         "normal", "nightmare", "hell"

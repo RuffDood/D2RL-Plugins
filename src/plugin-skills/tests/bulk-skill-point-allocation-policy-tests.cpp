@@ -33,14 +33,12 @@ int main(int argc, char** argv) {
 	assert(!absent.enabled);
 	assert(absent.skillPointsPerCtrlClick == 5);
 	assert(!absent.confirmShiftAllocation);
-	assert(!absent.diagnostics);
 
 	const auto enabled = ParseConfig(nlohmann::json::parse(R"json({
 		"bulkSkillPointAllocation": {
 			"enabled": true,
 			"skillPointsPerCtrlClick": 25,
 			"confirmShiftAllocation": true,
-			"diagnostics": true,
 			"shiftConfirmationKey": "customKey",
 			"shiftConfirmationFallback": "Custom fallback"
 		}
@@ -48,7 +46,6 @@ int main(int argc, char** argv) {
 	assert(enabled.enabled);
 	assert(enabled.skillPointsPerCtrlClick == 25);
 	assert(enabled.confirmShiftAllocation);
-	assert(enabled.diagnostics);
 	assert(enabled.shiftConfirmationKey == "customKey");
 	assert(enabled.shiftConfirmationFallback == "Custom fallback");
 

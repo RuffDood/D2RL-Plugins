@@ -3,38 +3,37 @@
     "items": {
         // Spawn magic/rare items pre-identified.
         "magicItemsSpawnIdentified": false,
-		"rareItemsSpawnIdentified": false,
+        "rareItemsSpawnIdentified": false,
 
-		// Control durability loss, ethereal maximum durability, and optional
-		// bow/crossbow durability. These shipped values preserve vanilla behavior.
-		"itemDurability": {
-			"enabled": false,
-			"normalResistancePercent": 0,
-			"etherealResistancePercent": 0,
-			"etherealMaximumPercent": 50,
-			"forceMaximumDurability": false,
-			"bowsAndCrossbowsHaveDurability": false,
-			"diagnostics": false
-		},
+        // Reduce durability loss, change ethereal maximum durability, or give
+        // bows and crossbows durability. Disabled values preserve vanilla behavior.
+        "itemDurability": {
+            "enabled": false,
+            "normalResistancePercent": 0,
+            "etherealResistancePercent": 0,
+            // Ethereal maximum durability as a percentage of the normal item's maximum.
+            "etherealMaximumPercent": 50,
+            // Force ethereal items to 255 maximum durability, ignoring the percentage above.
+            "forceMaximumDurability": false,
+            "bowsAndCrossbowsHaveDurability": false
+        },
 
-		// Restore inventory charm auras after zone transitions, corpse recovery,
-		// and town respawns. Disabled preserves vanilla behavior.
-		"charmAuraTriggerFix": {
-			"enabled": false,
-			"diagnostics": false
-		},
+        // Restore inventory charm auras after changing areas, recovering a corpse,
+        // or respawning in town.
+        "charmAuraTriggerFix": {
+            "enabled": true
+        },
 
-		// Cap NPC repair prices and optionally apply permanent durability wear.
-		// maximumGold is shared by individual repairs and the Repair All total;
-		// 2147483647 and zero durability wear preserve vanilla behavior.
-		"repairCostsCap": {
-			"enabled": false,
-			"maximumGold": 2147483647,
-			"durabilityWear": {
-				"enabled": false,
-				"chance": 0.0
-			}
-		},
+        // Limit repair prices and optionally make repaired items permanently lose
+        // maximum durability. Disabled values preserve vanilla behavior.
+        "repairCostsCap": {
+            "enabled": false,
+            "maximumGold": 2147483647,
+            "durabilityWear": {
+                "enabled": false,
+                "chance": 0.0
+            }
+        },
 
         // Remove the gold-penalty formula that reduces gold picked up at high levels.
         "disableGoldPenalty": false,
@@ -67,27 +66,26 @@
             "bitfield": 4
         },
 
-		// Raise the gamble generation limit from vanilla 14 to the fixed grid capacity 32.
-		"gambleScreenLimit": {
-			"enabled": false
-		},
+        // Fill all 32 gambling slots instead of the vanilla 14.
+        "gambleScreenLimit": {
+            "enabled": false
+        },
 
-		// Raise the simultaneous ground-item label limit from vanilla 32 to 64 or 128.
-		"groundItemLabels": {
-			"enabled": false,
-			"limit": 64
-		},
+        // Show up to 64 or 128 ground-item labels at the same time instead of 32.
+        "groundItemLabels": {
+            "enabled": false,
+            "limit": 64
+        },
 
-		// Restore the off-weapon Enhanced Damage component when flat min/max damage is present.
-		"enhancedDamageMinMaxFix": {
-			"enabled": false
-		},
+        // Fix off-weapon Enhanced Damage when flat minimum or maximum damage is present.
+        "enhancedDamageMinMaxFix": {
+            "enabled": true
+        },
 
-		// Restore D2R's native quantity line on socketed stackable items.
-		// Disabled preserves the vanilla tooltip omission.
-		"qtyDisplayIssue": {
-			"enabled": false
-		},
+        // Show item quantity on socketed stackable items.
+        "qtyDisplayIssue": {
+            "enabled": true
+        },
 
         // Vendor overhaul: replaces the vanilla random-item generator for shops.
         "vendorOverhaul": {
@@ -124,6 +122,11 @@
             "nightmareLevelScale":  64,    // vanilla: 64  (SHL 6)
             "hellUberLevelScale":   128,   // vanilla: 128 (SHL 7)
             "hellLevelScale":       16     // vanilla: 16  (SHL 4)
+        },
+
+        // Add a manual refresh button for normal vendor stock.
+        "vendorStockRefresh": {
+            "enabled": false
         },
 
         // Use the attacking player unit (instead of the monster) when evaluating
@@ -176,15 +179,14 @@
         // Telekinesis picks up any item (not just gold and scrolls).
         "telekinesisPicksUpEverything": false,
 
-		// Allocate skill points in native batches with Ctrl or all at once with Shift.
-		"bulkSkillPointAllocation": {
-			"enabled": false,
-			"skillPointsPerCtrlClick": 5,
-			"confirmShiftAllocation": false,
-			"diagnostics": false,
-			"shiftConfirmationKey": "shiftConfirmation",
-			"shiftConfirmationFallback": "Invest all currently usable skill points in this skill?"
-		},
+        // Hold Ctrl to spend several skill points at once or Shift to spend all usable points.
+        "bulkSkillPointAllocation": {
+            "enabled": false,
+            "skillPointsPerCtrlClick": 5,
+            "confirmShiftAllocation": false,
+            "shiftConfirmationKey": "shiftConfirmation",
+            "shiftConfirmationFallback": "Invest all currently usable skill points in this skill?"
+        },
 
         // Give charged items a % chance to not consume a charge on use.
         // statId is the character stat (0–511) that holds the skip-chance (0–100%).
@@ -196,7 +198,7 @@
         // Adds additional properties to srvdofunc 169:
         // par1 set to 0 (default) will heal TO a percentage. par1 set to 1 will heal BY a percentage.
         // par2 set to 0 (default) will heal life. par2 set to 1 will heal mana.
-        "selfHealParams": false
+        "selfHealParams": true
     },
 
     // ── Levels ────────────────────────────────────────────────────────────────
@@ -211,41 +213,39 @@
         // Values above 8 install hooks to bypass the engine clamp.
         "playersCommandLimit": 8,
 
-        // Cap the effective player count used when computing each monster's
-        // /players bonus to monster max HP / experience. 0 disables the cap
-        // (vanilla behaviour: scales with the real /players value, up to 8).
-        // Set to 1 to remove that stat's /players scaling entirely. The two
-        // caps are independent of each other and of the real /players value.
-        "monsterHpPlayerCountCap": 0,
-        "monsterExperiencePlayerCountCap": 0,
+            // Cap the effective player count used when computing each monster's
+            // /players bonus to monster max HP / experience. 0 disables the cap
+            // (vanilla behaviour: scales with the real /players value, up to 8).
+            // Set to 1 to remove that stat's /players scaling entirely. The two
+            // caps are independent of each other and of the real /players value.
+            "monsterHpPlayerCountCap": 0,
+            "monsterExperiencePlayerCountCap": 0,
 
-		// Keep quick-moved Cube placement vanilla unless explicitly enabled.
-		"cubeQuickMoveBottomRight": {
-			"enabled": false
-		},
+        // Place quick-moved Cube items into free slots starting at the bottom-right.
+        "cubeQuickMoveBottomRight": {
+            "enabled": false
+        },
 
-		// Keep equipped-item Ctrl-click behavior vanilla unless explicitly enabled.
-		"equippedItemToCube": {
-			"enabled": false
-		},
+        // Ctrl-click equipped gear to move it directly into an open Horadric Cube.
+        "equippedItemToCube": {
+            "enabled": true
+        },
 
-		// Keep Transmute input unchanged unless explicitly enabled.
-		"transmuteHotkey": {
-			"enabled": false,
-			"hotkey": "CTRL+SHIFT+T",
-			"consume": true,
-			"diagnostics": false
-		},
+        // Press a keyboard or mouse shortcut to activate the Cube Transmute button.
+        // Supports A-Z, 0-9, F1-F24, common navigation keys, and MOUSE3-MOUSE5.
+        // CTRL, SHIFT, and ALT are optional.
+        "transmuteHotkey": {
+            "enabled": false,
+            "hotkey": "CTRL+SHIFT+T",
+            // true prevents a successfully captured shortcut from also reaching the game.
+            // Outside the Cube, the key keeps its normal in-game behavior.
+            "consume": true
+        },
 
-		// Keep normal vendor stock unchanged unless manual refresh is enabled.
-		"vendorStockRefresh": {
-			"enabled": false
-		},
-
-		// Preserve vanilla persistent-damage behavior unless town protection is enabled.
-		"preventMercDeathInTown": {
-			"enabled": false
-		}
+        // Prevent ongoing damage from killing your mercenary while in town.
+        "preventMercDeathInTown": {
+            "enabled": false
+        }
     },
 
     // ── Quests ────────────────────────────────────────────────────────────────
@@ -328,33 +328,33 @@
             ]
         },
 
-		// These are vanilla Larzuk socket counts. Change only the desired rules.
-		// Equal bounds force an exact value; different bounds roll inclusively.
-		// Set any rule to null to delegate that difficulty and quality to vanilla.
-		"larzukSockets": {
-			"normal": {
-				"magic": { "minSockets": 1, "maxSockets": 2 },
-				"rare": { "minSockets": 1, "maxSockets": 1 },
-				"set": { "minSockets": 1, "maxSockets": 1 },
-				"unique": { "minSockets": 1, "maxSockets": 1 },
-				"crafted": { "minSockets": 1, "maxSockets": 1 }
-			},
-			"nightmare": {
-				"magic": { "minSockets": 1, "maxSockets": 2 },
-				"rare": { "minSockets": 1, "maxSockets": 1 },
-				"set": { "minSockets": 1, "maxSockets": 1 },
-				"unique": { "minSockets": 1, "maxSockets": 1 },
-				"crafted": { "minSockets": 1, "maxSockets": 1 }
-			},
-			"hell": {
-				"magic": { "minSockets": 1, "maxSockets": 2 },
-				"rare": { "minSockets": 1, "maxSockets": 1 },
-				"set": { "minSockets": 1, "maxSockets": 1 },
-				"unique": { "minSockets": 1, "maxSockets": 1 },
-				"crafted": { "minSockets": 1, "maxSockets": 1 }
-			},
-			"diagnostics": false
-		},
+        // Choose how many sockets Larzuk adds by difficulty and item quality.
+        // Keep disabled for vanilla behavior. Equal values guarantee a fixed reward;
+        // a range rolls between them. Set one quality rule to null to use its vanilla result.
+        "larzukSockets": {
+            "enabled": false,
+            "normal": {
+                "magic": { "minSockets": 1, "maxSockets": 2 },
+                "rare": { "minSockets": 1, "maxSockets": 1 },
+                "set": { "minSockets": 1, "maxSockets": 1 },
+                "unique": { "minSockets": 1, "maxSockets": 1 },
+                "crafted": { "minSockets": 1, "maxSockets": 1 }
+            },
+            "nightmare": {
+                "magic": { "minSockets": 1, "maxSockets": 2 },
+                "rare": { "minSockets": 1, "maxSockets": 1 },
+                "set": { "minSockets": 1, "maxSockets": 1 },
+                "unique": { "minSockets": 1, "maxSockets": 1 },
+                "crafted": { "minSockets": 1, "maxSockets": 1 }
+            },
+            "hell": {
+                "magic": { "minSockets": 1, "maxSockets": 2 },
+                "rare": { "minSockets": 1, "maxSockets": 1 },
+                "set": { "minSockets": 1, "maxSockets": 1 },
+                "unique": { "minSockets": 1, "maxSockets": 1 },
+                "crafted": { "minSockets": 1, "maxSockets": 1 }
+            }
+        },
 
         // Allow the Imbue quest reward to be used on socketed items.
         "imbueAllowSockets": false

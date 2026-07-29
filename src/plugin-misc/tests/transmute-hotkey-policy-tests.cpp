@@ -32,8 +32,12 @@ int main(int argc, char** argv) {
     assert(hotkey.virtualKey == 0x05 && IsMouseHotkey(hotkey));
     assert(ParseHotkey("ctrl + mouse 5", hotkey));
     assert(hotkey.virtualKey == 0x06 && hotkey.control);
-    assert(!ParseHotkey("T", hotkey));
-    assert(!ParseHotkey("SHIFT+T", hotkey));
+    assert(ParseHotkey("T", hotkey));
+    assert(hotkey.virtualKey == 'T' && !hotkey.control && !hotkey.shift && !hotkey.alt);
+    assert(ParseHotkey("SHIFT+T", hotkey));
+    assert(hotkey.virtualKey == 'T' && hotkey.shift);
+    assert(!ParseHotkey("CTRL+CTRL+T", hotkey));
+    assert(!ParseHotkey("T+H", hotkey));
     assert(!ParseHotkey("F25", hotkey));
 
     assert(IsFreshRequest(1'100, 1'000, 250));
@@ -44,17 +48,16 @@ int main(int argc, char** argv) {
     assert(missing.hotkeyText == "CTRL+SHIFT+T");
     assert(missing.consume);
     const auto enabled = ParseConfig(nlohmann::json::parse(
-        R"json({"transmuteHotkey":{"enabled":true,"hotkey":"MOUSE4","consume":false,"diagnostics":true}})json"));
+        R"json({"transmuteHotkey":{"enabled":true,"hotkey":"MOUSE4","consume":false}})json"));
     assert(enabled.enabled && IsMouseHotkey(enabled.hotkey));
-    assert(!enabled.consume && enabled.diagnostics);
+    assert(!enabled.consume);
     assert(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"transmuteHotkey":{"enabled":true,"unknown":1}})json"));
     }));
-    assert(Throws([] {
-        ParseConfig(nlohmann::json::parse(
-            R"json({"transmuteHotkey":{"enabled":true,"hotkey":"T"}})json"));
-    }));
+    const auto singleKey = ParseConfig(nlohmann::json::parse(
+        R"json({"transmuteHotkey":{"enabled":true,"hotkey":"T"}})json"));
+    assert(singleKey.enabled && singleKey.hotkey.virtualKey == 'T');
 
     assert(argc == 2);
     std::ifstream shippedConfig(argv[1]);
@@ -64,6 +67,5 @@ int main(int argc, char** argv) {
     assert(!shipped.enabled);
     assert(shipped.hotkeyText == "CTRL+SHIFT+T");
     assert(shipped.consume);
-    assert(!shipped.diagnostics);
     return 0;
 }

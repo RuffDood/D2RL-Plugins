@@ -170,4 +170,15 @@ if(BUILD_TESTING)
 		NAME qty-display-issue-policy
 		COMMAND qty-display-issue-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(vendor-stock-refresh-policy-tests
+		tests/vendor-stock-refresh-policy-tests.cpp
+	)
+	target_link_libraries(vendor-stock-refresh-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		vendor-stock-refresh-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME vendor-stock-refresh-policy
+		COMMAND vendor-stock-refresh-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()

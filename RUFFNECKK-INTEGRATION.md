@@ -21,7 +21,7 @@ DLL, change the PluginPack installation layout, or replace the single
 | `plugin-misc.dll` | Cube Quick Move Bottom-Right | `misc.cubeQuickMoveBottomRight` |
 | `plugin-misc.dll` | Equipped Item to Cube | `misc.equippedItemToCube` |
 | `plugin-misc.dll` | Assign Transmute Hotkey | `misc.transmuteHotkey` |
-| `plugin-misc.dll` | Vendor Stock Refresh | `misc.vendorStockRefresh` |
+| `plugin-items.dll` | Vendor Stock Refresh | `items.vendorStockRefresh` |
 | `plugin-misc.dll` | Prevent Merc Death in Town | `misc.preventMercDeathInTown` |
 | `plugin-quests.dll` | Force Larzuk Sockets | `quests.larzukSockets` |
 | `plugin-skills.dll` | Bulk Skill Point Allocation | `skills.bulkSkillPointAllocation` |
@@ -32,17 +32,14 @@ explicitly outside this contribution.
 
 ## Default behavior
 
-The shipped `D2RPlugins.json` is the player-facing default. Every newly added
-configurable effect is disabled, and its remaining values match vanilla where a
-vanilla value exists. The Larzuk table contains the 15 visible vanilla socket
-rules. Extended Item Stats has no public switch: it supplies bounded 4096-byte
-item transport and only changes tooltip presentation when an oversized payload
-actually requires it.
-
-The default cold start therefore preserves player-visible vanilla behavior.
-Extended Item Stats installs its infrastructure hooks, and Larzuk installs a
-strict hook that delegates the shipped vanilla rules; neither changes the
-configured gameplay result.
+The shipped `D2RPlugins.json` is the player-facing default. Charm Aura Trigger
+Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube are
+enabled by default. Every other newly added configurable effect remains
+disabled, and its remaining values match vanilla where a vanilla value exists.
+The Larzuk table contains the 15 visible vanilla socket rules but its independent
+switch is disabled, so it installs no hook. Extended Item Stats has no public
+switch: it supplies bounded 4096-byte item transport and only changes tooltip
+presentation when an oversized payload actually requires it.
 
 ## Hook ownership and compatibility
 

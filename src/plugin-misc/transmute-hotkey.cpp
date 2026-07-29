@@ -192,10 +192,6 @@ bool KnownInputIsBlocked() noexcept {
     return false;
 }
 
-void LogDiagnostic(const char* message) noexcept {
-    if (Settings.diagnostics && Context) Context->LogInfo(message);
-}
-
 void ObserveCubePanel(std::atomic<void*>& slot, void* panel) noexcept {
     auto* button = FindNamedWidget(panel, "convert");
     slot.store(
@@ -255,12 +251,10 @@ void ProcessQueuedRequest() noexcept {
     const auto now = GetTickCount64();
     if (!IsFreshRequest(now, requestedAt, RequestLifetimeMilliseconds)) {
         StaleRequests.fetch_add(1, std::memory_order_relaxed);
-        LogDiagnostic("TransmuteHotkey: expired request refused.");
         return;
     }
     if (KnownInputIsBlocked()) {
         RefusedRequests.fetch_add(1, std::memory_order_relaxed);
-        LogDiagnostic("TransmuteHotkey: text-input or modal blocker refused request.");
         return;
     }
     if (TryDispatchPanel(StandaloneCubePanel, "standalone")
@@ -268,7 +262,6 @@ void ProcessQueuedRequest() noexcept {
         return;
     }
     RefusedRequests.fetch_add(1, std::memory_order_relaxed);
-    LogDiagnostic("TransmuteHotkey: no visible enabled native convert button was available.");
 }
 
 void __fastcall HookIntegratedCubeUpdate(void* controller) noexcept {
@@ -380,7 +373,7 @@ bool EnsureUiMessageHook(HMODULE module) noexcept {
     return true;
 }
 
-bool QueueInputRequest(const char* source) noexcept {
+bool QueueInputRequest() noexcept {
     if (!CurrentProcessOwnsForegroundWindow()
         || !UiDispatchReady.load(std::memory_order_acquire)
         || !CubePanelObserved()) {
@@ -406,29 +399,17 @@ bool QueueInputRequest(const char* source) noexcept {
         RequestedAt.store(0, std::memory_order_release);
         FailedRequests.fetch_add(1, std::memory_order_relaxed);
         ResetUiMessageHook();
-        LogDiagnostic("TransmuteHotkey: UI-thread request post failed.");
         return false;
     }
     AcceptedRequests.fetch_add(1, std::memory_order_relaxed);
     HotkeyCaptured.store(true, std::memory_order_release);
-    if (Settings.diagnostics && Context) {
-        char log[180]{};
-        std::snprintf(
-            log,
-            sizeof(log),
-            "TransmuteHotkey: %s request accepted and posted to the UI thread.",
-            source
-        );
-        Context->LogInfo(log);
-    }
     return true;
 }
 
 bool HandleInputTransition(
     bool isDown,
     bool isUp,
-    bool injected,
-    const char* source
+    bool injected
 ) noexcept {
     if (isUp) {
         HotkeyPressed.store(false, std::memory_order_release);
@@ -447,7 +428,7 @@ bool HandleInputTransition(
     if (!firstDown) {
         return HotkeyCaptured.load(std::memory_order_acquire) && Settings.consume;
     }
-    return QueueInputRequest(source) && Settings.consume;
+    return QueueInputRequest() && Settings.consume;
 }
 
 LRESULT CALLBACK KeyboardHook(
@@ -472,8 +453,7 @@ LRESULT CALLBACK KeyboardHook(
     if (HandleInputTransition(
             isDown,
             isUp,
-            (input->flags & LLKHF_INJECTED) != 0,
-            "keyboard"
+            (input->flags & LLKHF_INJECTED) != 0
         )) {
         return 1;
     }
@@ -516,8 +496,7 @@ LRESULT CALLBACK MouseHook(
     if (HandleInputTransition(
             isDown,
             isUp,
-            (input->flags & LLMHF_INJECTED) != 0,
-            "mouse"
+            (input->flags & LLMHF_INJECTED) != 0
         )) {
         return 1;
     }

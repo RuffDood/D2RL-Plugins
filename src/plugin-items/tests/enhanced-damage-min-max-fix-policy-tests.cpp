@@ -92,7 +92,7 @@ int main(int argc, char** argv) {
 		assert(stream.good());
 		const auto templateConfig = nlohmann::json::parse(
 			stream, nullptr, true, true);
-		assert(!ParseConfig(templateConfig.at("items")).enabled);
+		assert(ParseConfig(templateConfig.at("items")).enabled);
 	}
 
 	return 0;

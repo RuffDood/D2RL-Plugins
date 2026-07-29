@@ -491,7 +491,7 @@ auto Status(D2R::Game::Client*, const D2RL::ConsoleCommandContext* command, void
     std::snprintf(
         message,
         sizeof(message),
-        "Vendor Stock Refresh 0.1.5 (plugin-misc): enabled=%s; placed=%llu; placementFailures=%llu; sent=%llu; received=%llu; armed=%llu; rejected=%llu.",
+        "Vendor Stock Refresh 0.1.5 (plugin-items): enabled=%s; placed=%llu; placementFailures=%llu; sent=%llu; received=%llu; armed=%llu; rejected=%llu.",
         Settings.enabled ? "true" : "false",
         static_cast<unsigned long long>(DynamicPlacements.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(PlacementFailures.load(std::memory_order_relaxed)),
@@ -507,7 +507,7 @@ auto Status(D2R::Game::Client*, const D2RL::ConsoleCommandContext* command, void
 
 bool Load(
     const D2RL::PluginContext* context,
-    const nlohmann::json& miscConfig
+    const nlohmann::json& itemsConfig
 ) noexcept {
     if (!context) return false;
     Context = context;
@@ -526,14 +526,14 @@ bool Load(
     if (!Base) return false;
     if (context->modDataVersionBuild != 0 && context->modDataVersionBuild != SupportedBuild) {
         context->LogError(
-            "plugin-misc: Vendor Stock Refresh supports only D2R build 92777.");
+            "plugin-items: Vendor Stock Refresh supports only D2R build 92777.");
         return false;
     }
     try {
-        Settings = ParseConfig(miscConfig);
+        Settings = ParseConfig(itemsConfig);
     } catch (const std::exception& exception) {
         const auto message = std::string(
-            "plugin-misc: invalid misc.vendorStockRefresh (")
+            "plugin-items: invalid items.vendorStockRefresh (")
             + exception.what() + ").";
         context->LogError(message.c_str());
         return false;
@@ -547,7 +547,7 @@ bool Load(
         GetWidgetRect = At<GetWidgetRectFn>(GetWidgetRectRva);
         if (!ValidateRuntime()) {
             context->LogError(
-                "plugin-misc: Vendor Stock Refresh runtime signature mismatch.");
+                "plugin-items: Vendor Stock Refresh runtime signature mismatch.");
             return false;
         }
         if (!context->InstallInlineHook(
@@ -558,7 +558,7 @@ bool Load(
                 &OriginalConfigureVendorPanel
             )) {
             context->LogError(
-                "plugin-misc: Vendor Stock Refresh vendor-panel hook failed.");
+                "plugin-items: Vendor Stock Refresh vendor-panel hook failed.");
             return false;
         }
         if (!context->InstallInlineHook(
@@ -569,7 +569,7 @@ bool Load(
                 &OriginalConfigureVendorInteraction
             )) {
             context->LogError(
-                "plugin-misc: Vendor Stock Refresh vendor-session hook failed.");
+                "plugin-items: Vendor Stock Refresh vendor-session hook failed.");
             return false;
         }
         if (!context->InstallInlineHook(
@@ -580,7 +580,7 @@ bool Load(
                 &OriginalEntityAction
             )) {
             context->LogError(
-                "plugin-misc: Vendor Stock Refresh entity-action hook failed.");
+                "plugin-items: Vendor Stock Refresh entity-action hook failed.");
             return false;
         }
         if (!context->InstallInlineHook(
@@ -591,7 +591,7 @@ bool Load(
                 &OriginalSendVendorRefresh
             )) {
             context->LogError(
-                "plugin-misc: Vendor Stock Refresh refresh-sender hook failed.");
+                "plugin-items: Vendor Stock Refresh refresh-sender hook failed.");
             return false;
         }
     }
@@ -602,12 +602,12 @@ bool Load(
             "Show vendor stock refresh status and counters."
         )) {
         context->LogWarn(
-            "plugin-misc: Vendor Stock Refresh status command was not registered.");
+            "plugin-items: Vendor Stock Refresh status command was not registered.");
     }
 
     context->LogInfo(Settings.enabled
-        ? "plugin-misc: Vendor Stock Refresh 0.1.5 by RuffnecKk active; native button uses the runtime gold anchor; config=misc.vendorStockRefresh."
-        : "plugin-misc: Vendor Stock Refresh 0.1.5 by RuffnecKk disabled; no hooks installed; config=misc.vendorStockRefresh.");
+        ? "plugin-items: Vendor Stock Refresh 0.1.5 by RuffnecKk active; native button uses the runtime gold anchor; config=items.vendorStockRefresh."
+        : "plugin-items: Vendor Stock Refresh 0.1.5 by RuffnecKk disabled; no hooks installed; config=items.vendorStockRefresh.");
     return true;
 }
 

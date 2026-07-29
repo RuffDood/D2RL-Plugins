@@ -155,9 +155,6 @@ std::atomic<std::uint64_t> FailedActiveSkillRestores{};
 std::atomic<std::uint64_t> InvalidStatArrays{};
 std::atomic<std::uint64_t> RefreshCapHits{};
 std::atomic<std::uint64_t> TraversalGuardHits{};
-std::atomic<bool> FirstTransitionLogged{};
-std::atomic<bool> FirstCorpseRecoveryLogged{};
-std::atomic<bool> FirstTownRespawnLogged{};
 
 template<class T>
 T At(std::uintptr_t rva) noexcept {
@@ -178,16 +175,6 @@ void ResetTelemetry() noexcept {
 	InvalidStatArrays.store(0, std::memory_order_relaxed);
 	RefreshCapHits.store(0, std::memory_order_relaxed);
 	TraversalGuardHits.store(0, std::memory_order_relaxed);
-	FirstTransitionLogged.store(false, std::memory_order_relaxed);
-	FirstCorpseRecoveryLogged.store(false, std::memory_order_relaxed);
-	FirstTownRespawnLogged.store(false, std::memory_order_relaxed);
-}
-
-void LogFirstEvent(std::atomic<bool>& guard, const char* message) noexcept {
-	if (Settings.diagnostics && Context
-		&& !guard.exchange(true, std::memory_order_relaxed)) {
-		Context->LogInfo(message);
-	}
 }
 
 ActiveSkillIdentity CaptureActiveSkill(const std::uint8_t* skill) noexcept {
@@ -322,9 +309,6 @@ __declspec(noinline) void __fastcall HookAttachSound(
 	}
 
 	CorpseRecoveries.fetch_add(1, std::memory_order_relaxed);
-	LogFirstEvent(
-		FirstCorpseRecoveryLogged,
-		"plugin-items: Charm Aura Trigger Fix observed its first corpse recovery.");
 	RefreshPlayerItems(nullptr, unit);
 	NativeCorpseRefreshes.fetch_add(1, std::memory_order_relaxed);
 }
@@ -340,9 +324,6 @@ __declspec(noinline) void __fastcall HookActTransition(
 	if (returnRva != ZoneTransitionReturnRva) return;
 
 	ZoneTransitions.fetch_add(1, std::memory_order_relaxed);
-	LogFirstEvent(
-		FirstTransitionLogged,
-		"plugin-items: Charm Aura Trigger Fix observed its first zone transition.");
 	RefreshCharmAuras(player);
 }
 
@@ -361,9 +342,6 @@ __declspec(noinline) void __fastcall HookPlayerModeFinalize(
 	if (returnRva != TownRespawnReturnRva || !game || !player) return;
 
 	TownRespawns.fetch_add(1, std::memory_order_relaxed);
-	LogFirstEvent(
-		FirstTownRespawnLogged,
-		"plugin-items: Charm Aura Trigger Fix observed its first town respawn.");
 	RefreshPlayerItems(game, player);
 	NativeTownRespawnRefreshes.fetch_add(1, std::memory_order_relaxed);
 }
@@ -635,9 +613,8 @@ bool Load(
 		message,
 		sizeof(message),
 		"plugin-items: Charm Aura Trigger Fix 1.6.0 by RuffnecKk loaded: "
-		"enabled=%s; diagnostics=%s; config=items.charmAuraTriggerFix.",
-		Settings.enabled ? "true" : "false",
-		Settings.diagnostics ? "true" : "false");
+		"enabled=%s; config=items.charmAuraTriggerFix.",
+		Settings.enabled ? "true" : "false");
 	context->LogInfo(message);
 	return true;
 }

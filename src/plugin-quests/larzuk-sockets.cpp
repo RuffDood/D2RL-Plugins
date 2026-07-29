@@ -148,22 +148,6 @@ __declspec(noinline) void __fastcall HookAddSockets(
     SetItemFlag(item, SocketedItemFlag, 1);
     SetUnitStat(item, NumberOfSocketsStat, sockets, 0);
     ++ConfiguredRewards;
-
-    if (Settings.diagnostics && Context) {
-        char message[256]{};
-        std::snprintf(
-            message,
-            sizeof(message),
-            "ForceLarzukSockets: difficulty=%u quality=%d configured=%u-%u legalMax=%u result=%u.",
-            static_cast<unsigned>(difficulty),
-            quality,
-            static_cast<unsigned>(rule.minSockets),
-            static_cast<unsigned>(rule.maxSockets),
-            static_cast<unsigned>(legalMaximum),
-            static_cast<unsigned>(sockets)
-        );
-        Context->LogInfo(message);
-    }
 }
 
 bool ValidateNativeSignatures() noexcept {
@@ -274,7 +258,8 @@ bool Load(const D2RL::PluginContext* context, const nlohmann::json& questsConfig
         return false;
     }
 
-    if (HasRules(Settings.rules) && !ValidateNativeSignatures()) return false;
+    const bool active = Settings.enabled && HasRules(Settings.rules);
+    if (active && !ValidateNativeSignatures()) return false;
 
     GetItemSeed = At<GetItemSeedFn>(GetItemSeedRva);
     GetItemQuality = At<GetItemQualityFn>(GetItemQualityRva);
@@ -286,14 +271,14 @@ bool Load(const D2RL::PluginContext* context, const nlohmann::json& questsConfig
     GetStat = At<GetStatFn>(GetStatRva);
     SetUnitStat = At<SetUnitStatFn>(SetUnitStatRva);
 
-    if (HasRules(Settings.rules) && !InstallHook()) return false;
+    if (active && !InstallHook()) return false;
 
     const auto message = std::string(
         "plugin-quests: ForceLarzukSockets 0.1.0 by RuffnecKk loaded"
     )
-        + (HasRules(Settings.rules)
+        + (active
             ? "; configured Larzuk hook active; config=quests.larzukSockets."
-            : "; missing block delegates every reward to vanilla; hook not installed.");
+            : "; disabled or fully delegated to vanilla; hook not installed; config=quests.larzukSockets.");
     context->LogInfo(message.c_str());
     return true;
 }

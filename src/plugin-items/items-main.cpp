@@ -9,6 +9,7 @@
 #include "items-private.h"
 #include "qty-display-issue.h"
 #include "repair-costs-cap.h"
+#include "vendor-stock-refresh.h"
 #include <cstring>
 #include <vector>
 #include <windows.h>
@@ -633,6 +634,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (!RuffnecKk::QtyDisplayIssue::Load(context, itemsConfig)) {
 		return false;
 	}
+	if (!RuffnecKk::VendorStockRefresh::Load(context, itemsConfig)) {
+		return false;
+	}
 
 	// Resolve internal function pointers used by both hooks.
 	Fn_GenerateStoreItem = reinterpret_cast<GenerateStoreItem_t>(g_exeBase + OFF_GenerateStoreItem);
@@ -753,6 +757,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	RuffnecKk::VendorStockRefresh::Unload();
 	RuffnecKk::QtyDisplayIssue::Unload();
 	RuffnecKk::RepairCostsCap::Unload();
 	RuffnecKk::EnhancedDamageMinMaxFix::Unload();

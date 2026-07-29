@@ -88,7 +88,6 @@ std::atomic<std::uint64_t> PreventedNormal{};
 std::atomic<std::uint64_t> PreventedEthereal{};
 std::atomic<std::uint64_t> RangedWeaponRecordsEnabled{};
 std::atomic<std::uint64_t> RepairTypeRecordsEnabled{};
-std::atomic<bool> FirstPreventionLogged{};
 
 template<class T>
 T At(std::uintptr_t rva) noexcept {
@@ -100,7 +99,6 @@ void ResetTelemetry() noexcept {
 	PreventedEthereal.store(0, std::memory_order_relaxed);
 	RangedWeaponRecordsEnabled.store(0, std::memory_order_relaxed);
 	RepairTypeRecordsEnabled.store(0, std::memory_order_relaxed);
-	FirstPreventionLogged.store(false, std::memory_order_relaxed);
 }
 
 bool IsEtherealItem(void* item) noexcept {
@@ -212,11 +210,6 @@ void __fastcall HookUpdateDurability(void* game, void* unit, void* item) noexcep
 		PreventedEthereal.fetch_add(1, std::memory_order_relaxed);
 	} else {
 		PreventedNormal.fetch_add(1, std::memory_order_relaxed);
-	}
-	if (Settings.diagnostics && Context
-		&& !FirstPreventionLogged.exchange(true, std::memory_order_relaxed)) {
-		Context->LogInfo(
-			"plugin-items: Item Durability 1.2.0 by RuffnecKk prevented its first durability check.");
 	}
 }
 

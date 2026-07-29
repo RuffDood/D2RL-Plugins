@@ -108,26 +108,26 @@ constexpr bool ShouldShowNormalRefresh(bool enabled, bool isGambling) noexcept {
     return enabled && !isGambling;
 }
 
-inline Config ParseConfig(const nlohmann::json& miscConfig) {
-    if (!miscConfig.is_object()) {
-        throw std::invalid_argument("misc must be an object");
+inline Config ParseConfig(const nlohmann::json& itemsConfig) {
+    if (!itemsConfig.is_object()) {
+        throw std::invalid_argument("items must be an object");
     }
     Config parsed{};
-    const auto entry = miscConfig.find("vendorStockRefresh");
-    if (entry == miscConfig.end()) return parsed;
+    const auto entry = itemsConfig.find("vendorStockRefresh");
+    if (entry == itemsConfig.end()) return parsed;
     if (!entry->is_object()) {
-        throw std::invalid_argument("misc.vendorStockRefresh must be an object");
+        throw std::invalid_argument("items.vendorStockRefresh must be an object");
     }
     for (const auto& [key, value] : entry->items()) {
         (void)value;
         if (key != "enabled") {
             throw std::invalid_argument(
-                "misc.vendorStockRefresh contains unknown key '" + key + "'");
+                "items.vendorStockRefresh contains unknown key '" + key + "'");
         }
     }
     if (entry->contains("enabled") && !entry->at("enabled").is_boolean()) {
         throw std::invalid_argument(
-            "misc.vendorStockRefresh.enabled must be a boolean");
+            "items.vendorStockRefresh.enabled must be a boolean");
     }
     parsed.enabled = entry->value("enabled", false);
     return parsed;

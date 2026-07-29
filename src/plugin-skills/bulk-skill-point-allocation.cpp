@@ -196,20 +196,6 @@ void BeginBulkAllocation(
     LastOutgoingExtra.store(nativeBulkExtra, std::memory_order_relaxed);
     OriginalSendFiveBytePacket(AllocateSkillOpcode, skillId, nativeBulkExtra);
     ++NativeBulkPacketsSent;
-
-    if (Settings.diagnostics && Context) {
-        char message[192]{};
-        std::snprintf(
-            message,
-            sizeof(message),
-            "BulkSkillPointAllocation native bulk: mode=%s skill=%u requested=%u extra=0x%04X.",
-            mode == AllocationMode::ShiftAll ? "shift-all" : "ctrl",
-            static_cast<unsigned>(skillId),
-            requested,
-            static_cast<unsigned>(nativeBulkExtra)
-        );
-        Context->LogInfo(message);
-    }
 }
 
 bool TryExternalUiMessageInterceptor(void* message) noexcept {
@@ -232,24 +218,6 @@ bool __fastcall InterceptUiMessageChain(void* message) noexcept {
     {
         std::scoped_lock lock(ConfirmationMutex);
         confirmationPending = PendingConfirmation.active;
-    }
-    if (Settings.diagnostics
-        && Context
-        && confirmationPending
-        && payloadRead
-        && statIndex == SkillConfirmationSentinel) {
-        char diagnostic[192]{};
-        std::snprintf(
-            diagnostic,
-            sizeof(diagnostic),
-            "BulkSkillPointAllocation UI dispatch: payload=%s stat=0x%08X mode=%d pending=%s opening=%s.",
-            payloadRead ? "yes" : "no",
-            static_cast<unsigned>(statIndex),
-            mode,
-            confirmationPending ? "yes" : "no",
-            OpeningSkillConfirmation ? "yes" : "no"
-        );
-        Context->LogInfo(diagnostic);
     }
     if (OpeningSkillConfirmation
         || !payloadRead

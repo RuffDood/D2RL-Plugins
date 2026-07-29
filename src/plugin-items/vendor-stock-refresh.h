@@ -7,7 +7,7 @@ namespace RuffnecKk::VendorStockRefresh {
 
 bool Load(
     const D2RL::PluginContext* context,
-    const nlohmann::json& miscConfig
+    const nlohmann::json& itemsConfig
 ) noexcept;
 void Unload() noexcept;
 

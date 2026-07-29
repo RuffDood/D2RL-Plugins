@@ -52,8 +52,7 @@ int main(int argc, char** argv) {
 			"etherealResistancePercent": 0,
 			"etherealMaximumPercent": 50,
 			"forceMaximumDurability": false,
-			"bowsAndCrossbowsHaveDurability": false,
-			"diagnostics": false
+			"bowsAndCrossbowsHaveDurability": false
 		}
 	})json");
 	const auto policy = ParseConfig(vanilla);
@@ -63,7 +62,6 @@ int main(int argc, char** argv) {
 	assert(policy.etherealMaximumPercent == 50);
 	assert(!policy.forceMaximumDurability);
 	assert(!policy.bowsAndCrossbowsHaveDurability);
-	assert(!policy.diagnostics);
 
 	ExpectInvalid([] { ParseConfig(nlohmann::json::array()); });
 	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(

@@ -78,6 +78,6 @@ int main(int argc, char** argv) {
     assert(shippedConfig.is_open());
     const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
     const auto shipped = ParseConfig(root.at("misc"));
-    assert(!shipped.enabled);
+    assert(shipped.enabled);
     return 0;
 }

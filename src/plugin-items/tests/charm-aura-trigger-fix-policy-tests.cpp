@@ -37,23 +37,18 @@ int main(int argc, char** argv) {
 
 	const auto absent = ParseConfig(nlohmann::json::object());
 	assert(!absent.enabled);
-	assert(!absent.diagnostics);
 
 	const auto vanilla = nlohmann::json::parse(R"json({
 		"charmAuraTriggerFix": {
-			"enabled": false,
-			"diagnostics": false
+			"enabled": false
 		}
 	})json");
 	const auto policy = ParseConfig(vanilla);
 	assert(!policy.enabled);
-	assert(!policy.diagnostics);
 
 	ExpectInvalid([] { ParseConfig(nlohmann::json::array()); });
 	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
 		R"json({"charmAuraTriggerFix":true})json")); });
-	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
-		R"json({"charmAuraTriggerFix":{"enabled":false}})json")); });
 	ExpectInvalid([&] {
 		auto invalid = vanilla;
 		invalid["charmAuraTriggerFix"]["enabled"] = 0;
@@ -71,8 +66,7 @@ int main(int argc, char** argv) {
 		const auto templateConfig = nlohmann::json::parse(
 			stream, nullptr, true, true);
 		const auto templatePolicy = ParseConfig(templateConfig.at("items"));
-		assert(!templatePolicy.enabled);
-		assert(!templatePolicy.diagnostics);
+		assert(templatePolicy.enabled);
 	}
 
 	return 0;

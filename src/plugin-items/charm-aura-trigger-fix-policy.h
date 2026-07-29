@@ -22,7 +22,6 @@ struct PackedStatRecord {
 
 struct Config {
 	bool enabled{};
-	bool diagnostics{};
 };
 
 inline Config ParseConfig(const nlohmann::json& itemsConfig) {
@@ -38,12 +37,12 @@ inline Config ParseConfig(const nlohmann::json& itemsConfig) {
 	}
 	for (const auto& [key, value] : entry->items()) {
 		(void)value;
-		if (key != "enabled" && key != "diagnostics") {
+		if (key != "enabled") {
 			throw std::invalid_argument(
 				"items.charmAuraTriggerFix has unknown setting: " + key);
 		}
 	}
-	for (const auto* key : {"enabled", "diagnostics"}) {
+	for (const auto* key : {"enabled"}) {
 		if (!entry->contains(key) || !entry->at(key).is_boolean()) {
 			throw std::invalid_argument(
 				std::string("items.charmAuraTriggerFix.") + key
@@ -52,7 +51,6 @@ inline Config ParseConfig(const nlohmann::json& itemsConfig) {
 	}
 	return {
 		.enabled = entry->at("enabled").get<bool>(),
-		.diagnostics = entry->at("diagnostics").get<bool>(),
 	};
 }
 

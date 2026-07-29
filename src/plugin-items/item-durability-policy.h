@@ -33,7 +33,6 @@ struct Policy {
 	std::uint32_t etherealMaximumPercent{50};
 	bool forceMaximumDurability{};
 	bool bowsAndCrossbowsHaveDurability{};
-	bool diagnostics{};
 };
 
 inline Policy ParseConfig(const nlohmann::json& itemsConfig) {
@@ -52,8 +51,7 @@ inline Policy ParseConfig(const nlohmann::json& itemsConfig) {
 			&& key != "etherealResistancePercent"
 			&& key != "etherealMaximumPercent"
 			&& key != "forceMaximumDurability"
-			&& key != "bowsAndCrossbowsHaveDurability"
-			&& key != "diagnostics") {
+			&& key != "bowsAndCrossbowsHaveDurability") {
 			throw std::invalid_argument(
 				"items.itemDurability has unknown setting: " + key);
 		}
@@ -65,8 +63,7 @@ inline Policy ParseConfig(const nlohmann::json& itemsConfig) {
 		"etherealResistancePercent",
 		"etherealMaximumPercent",
 		"forceMaximumDurability",
-		"bowsAndCrossbowsHaveDurability",
-		"diagnostics"
+		"bowsAndCrossbowsHaveDurability"
 	}) {
 		if (!entry->contains(key)) {
 			throw std::invalid_argument(
@@ -75,8 +72,7 @@ inline Policy ParseConfig(const nlohmann::json& itemsConfig) {
 	}
 	if (!entry->at("enabled").is_boolean()
 		|| !entry->at("forceMaximumDurability").is_boolean()
-		|| !entry->at("bowsAndCrossbowsHaveDurability").is_boolean()
-		|| !entry->at("diagnostics").is_boolean()) {
+		|| !entry->at("bowsAndCrossbowsHaveDurability").is_boolean()) {
 		throw std::invalid_argument(
 			"items.itemDurability boolean settings must be booleans");
 	}
@@ -115,7 +111,6 @@ inline Policy ParseConfig(const nlohmann::json& itemsConfig) {
 		.forceMaximumDurability = entry->at("forceMaximumDurability").get<bool>(),
 		.bowsAndCrossbowsHaveDurability =
 			entry->at("bowsAndCrossbowsHaveDurability").get<bool>(),
-		.diagnostics = entry->at("diagnostics").get<bool>(),
 	};
 }
 

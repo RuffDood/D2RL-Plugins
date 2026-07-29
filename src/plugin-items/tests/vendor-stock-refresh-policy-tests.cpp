@@ -77,6 +77,6 @@ int main(int argc, char** argv) {
     std::ifstream shippedConfig(argv[1]);
     assert(shippedConfig.is_open());
     const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
-    const auto shipped = ParseConfig(root.at("misc"));
+    const auto shipped = ParseConfig(root.at("items"));
     assert(!shipped.enabled);
 }

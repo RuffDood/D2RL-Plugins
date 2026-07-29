@@ -40,7 +40,7 @@ CMake validates the manifest during configuration and before every build. A dupl
 1. Copy the five DLLs to either `<D2R>/d2rloader/plugins/` or `<D2R>/mods/<mod>/d2rloader/plugins/`.
 2. Copy `D2RPlugins.json` to the active mod data directory as `<modDirectory>/D2RPlugins.json`, or beside `D2RLoader.exe` for the global fallback.
 
-The shipped JSON preserves vanilla behavior for every configurable feature. `ExtendedItemStats` is internal infrastructure with no public key: normal vanilla items are unchanged, while the pack safely supports item payloads up to 4096 bytes and windows only oversized tooltips.
+The shipped JSON enables four selected fixes by default: Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube. Other newly added configurable features remain disabled. `ExtendedItemStats` is internal infrastructure with no public key: normal vanilla items are unchanged, while the pack safely supports item payloads up to 4096 bytes and windows only oversized tooltips.
 
 See [RUFFNECKK-INTEGRATION.md](RUFFNECKK-INTEGRATION.md) for the complete
 feature inventory, hook-ownership decisions, compatibility limits, final cold
@@ -52,13 +52,13 @@ start results, and the recommended player test batches.
 |---|---|---|
 | `plugin-items.dll` | `items` | Item rules, fixes, limits, vendor options, 4096-byte item transport, and scrollable oversized tooltips |
 | `plugin-levels.dll` | `levels` | Level and area tweaks |
-| `plugin-misc.dll` | `misc` | Miscellaneous tweaks, including Cube actions, vendor refresh, and town safety |
+| `plugin-misc.dll` | `misc` | Miscellaneous tweaks, including Cube actions and town safety |
 | `plugin-quests.dll` | `quests` | Quest reward overrides, including configurable Larzuk socket counts |
 | `plugin-skills.dll` | `skills` | Skill-system extensions and bulk skill-point allocation |
 
 ## Configuration
 
-`D2RPlugins.json` contains every public option with documented, vanilla-preserving defaults. Change only the feature blocks you want to enable. Qty Display Fix is available as `items.qtyDisplayIssue`; enabling it restores D2R's native quantity line on socketed stackable items. Equipped Item to Cube is available as `misc.equippedItemToCube`; enabling it moves Ctrl-left-clicked equipped items directly to the Horadric Cube. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Vendor Stock Refresh is available as `misc.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels. Prevent Merc Death in Town is available as `misc.preventMercDeathInTown`; enabling it suppresses only projected-lethal persistent-damage ticks against mercenaries currently in town.
+`D2RPlugins.json` contains every public option with documented defaults. Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube are enabled in the shipped player configuration; other new configurable features remain disabled. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Single keys and combinations are accepted; with `consume=true`, a successfully captured shortcut does not also reach the game, while the key keeps its normal behavior outside the Cube. Vendor Stock Refresh is available as `items.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels. Prevent Merc Death in Town is available as `misc.preventMercDeathInTown`; enabling it suppresses only projected-lethal persistent-damage ticks against mercenaries currently in town.
 
 ```jsonc
 {
