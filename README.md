@@ -42,6 +42,10 @@ CMake validates the manifest during configuration and before every build. A dupl
 
 The shipped JSON preserves vanilla behavior for every configurable feature. `ExtendedItemStats` is internal infrastructure with no public key: normal vanilla items are unchanged, while the pack safely supports item payloads up to 4096 bytes and windows only oversized tooltips.
 
+See [RUFFNECKK-INTEGRATION.md](RUFFNECKK-INTEGRATION.md) for the complete
+feature inventory, hook-ownership decisions, compatibility limits, final cold
+start results, and the recommended player test batches.
+
 ## Plugins
 
 | DLL | JSON section | Description |
