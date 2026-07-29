@@ -32,4 +32,15 @@ if(BUILD_TESTING)
 		NAME equipped-item-to-cube-policy
 		COMMAND equipped-item-to-cube-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(transmute-hotkey-policy-tests
+		tests/transmute-hotkey-policy-tests.cpp
+	)
+	target_link_libraries(transmute-hotkey-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		transmute-hotkey-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME transmute-hotkey-policy
+		COMMAND transmute-hotkey-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()

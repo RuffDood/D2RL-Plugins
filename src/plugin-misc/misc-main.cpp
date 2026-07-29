@@ -3,6 +3,7 @@
 #include <plugin-shared-json.h>
 #include "cube-quick-move.h"
 #include "equipped-item-to-cube.h"
+#include "transmute-hotkey.h"
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -146,6 +147,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (!RuffnecKk::EquippedItemToCube::Load(context, misc)) {
 		return false;
 	}
+	if (!RuffnecKk::TransmuteHotkey::Load(context, misc)) {
+		return false;
+	}
 
 	if (g_PlayersCommandLimit > 8) {
 		Real_PlayersAtoi    = reinterpret_cast<PlayersAtoi_t>(context->exeBase + OFF_Players_Atoi);
@@ -169,6 +173,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	RuffnecKk::TransmuteHotkey::Unload();
 	RuffnecKk::EquippedItemToCube::Unload();
 	RuffnecKk::CubeQuickMove::Unload();
 	// Call-site patches installed via context->PatchRel32 are reverted automatically

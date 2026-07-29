@@ -1251,6 +1251,26 @@
       "length": 32,
       "expectedBytes": "48 89 54 24 10 53 55 57 41 55 48 83 EC 78 48 8B D9 E8 0A CB FD FF 41 B8 1A 01 00 00 48 8D 15 4D",
       "source": "src/plugin-misc/equipped-item-to-cube.cpp"
+    },
+    {
+      "id": "misc.transmuteHotkey.integratedCubeUpdate",
+      "owner": "plugin-misc",
+      "feature": "misc.transmuteHotkey",
+      "kind": "inline-hook",
+      "rva": "0x23ECD0",
+      "length": 32,
+      "expectedBytes": "40 57 48 83 EC 30 48 8B F9 48 8B 89 A0 02 00 00 48 85 C9 0F 84 A2 01 00 00 48 89 5C 24 48 48 8D",
+      "source": "src/plugin-misc/transmute-hotkey.cpp"
+    },
+    {
+      "id": "misc.transmuteHotkey.standaloneCubeUpdate",
+      "owner": "plugin-misc",
+      "feature": "misc.transmuteHotkey",
+      "kind": "inline-hook",
+      "rva": "0x2CDA90",
+      "length": 32,
+      "expectedBytes": "40 57 48 83 EC 20 80 3D 97 C6 7C 02 00 48 8B F9 48 89 5C 24 30 48 89 74 24 40 74 0E B2 01 C6 05",
+      "source": "src/plugin-misc/transmute-hotkey.cpp"
     }
   ]
 }

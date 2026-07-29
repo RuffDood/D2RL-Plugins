@@ -227,6 +227,14 @@
 		// Keep equipped-item Ctrl-click behavior vanilla unless explicitly enabled.
 		"equippedItemToCube": {
 			"enabled": false
+		},
+
+		// Keep Transmute input unchanged unless explicitly enabled.
+		"transmuteHotkey": {
+			"enabled": false,
+			"hotkey": "CTRL+SHIFT+T",
+			"consume": true,
+			"diagnostics": false
 		}
     },
 
