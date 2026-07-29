@@ -57,7 +57,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
-	if (context == nullptr) {
+	if (!PSh_ValidatePluginTarget(context)) {
 		return false;
 	}
 
@@ -66,14 +66,27 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 
 	if (g_pluginOptions.bDisableAct1Path)
 	{
+		if (!context->CheckExpectedBytes(OFF_DisableAct1DirtPath1, EXP_DisableAct1DirtPath1, sizeof(EXP_DisableAct1DirtPath1))
+			|| !context->CheckExpectedBytes(OFF_DisableAct1DirtPath2, EXP_DisableAct1DirtPath2, sizeof(EXP_DisableAct1DirtPath2))) {
+			context->LogError("plugin-levels: Disable Act 1 Path signature mismatch; no patch was applied.");
+			return false;
+		}
 		unsigned char patch1[] = { 0x90, 0x90, 0x90, 0x90, 0x90 };
-		(void)context->PatchBytes(OFF_DisableAct1DirtPath1, EXP_DisableAct1DirtPath1, sizeof(EXP_DisableAct1DirtPath1), patch1, sizeof(patch1));
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("levels.disableAct1Path.spawnCall"),
+			OFF_DisableAct1DirtPath1, EXP_DisableAct1DirtPath1, sizeof(EXP_DisableAct1DirtPath1), patch1, sizeof(patch1))) {
+			context->LogError("plugin-levels: Disable Act 1 Path spawn-call patch failed.");
+			return false;
+		}
 
 		// Short JLE (0x7E) -> short JMP (0xEB), same disp8 — see the comment by
 		// OFF_DisableAct1DirtPath2's declaration for why this is 1 byte now
 		// instead of the old 6-byte JMP+NOP replacement.
 		unsigned char patch2[] = { 0xEB };
-		(void)context->PatchBytes(OFF_DisableAct1DirtPath2, EXP_DisableAct1DirtPath2, sizeof(EXP_DisableAct1DirtPath2), patch2, sizeof(patch2));
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("levels.disableAct1Path.guardBranch"),
+			OFF_DisableAct1DirtPath2, EXP_DisableAct1DirtPath2, sizeof(EXP_DisableAct1DirtPath2), patch2, sizeof(patch2))) {
+			context->LogError("plugin-levels: Disable Act 1 Path branch patch failed.");
+			return false;
+		}
 	}
 
 	return true;

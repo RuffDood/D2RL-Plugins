@@ -1,4 +1,5 @@
 #include <D2RLPlugin/api.h>
+#include <plugin-shared.h>
 #include "extended-item-stats.h"
 #include "extended-item-stats-policy.h"
 #include "extended-item-stats-transport.h"
@@ -1502,33 +1503,33 @@ bool InstallHooks() noexcept {
         0x48,0x8D,0xAC,0x24,0xC0,0xFB,0xFF,0xFF,
         0x48,0x81,0xEC,0x40,0x05,0x00,0x00,0x48};
 
-    const auto transportInstalled = Context->InstallInlineHook(
+    const auto transportInstalled = PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.serializeItem"),
         SerializeItemRva, serializeExpected.data(), serializeExpected.size(),
         HookSerializeItem, &OriginalSerializeItem)
-        && Context->InstallInlineHook(
+        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.queueServerPacket"),
             QueueServerPacketRva, queueExpected.data(), queueExpected.size(),
             HookQueueServerPacket, &OriginalQueueServerPacket)
-        && Context->InstallInlineHook(
+        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.readItemMetadata"),
             ReadItemMetadataRva, metadataExpected.data(), metadataExpected.size(),
             HookReadItemMetadata, &OriginalReadItemMetadata)
-        && Context->InstallInlineHook(
+        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.decodeItem"),
             DecodeItemRva, decodeExpected.data(), decodeExpected.size(),
             HookDecodeItem, &OriginalDecodeItem)
-        && Context->InstallInlineHook(
+        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.dispatch9C"),
             DispatchItemAction9CRva, dispatch9CExpected.data(), dispatch9CExpected.size(),
             HookDispatchItemAction9C, &OriginalDispatchItemAction9C)
-        && Context->InstallInlineHook(
+        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.dispatch9D"),
             DispatchItemAction9DRva, dispatch9DExpected.data(), dispatch9DExpected.size(),
             HookDispatchItemAction9D, &OriginalDispatchItemAction9D);
     if (!transportInstalled || !Settings.scrollableTooltips) return transportInstalled;
 
-    const auto hoverTrackingInstalled = Context->InstallInlineHook(
+    const auto hoverTrackingInstalled = PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.resolveHoveredUnit"),
         ResolveHoveredUnitRva,
         hoveredUnitExpected.data(),
         static_cast<std::uint32_t>(hoveredUnitExpected.size()),
         HookResolveHoveredUnit,
         &OriginalResolveHoveredUnit)
-        && Context->InstallInlineHook(
+        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.resolveHoveredWidget"),
             ResolveHoveredWidgetRva,
             hoveredWidgetExpected.data(),
             static_cast<std::uint32_t>(hoveredWidgetExpected.size()),
@@ -1536,7 +1537,7 @@ bool InstallHooks() noexcept {
             &OriginalResolveHoveredWidget);
     if (!hoverTrackingInstalled) return false;
 
-    const auto statCaptureInstalled = Context->InstallInlineHook(
+    const auto statCaptureInstalled = PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.getStatsDescription"),
         GetStatsDescriptionRva,
         statsDescriptionExpected.data(),
         static_cast<std::uint32_t>(statsDescriptionExpected.size()),
@@ -1554,7 +1555,7 @@ bool InstallHooks() noexcept {
         0x55,0x41,0x56,0x41,0x57,0x48,0x8D,0xAC,
         0x24,0xF8,0xB1,0xFF,0xFF,0xB8,0x08,0x4F,
         0x00,0x00,0xE8,0x41,0x3C,0x01,0x01,0x48};
-    TooltipHookInstalled = Context->InstallInlineHook(
+    TooltipHookInstalled = PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.buildItemTooltip"),
         BuildItemTooltipRva,
         tooltipExpected.data(),
         static_cast<std::uint32_t>(tooltipExpected.size()),

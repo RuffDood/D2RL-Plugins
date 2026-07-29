@@ -1,6 +1,11 @@
 #include "item-durability.h"
+#include <plugin-shared.h>
 #include "item-durability-policy.h"
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <Windows.h>
 #include <intrin.h>
 
 #include <array>
@@ -72,6 +77,9 @@ using UnitSeedFn = void*(__fastcall*)(void*) noexcept;
 using RandomFn = std::uint32_t(__fastcall*)(void*, std::int32_t) noexcept;
 using CheckItemFlagFn = std::int32_t(__fastcall*)(
 	void*, std::uint32_t, std::int32_t, const char*) noexcept;
+using ItemRecordTransformFn = std::uint8_t*(__cdecl*)(
+	std::uint8_t*, std::uint8_t, std::int32_t) noexcept;
+using RegisterItemRecordTransformFn = bool(__cdecl*)(ItemRecordTransformFn) noexcept;
 
 const D2RL::PluginContext* Context{};
 std::uintptr_t Base{};
@@ -83,6 +91,9 @@ GetItemsTxtRecordFn OriginalGetItemsTxtRecord{};
 UnitSeedFn GetUnitSeed{};
 RandomFn RollRandom{};
 CheckItemFlagFn CheckItemFlag{};
+std::atomic<ItemRecordTransformFn> ExternalItemRecordTransform{};
+bool ItemRecordHookInstalled{};
+bool ItemRecordDelegated{};
 
 std::atomic<std::uint64_t> PreventedNormal{};
 std::atomic<std::uint64_t> PreventedEthereal{};
@@ -157,11 +168,11 @@ void EnableRepairForItemType(
 	}
 }
 
-std::uint8_t* __fastcall HookGetItemsTxtRecord(
+std::uint8_t* TransformRangedItemRecord(
+	std::uint8_t* record,
 	std::uint8_t context,
-	std::int32_t classId
+	std::int32_t
 ) noexcept {
-	auto* record = OriginalGetItemsTxtRecord(context, classId);
 	if (!record) return record;
 
 	const auto itemType = *reinterpret_cast<const std::uint16_t*>(
@@ -183,6 +194,25 @@ std::uint8_t* __fastcall HookGetItemsTxtRecord(
 	}
 	EnableRepairForItemType(itemTypeRecords, itemTypeCount, itemType);
 	return record;
+}
+
+std::uint8_t* __fastcall HookGetItemsTxtRecord(
+	std::uint8_t context,
+	std::int32_t classId
+) noexcept {
+	auto* record = OriginalGetItemsTxtRecord(context, classId);
+	record = TransformRangedItemRecord(record, context, classId);
+	if (const auto transform = ExternalItemRecordTransform.load(
+			std::memory_order_acquire)) {
+		record = transform(record, context, classId);
+	}
+	return record;
+}
+
+RegisterItemRecordTransformFn FindTransmogrifyItemRecordBroker() noexcept {
+	const auto module = GetModuleHandleW(L"Transmogrify.dll");
+	return module ? reinterpret_cast<RegisterItemRecordTransformFn>(GetProcAddress(
+		module, "TransmogrifyRegisterItemRecordTransform")) : nullptr;
 }
 
 void __fastcall HookUpdateDurability(void* game, void* unit, void* item) noexcept {
@@ -312,7 +342,7 @@ bool InstallChanges() noexcept {
 				ExpectedUpdateDurability.data(),
 				ExpectedUpdateDurability.size(),
 				"durability-loss")
-			|| !Context->InstallInlineHook(
+			|| !PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.itemDurability.loss"),
 				UpdateDurabilityRva,
 				ExpectedUpdateDurability.data(),
 				static_cast<std::uint32_t>(ExpectedUpdateDurability.size()),
@@ -330,7 +360,7 @@ bool InstallChanges() noexcept {
 				ExpectedGetBaseStat.data(),
 				ExpectedGetBaseStat.size(),
 				"ethereal maximum")
-			|| !Context->InstallInlineHook(
+			|| !PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.itemDurability.etherealMaximum"),
 				GetBaseStatRva,
 				ExpectedGetBaseStat.data(),
 				static_cast<std::uint32_t>(ExpectedGetBaseStat.size()),
@@ -343,21 +373,25 @@ bool InstallChanges() noexcept {
 	}
 
 	if (Settings.bowsAndCrossbowsHaveDurability) {
-		if (!Preflight(
+		if (const auto broker = FindTransmogrifyItemRecordBroker();
+			broker && broker(TransformRangedItemRecord)) {
+			ItemRecordDelegated = true;
+		} else if (!Preflight(
 				GetItemsTxtRecordRva,
 				ExpectedGetItemsTxtRecord.data(),
 				ExpectedGetItemsTxtRecord.size(),
 				"ranged item-record")
-			|| !Context->InstallInlineHook(
+			|| !PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.itemDurability.rangedRecords"),
 				GetItemsTxtRecordRva,
 				ExpectedGetItemsTxtRecord.data(),
 				static_cast<std::uint32_t>(ExpectedGetItemsTxtRecord.size()),
 				HookGetItemsTxtRecord,
 				&OriginalGetItemsTxtRecord)) {
 			Context->LogError(
-				"plugin-items: Item Durability ranged item-record hook failed. "
-				"Disable any external owner of 0x314110 or keep the ranged option false.");
+				"plugin-items: Item Durability ranged item-record broker failed.");
 			return false;
+		} else {
+			ItemRecordHookInstalled = true;
 		}
 	}
 
@@ -374,6 +408,9 @@ bool Load(
 	Context = context;
 	Base = context->exeBase;
 	ResetTelemetry();
+	ExternalItemRecordTransform.store(nullptr, std::memory_order_release);
+	ItemRecordHookInstalled = false;
+	ItemRecordDelegated = false;
 	try {
 		Settings = ParseConfig(itemsConfig);
 	} catch (const std::exception& exception) {
@@ -407,21 +444,32 @@ bool Load(
 			"plugin-items: Item Durability status command was not registered.");
 	}
 
-	char message[384]{};
+	char message[448]{};
 	std::snprintf(
 		message,
 		sizeof(message),
 		"plugin-items: Item Durability 1.2.0 by RuffnecKk loaded: enabled=%s; "
 		"normal resistance=%u%%; ethereal resistance=%u%%; ethereal maximum=%u%s; "
-		"bows/crossbows=%s; config=items.itemDurability.",
+		"bows/crossbows=%s; itemRecords=%s; config=items.itemDurability.",
 		Settings.enabled ? "true" : "false",
 		Settings.normalResistancePercent,
 		Settings.etherealResistancePercent,
 		Settings.forceMaximumDurability ? 255u : Settings.etherealMaximumPercent,
 		Settings.forceMaximumDurability ? " points" : "%",
-		Settings.bowsAndCrossbowsHaveDurability ? "enabled" : "disabled");
+		Settings.bowsAndCrossbowsHaveDurability ? "enabled" : "disabled",
+		ItemRecordHookInstalled ? "owner" :
+			(ItemRecordDelegated ? "delegated" : "inactive"));
 	context->LogInfo(message);
 	return true;
+}
+
+extern "C" __declspec(dllexport) bool __cdecl
+PluginItemsRegisterItemRecordTransform(ItemRecordTransformFn transform) noexcept {
+	if (!transform || !ItemRecordHookInstalled) return false;
+	auto expected = static_cast<ItemRecordTransformFn>(nullptr);
+	return ExternalItemRecordTransform.compare_exchange_strong(
+		expected, transform, std::memory_order_acq_rel)
+		|| expected == transform;
 }
 
 void Unload() noexcept {

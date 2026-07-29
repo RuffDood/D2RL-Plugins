@@ -24,10 +24,16 @@ extern "C" void* PSh_AllocNear(void* hint, size_t size) noexcept
 	return nullptr;
 }
 
-extern "C" bool PSh_PatchCallSite(const D2RL::PluginContext* context, uint64_t callOffset,
-                                   const void* expected, uint32_t expectedSize, void* hookFn) noexcept
+extern "C" bool PSh_ManifestPatchCallSite(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t callOffset,
+	const void* expected,
+	uint32_t expectedSize,
+	void* hookFn) noexcept
 {
-	if (!context)
+	if (!PSh_ValidatePluginTarget(context) || manifestId == nullptr
+		|| *manifestId == '\0' || hookFn == nullptr)
 		return false;
 
 	void* callSite = reinterpret_cast<void*>(context->exeBase + callOffset);
@@ -53,21 +59,26 @@ extern "C" bool PSh_PatchCallSite(const D2RL::PluginContext* context, uint64_t c
 	s[2] = 0x00; s[3] = 0x00; s[4] = 0x00; s[5] = 0x00;
 	*reinterpret_cast<uint64_t*>(s + 6) = reinterpret_cast<uint64_t>(hookFn);
 
-	int32_t rel32 = static_cast<int32_t>(reinterpret_cast<intptr_t>(stub) - (reinterpret_cast<intptr_t>(callSite) + 5));
-	uint8_t patch[5] = { 0xE8 };
-	memcpy(patch + 1, &rel32, 4);
+	FlushInstructionCache(GetCurrentProcess(), stub, kStubSize);
 
-	DWORD oldProtect;
-	if (!VirtualProtect(callSite, 5, PAGE_EXECUTE_READWRITE, &oldProtect))
+	// Register the CALL through D2RLoader instead of writing the executable
+	// directly. The loader can then reject collisions consistently and retains
+	// ownership of the patch for failure/unload cleanup.
+	const auto stubRva = reinterpret_cast<uint64_t>(stub) - context->exeBase;
+	if (!context->PatchRel32(
+			callOffset,
+			expected,
+			expectedSize,
+			stubRva,
+			5,
+			D2RL::Rel32PatchKind::Call))
 	{
-		D2RL::LogErrorF(context, "PSh_PatchCallSite: VirtualProtect failed at %p: %lu",
-			callSite, GetLastError());
+		D2RL::LogErrorF(context, "PSh_PatchCallSite: D2RLoader rejected call site at %p", callSite);
 		VirtualFree(stub, 0, MEM_RELEASE);
 		return false;
 	}
-	memcpy(callSite, patch, 5);
-	VirtualProtect(callSite, 5, oldProtect, &oldProtect);
-	FlushInstructionCache(GetCurrentProcess(), callSite, 5);
 
+	// The relay intentionally remains allocated for the process lifetime. This
+	// keeps an in-flight native call safe while D2RLoader owns/restores the CALL.
 	return true;
 }

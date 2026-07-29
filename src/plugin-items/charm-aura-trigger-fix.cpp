@@ -1,4 +1,5 @@
 #include "charm-aura-trigger-fix.h"
+#include <plugin-shared.h>
 #include "charm-aura-trigger-fix-policy.h"
 
 #include <intrin.h>
@@ -523,7 +524,7 @@ bool InstallHooks() noexcept {
 		return false;
 	}
 
-	if (!Context->InstallInlineHook(
+	if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.charmAuraTriggerFix.actTransition"),
 		ActTransitionRva,
 		ExpectedActTransitionHook.data(),
 		static_cast<std::uint32_t>(ExpectedActTransitionHook.size()),
@@ -533,7 +534,7 @@ bool InstallHooks() noexcept {
 			"plugin-items: Charm Aura Trigger Fix act-transition hook failed.");
 		return false;
 	}
-	if (!Context->InstallInlineHook(
+	if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.charmAuraTriggerFix.attachSound"),
 		AttachSoundRva,
 		ExpectedAttachSoundHook.data(),
 		static_cast<std::uint32_t>(ExpectedAttachSoundHook.size()),
@@ -543,7 +544,7 @@ bool InstallHooks() noexcept {
 			"plugin-items: Charm Aura Trigger Fix corpse-recovery hook failed.");
 		return false;
 	}
-	if (!Context->InstallInlineHook(
+	if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.charmAuraTriggerFix.playerModeFinalize"),
 		PlayerModeFinalizeRva,
 		ExpectedPlayerModeFinalizeHook.data(),
 		static_cast<std::uint32_t>(ExpectedPlayerModeFinalizeHook.size()),

@@ -1,4 +1,5 @@
 #include "cube-quick-move.h"
+#include <plugin-shared.h>
 #include "cube-quick-move-policy.h"
 
 #include <Windows.h>
@@ -24,15 +25,17 @@ constexpr std::uintptr_t BuildGridContextRva = 0x3C6D80;
 constexpr std::uintptr_t ResolveOccupancyGridRva = 0x38B070;
 
 struct CubeCallSite {
+    const char* manifestId;
     std::uintptr_t rva;
     std::array<std::uint8_t, 5> expected;
 };
 
-constexpr auto MakeCallSite(std::uintptr_t rva) noexcept -> CubeCallSite {
+constexpr auto MakeCallSite(const char* manifestId, std::uintptr_t rva) noexcept -> CubeCallSite {
     const auto displacement = static_cast<std::uint32_t>(
         FindFreePositionRva - (rva + 5)
     );
     return {
+        manifestId,
         rva,
         {
             0xE8,
@@ -47,33 +50,33 @@ constexpr auto MakeCallSite(std::uintptr_t rva) noexcept -> CubeCallSite {
 // Of 36 direct callers, nine are proven to pass only pages 0, 2 or 4. These
 // are the complete 27 sites whose dynamic or explicit page can reach the Cube.
 constexpr std::array<CubeCallSite, 27> CubeCallSites{{
-    MakeCallSite(0x0FA33D),
-    MakeCallSite(0x15A25C),
-    MakeCallSite(0x15E760),
-    MakeCallSite(0x15F94F),
-    MakeCallSite(0x2C7306),
-    MakeCallSite(0x38CC86),
-    MakeCallSite(0x40FFCB),
-    MakeCallSite(0x417356),
-    MakeCallSite(0x42AB9F),
-    MakeCallSite(0x471D62),
-    MakeCallSite(0x4A90C7),
-    MakeCallSite(0x4AB3B5),
-    MakeCallSite(0x4AD94B),
-    MakeCallSite(0x4B4B5C),
-    MakeCallSite(0x4B88ED),
-    MakeCallSite(0x4BBA73),
-    MakeCallSite(0x4C21D6),
-    MakeCallSite(0x4C4181),
-    MakeCallSite(0x4C78D2),
-    MakeCallSite(0x4F2C8B),
-    MakeCallSite(0x4FBC0E),
-    MakeCallSite(0x4FC395),
-    MakeCallSite(0x527DC2),
-    MakeCallSite(0x528053),
-    MakeCallSite(0x541230),
-    MakeCallSite(0x54128F),
-    MakeCallSite(0x541DA7),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call0FA33D"), 0x0FA33D),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call15A25C"), 0x15A25C),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call15E760"), 0x15E760),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call15F94F"), 0x15F94F),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call2C7306"), 0x2C7306),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call38CC86"), 0x38CC86),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call40FFCB"), 0x40FFCB),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call417356"), 0x417356),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call42AB9F"), 0x42AB9F),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call471D62"), 0x471D62),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4A90C7"), 0x4A90C7),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4AB3B5"), 0x4AB3B5),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4AD94B"), 0x4AD94B),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4B4B5C"), 0x4B4B5C),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4B88ED"), 0x4B88ED),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4BBA73"), 0x4BBA73),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4C21D6"), 0x4C21D6),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4C4181"), 0x4C4181),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4C78D2"), 0x4C78D2),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4F2C8B"), 0x4F2C8B),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4FBC0E"), 0x4FBC0E),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call4FC395"), 0x4FC395),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call527DC2"), 0x527DC2),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call528053"), 0x528053),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call541230"), 0x541230),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call54128F"), 0x54128F),
+    MakeCallSite(PSH_MANIFEST_SITE("misc.cubeQuickMoveBottomRight.call541DA7"), 0x541DA7),
 }};
 
 constexpr std::array<std::uint8_t, 32> FindFreePositionExpected{
@@ -260,7 +263,7 @@ bool InstallCallSiteRedirect(void* target) noexcept {
 
     RelayRva = static_cast<std::uint64_t>(relayAddress - baseAddress);
     for (const auto& site : CubeCallSites) {
-        if (!Context->PatchCallRel32(
+        if (!PSh_ManifestPatchCallRel32(Context, site.manifestId,
                 site.rva,
                 site.expected.data(),
                 static_cast<std::uint32_t>(site.expected.size()),

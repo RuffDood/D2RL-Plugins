@@ -243,7 +243,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
-	if (context == nullptr) {
+	if (!PSh_ValidatePluginTarget(context)) {
 		return false;
 	}
 
@@ -252,6 +252,51 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	auto cfg = PSh_Json_LoadConfig(context);
 	const auto questsConfig = PSh_Json_GetSection(cfg, "quests");
 	g_questPluginOptions.Load(context, questsConfig);
+	const auto expected = [context](uint64_t rva, const auto& bytes) noexcept {
+		return context->CheckExpectedBytes(rva, bytes, sizeof(bytes));
+	};
+	bool signaturesValid = true;
+	if (g_questPluginOptions.DenOfEvilRewardEnabled == RewardType::SamePerDifficulty)
+		signaturesValid = signaturesValid && expected(OFF_DenOfEvilPatch, EXP_DenOfEvilPatch);
+	if (g_questPluginOptions.IzualRewardEnabled == RewardType::SamePerDifficulty)
+		signaturesValid = signaturesValid && expected(OFF_FallenAngelPatch, EXP_FallenAngelPatch);
+	if (g_questPluginOptions.BlackBookRewardEnabled == RewardType::SamePerDifficulty)
+		signaturesValid = signaturesValid && expected(OFF_BlackBookPatch, EXP_BlackBookPatch);
+	if (g_questPluginOptions.GoldenBirdRewardEnabled == RewardType::SamePerDifficulty)
+		signaturesValid = signaturesValid
+			&& expected(OFF_GoldenBirdStatPatch, EXP_GoldenBirdStatPatch)
+			&& expected(OFF_GoldenBirdAmountPatch, EXP_GoldenBirdAmountPatch);
+	if (g_questPluginOptions.SkillBookRewardEnabled == RewardType::SamePerDifficulty)
+		signaturesValid = signaturesValid
+			&& expected(OFF_SkillBookAmountPatch, EXP_SkillBookAmountPatch)
+			&& expected(OFF_SkillBookStatPatch, EXP_SkillBookStatPatch);
+	if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::SamePerDifficulty)
+		signaturesValid = signaturesValid
+			&& expected(OFF_AkaraRingItem, EXP_AkaraRingItem)
+			&& expected(OFF_AkaraRingItemQuality, EXP_AkaraRingItemQuality);
+	else if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::DifferentPerDifficulty)
+		signaturesValid = signaturesValid && expected(OFF_AkaraRingCallSite, EXP_AkaraRingCallSite);
+	if (g_questPluginOptions.OrmusGidbinnRingRewardEnabled == RewardType::SamePerDifficulty)
+		signaturesValid = signaturesValid
+			&& expected(OFF_OrmusRingItem, EXP_OrmusRingItem)
+			&& expected(OFF_OrmusRingItemQuality, EXP_OrmusRingItemQuality);
+	else if (g_questPluginOptions.OrmusGidbinnRingRewardEnabled == RewardType::DifferentPerDifficulty)
+		signaturesValid = signaturesValid && expected(OFF_OrmusRingCallSite, EXP_OrmusRingCallSite);
+	if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::SamePerDifficulty)
+		signaturesValid = signaturesValid
+			&& expected(OFF_QualKehkItem1, EXP_QualKehkItem1)
+			&& expected(OFF_QualKehkItem2, EXP_QualKehkItem2)
+			&& expected(OFF_QualKehkItem3, EXP_QualKehkItem3);
+	else if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::DifferentPerDifficulty)
+		signaturesValid = signaturesValid && expected(OFF_QualKehkCallSite, EXP_QualKehkCallSite);
+	if (g_questPluginOptions.ImbueAllowSockets)
+		signaturesValid = signaturesValid
+			&& expected(OFF_ImbueSocket1, EXP_ImbueSocket1)
+			&& expected(OFF_ImbueSocket2, EXP_ImbueSocket2);
+	if (!signaturesValid) {
+		context->LogError("plugin-quests: configured eezstreet patch-set signature mismatch; no quest patch was applied.");
+		return false;
+	}
 	if (!RuffnecKk::ForceLarzukSockets::Load(context, questsConfig)) {
 		return false;
 	}
@@ -259,26 +304,48 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (g_questPluginOptions.DenOfEvilRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty. No decouple patch needed here anymore —
 		// see the comment by OFF_DenOfEvilPatch's declaration.
-		(void)context->PatchBytes(OFF_DenOfEvilPatch, EXP_DenOfEvilPatch, sizeof(EXP_DenOfEvilPatch), &g_questPluginOptions.DenOfEvilSkillPointReward, 1);
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.denOfEvil.skillPoints"),
+			OFF_DenOfEvilPatch, EXP_DenOfEvilPatch, sizeof(EXP_DenOfEvilPatch), &g_questPluginOptions.DenOfEvilSkillPointReward, 1)) {
+			context->LogError("plugin-quests: Den of Evil reward patch failed.");
+			return false;
+		}
 	}
 	if (g_questPluginOptions.IzualRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty. No decouple patch needed here anymore —
 		// see the comment by OFF_FallenAngelPatch's declaration.
-		(void)context->PatchBytes(OFF_FallenAngelPatch, EXP_FallenAngelPatch, sizeof(EXP_FallenAngelPatch), &g_questPluginOptions.IzualSkillPointReward, 1);
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.izual.skillPoints"),
+			OFF_FallenAngelPatch, EXP_FallenAngelPatch, sizeof(EXP_FallenAngelPatch), &g_questPluginOptions.IzualSkillPointReward, 1)) {
+			context->LogError("plugin-quests: Izual reward patch failed.");
+			return false;
+		}
 	}
 	if (g_questPluginOptions.BlackBookRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed reward on each difficulty
-		(void)context->PatchBytes(OFF_BlackBookPatch, EXP_BlackBookPatch, sizeof(EXP_BlackBookPatch), &g_questPluginOptions.BlackBookStatPointReward, 1);
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.blackBook.statPoints"),
+			OFF_BlackBookPatch, EXP_BlackBookPatch, sizeof(EXP_BlackBookPatch), &g_questPluginOptions.BlackBookStatPointReward, 1)) {
+			context->LogError("plugin-quests: Black Book reward patch failed.");
+			return false;
+		}
 	}
 	if (g_questPluginOptions.GoldenBirdRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		(void)context->PatchBytes(OFF_GoldenBirdStatPatch, EXP_GoldenBirdStatPatch, sizeof(EXP_GoldenBirdStatPatch), &g_questPluginOptions.GoldenBirdRewardStat, 1);
-		(void)context->PatchBytes(OFF_GoldenBirdAmountPatch, EXP_GoldenBirdAmountPatch, sizeof(EXP_GoldenBirdAmountPatch), &g_questPluginOptions.GoldenBirdRewardAmount, 4);
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.goldenBird.stat"),
+				OFF_GoldenBirdStatPatch, EXP_GoldenBirdStatPatch, sizeof(EXP_GoldenBirdStatPatch), &g_questPluginOptions.GoldenBirdRewardStat, 1)
+			|| !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.goldenBird.amount"),
+				OFF_GoldenBirdAmountPatch, EXP_GoldenBirdAmountPatch, sizeof(EXP_GoldenBirdAmountPatch), &g_questPluginOptions.GoldenBirdRewardAmount, 4)) {
+			context->LogError("plugin-quests: Golden Bird reward patch failed.");
+			return false;
+		}
 	}
 	if (g_questPluginOptions.SkillBookRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		(void)context->PatchBytes(OFF_SkillBookAmountPatch, EXP_SkillBookAmountPatch, sizeof(EXP_SkillBookAmountPatch), &g_questPluginOptions.SkillBookRewardAmount, 1);
-		(void)context->PatchBytes(OFF_SkillBookStatPatch, EXP_SkillBookStatPatch, sizeof(EXP_SkillBookStatPatch), &g_questPluginOptions.SkillBookRewardStat, 1);
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.radamentSkillBook.amount"),
+				OFF_SkillBookAmountPatch, EXP_SkillBookAmountPatch, sizeof(EXP_SkillBookAmountPatch), &g_questPluginOptions.SkillBookRewardAmount, 1)
+			|| !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.radamentSkillBook.stat"),
+				OFF_SkillBookStatPatch, EXP_SkillBookStatPatch, sizeof(EXP_SkillBookStatPatch), &g_questPluginOptions.SkillBookRewardStat, 1)) {
+			context->LogError("plugin-quests: Radament reward patch failed.");
+			return false;
+		}
 	}
 
 	if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::SamePerDifficulty)
@@ -286,8 +353,13 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// Turn this into a XOR EAX,EAX; MOV AL, (reward)
 		unsigned char rewardBytes[4] = { 0x31, 0xC0, 0xB0, g_questPluginOptions.AkaraCainRingQuality.Reward };
 
-		(void)context->PatchBytes(OFF_AkaraRingItem, EXP_AkaraRingItem, sizeof(EXP_AkaraRingItem), &g_questPluginOptions.AkaraCainRingItem.Reward, 4);
-		(void)context->PatchBytes(OFF_AkaraRingItemQuality, EXP_AkaraRingItemQuality, sizeof(EXP_AkaraRingItemQuality), rewardBytes, sizeof(rewardBytes));
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.akaraCainRing.item"),
+				OFF_AkaraRingItem, EXP_AkaraRingItem, sizeof(EXP_AkaraRingItem), &g_questPluginOptions.AkaraCainRingItem.Reward, 4)
+			|| !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.akaraCainRing.quality"),
+				OFF_AkaraRingItemQuality, EXP_AkaraRingItemQuality, sizeof(EXP_AkaraRingItemQuality), rewardBytes, sizeof(rewardBytes))) {
+			context->LogError("plugin-quests: Akara reward patch failed.");
+			return false;
+		}
 	}
 	else if (g_questPluginOptions.AkaraCainRingRewardEnabled == RewardType::DifferentPerDifficulty)
 	{	// Different item/quality depending on difficulty. Uses PSh_PatchCallSite
@@ -295,44 +367,66 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// this plugin DLL, more than 2GB from the exe — see the comment above
 		// PSh_PatchCallSite in plugin-shared.h.
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		bool ok = PSh_PatchCallSite(context, OFF_AkaraRingCallSite, EXP_AkaraRingCallSite, sizeof(EXP_AkaraRingCallSite),
+		bool ok = PSh_ManifestPatchCallSite(context, PSH_MANIFEST_SITE("quests.akaraCainRing.difficultyCall"),
+			OFF_AkaraRingCallSite, EXP_AkaraRingCallSite, sizeof(EXP_AkaraRingCallSite),
 			reinterpret_cast<void*>(&Hook_AkaraCainRingDiffReward));
 		D2RL::LogInfoF(context, "AkaraCainRing: DifferentPerDifficulty callsite patch %s", ok ? "installed" : "FAILED");
+		if (!ok) return false;
 	}
 
 	if (g_questPluginOptions.OrmusGidbinnRingRewardEnabled == RewardType::SamePerDifficulty)
 	{	// Fixed item on each difficulty
-		(void)context->PatchBytes(OFF_OrmusRingItem, EXP_OrmusRingItem, sizeof(EXP_OrmusRingItem), &g_questPluginOptions.OrmusGidbinnRingItem.Reward, 4);
-		(void)context->PatchBytes(OFF_OrmusRingItemQuality, EXP_OrmusRingItemQuality, sizeof(EXP_OrmusRingItemQuality), &g_questPluginOptions.OrmusGidbinnRingQuality.Reward, 1);
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.ormusGidbinnRing.item"),
+				OFF_OrmusRingItem, EXP_OrmusRingItem, sizeof(EXP_OrmusRingItem), &g_questPluginOptions.OrmusGidbinnRingItem.Reward, 4)
+			|| !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.ormusGidbinnRing.quality"),
+				OFF_OrmusRingItemQuality, EXP_OrmusRingItemQuality, sizeof(EXP_OrmusRingItemQuality), &g_questPluginOptions.OrmusGidbinnRingQuality.Reward, 1)) {
+			context->LogError("plugin-quests: Ormus reward patch failed.");
+			return false;
+		}
 	}
 	else if (g_questPluginOptions.OrmusGidbinnRingRewardEnabled == RewardType::DifferentPerDifficulty)
 	{	// Different item/quality depending on difficulty — see the comment on the
 		// Akara branch above for why this uses PSh_PatchCallSite.
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		bool ok = PSh_PatchCallSite(context, OFF_OrmusRingCallSite, EXP_OrmusRingCallSite, sizeof(EXP_OrmusRingCallSite),
+		bool ok = PSh_ManifestPatchCallSite(context, PSH_MANIFEST_SITE("quests.ormusGidbinnRing.difficultyCall"),
+			OFF_OrmusRingCallSite, EXP_OrmusRingCallSite, sizeof(EXP_OrmusRingCallSite),
 			reinterpret_cast<void*>(&Hook_OrmusGidbinnRingDiffReward));
 		D2RL::LogInfoF(context, "OrmusGidbinnRing: DifferentPerDifficulty callsite patch %s", ok ? "installed" : "FAILED");
+		if (!ok) return false;
 	}
 
 	if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::SamePerDifficulty)
 	{
-		(void)context->PatchBytes(OFF_QualKehkItem1, EXP_QualKehkItem1, sizeof(EXP_QualKehkItem1), &g_questPluginOptions.QualKehkRuneItems[0].Reward, 3);
-		(void)context->PatchBytes(OFF_QualKehkItem2, EXP_QualKehkItem2, sizeof(EXP_QualKehkItem2), &g_questPluginOptions.QualKehkRuneItems[1].Reward, 3);
-		(void)context->PatchBytes(OFF_QualKehkItem3, EXP_QualKehkItem3, sizeof(EXP_QualKehkItem3), &g_questPluginOptions.QualKehkRuneItems[2].Reward, 3);
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.qualKehkRunes.item1"),
+				OFF_QualKehkItem1, EXP_QualKehkItem1, sizeof(EXP_QualKehkItem1), &g_questPluginOptions.QualKehkRuneItems[0].Reward, 3)
+			|| !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.qualKehkRunes.item2"),
+				OFF_QualKehkItem2, EXP_QualKehkItem2, sizeof(EXP_QualKehkItem2), &g_questPluginOptions.QualKehkRuneItems[1].Reward, 3)
+			|| !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("quests.qualKehkRunes.item3"),
+				OFF_QualKehkItem3, EXP_QualKehkItem3, sizeof(EXP_QualKehkItem3), &g_questPluginOptions.QualKehkRuneItems[2].Reward, 3)) {
+			context->LogError("plugin-quests: Qual-Kehk reward patch failed.");
+			return false;
+		}
 	}
 	else if (g_questPluginOptions.QualKehkRuneRewardEnabled == RewardType::DifferentPerDifficulty)
 	{	// see the comment on the Akara branch above for why this uses PSh_PatchCallSite
 		g_exeBase = context->exeBase;
 		g_GiveQuestItemFn = reinterpret_cast<GiveQuestItemFn_t>(context->exeBase + OFF_GiveQuestItem);
-		bool ok = PSh_PatchCallSite(context, OFF_QualKehkCallSite, EXP_QualKehkCallSite, sizeof(EXP_QualKehkCallSite),
+		bool ok = PSh_ManifestPatchCallSite(context, PSH_MANIFEST_SITE("quests.qualKehkRunes.difficultyCall"),
+			OFF_QualKehkCallSite, EXP_QualKehkCallSite, sizeof(EXP_QualKehkCallSite),
 			reinterpret_cast<void*>(&Hook_QualKehkRuneDiffReward));
 		D2RL::LogInfoF(context, "QualKehkRunes: DifferentPerDifficulty callsite patch %s", ok ? "installed" : "FAILED");
+		if (!ok) return false;
 	}
 
 	if (g_questPluginOptions.ImbueAllowSockets)
 	{
-		(void)context->PatchNop(OFF_ImbueSocket1, EXP_ImbueSocket1, sizeof(EXP_ImbueSocket1), 2);
-		(void)context->PatchNop(OFF_ImbueSocket2, EXP_ImbueSocket2, sizeof(EXP_ImbueSocket2), 2);
+		if (!PSh_ManifestPatchNop(context, PSH_MANIFEST_SITE("quests.imbueAllowSockets.guard1"),
+				OFF_ImbueSocket1, EXP_ImbueSocket1, sizeof(EXP_ImbueSocket1), 2)
+			|| !PSh_ManifestPatchNop(context, PSH_MANIFEST_SITE("quests.imbueAllowSockets.guard2"),
+				OFF_ImbueSocket2, EXP_ImbueSocket2, sizeof(EXP_ImbueSocket2), 2)) {
+			context->LogError("plugin-quests: Imbue Allow Sockets patch failed.");
+			return false;
+		}
 	}
 
 	return true;

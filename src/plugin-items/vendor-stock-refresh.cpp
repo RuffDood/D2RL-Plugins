@@ -1,4 +1,5 @@
 #include "vendor-stock-refresh.h"
+#include <plugin-shared.h>
 #include "vendor-stock-refresh-policy.h"
 
 #include <Windows.h>
@@ -550,7 +551,7 @@ bool Load(
                 "plugin-items: Vendor Stock Refresh runtime signature mismatch.");
             return false;
         }
-        if (!context->InstallInlineHook(
+        if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.vendorStockRefresh.configureVendorPanel"),
                 ConfigureVendorPanelRva,
                 ConfigureVendorPanelExpected.data(),
                 static_cast<std::uint32_t>(ConfigureVendorPanelExpected.size()),
@@ -561,7 +562,7 @@ bool Load(
                 "plugin-items: Vendor Stock Refresh vendor-panel hook failed.");
             return false;
         }
-        if (!context->InstallInlineHook(
+        if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.vendorStockRefresh.configureVendorInteraction"),
                 ConfigureVendorInteractionRva,
                 ConfigureVendorInteractionExpected.data(),
                 static_cast<std::uint32_t>(ConfigureVendorInteractionExpected.size()),
@@ -572,7 +573,7 @@ bool Load(
                 "plugin-items: Vendor Stock Refresh vendor-session hook failed.");
             return false;
         }
-        if (!context->InstallInlineHook(
+        if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.vendorStockRefresh.entityAction"),
                 EntityActionRva,
                 EntityActionExpected.data(),
                 static_cast<std::uint32_t>(EntityActionExpected.size()),
@@ -583,7 +584,7 @@ bool Load(
                 "plugin-items: Vendor Stock Refresh entity-action hook failed.");
             return false;
         }
-        if (!context->InstallInlineHook(
+        if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.vendorStockRefresh.sendVendorRefresh"),
                 SendVendorRefreshRva,
                 SendVendorRefreshExpected.data(),
                 static_cast<std::uint32_t>(SendVendorRefreshExpected.size()),

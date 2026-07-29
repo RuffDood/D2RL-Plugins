@@ -1,4 +1,5 @@
 #include "larzuk-sockets.h"
+#include <plugin-shared.h>
 #include "larzuk-sockets-policy.h"
 
 #include <intrin.h>
@@ -220,7 +221,7 @@ bool InstallHook() noexcept {
         0x44, 0x8B, 0xF2, 0x48, 0x8B, 0xF9, 0x48, 0x85,
         0xC9, 0x74, 0x0A, 0xE8, 0x58, 0x64, 0xFD, 0xFF
     };
-    if (!Context->InstallInlineHook(
+    if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("quests.larzukSockets.addSockets"),
             AddSocketsRva,
             expectedAddSockets.data(),
             static_cast<std::uint32_t>(expectedAddSockets.size()),

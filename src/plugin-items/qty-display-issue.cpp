@@ -1,4 +1,5 @@
 #include "qty-display-issue.h"
+#include <plugin-shared.h>
 #include "qty-display-issue-policy.h"
 
 #include <cstdio>
@@ -29,7 +30,7 @@ D2RL::ConsoleCommandResult Status(
 
 bool InstallPatch() noexcept {
 	const auto replacement = BuildQuantitySuppressionPatch();
-	if (!Context->PatchBytes(
+	if (!PSh_ManifestPatchBytes(Context, PSH_MANIFEST_SITE("items.qtyDisplayIssue.quantitySuppressionBranch"),
 			QuantitySuppressionSignatureRva,
 			QuantitySuppressionExpected.data(),
 			static_cast<std::uint32_t>(QuantitySuppressionExpected.size()),

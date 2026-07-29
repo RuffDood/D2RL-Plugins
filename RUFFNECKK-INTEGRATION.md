@@ -27,8 +27,7 @@ DLL, change the PluginPack installation layout, or replace the single
 | `plugin-skills.dll` | Bulk Skill Point Allocation | `skills.bulkSkillPointAllocation` |
 
 `NoEtherealItemTypes` and the former Ethereal Item Rules implementation are one
-feature and one JSON block here. Transmogrify and Configurable Charsi Reward are
-explicitly outside this contribution.
+feature and one JSON block here.
 
 ## Default behavior
 
@@ -41,7 +40,7 @@ switch is disabled, so it installs no hook. Extended Item Stats supplies bounded
 4096-byte item transport and only changes tooltip presentation when an oversized
 payload actually requires it; its public switch can disable the entire feature.
 
-## Hook ownership and compatibility
+## Internal hook safety
 
 `hook-manifest.json` contains 132 uniquely owned write sites. Configuration and
 every build fail if two owners overlap. Shared call paths use one owner and
@@ -54,19 +53,15 @@ call-through consumers:
   the live entry, so both features load together.
 - `0x2A7810` belongs to Extended Item Stats; Equipped Item to Cube calls through
   that resolver.
-- `0x843D90` may remain owned by the external RemoteStash broker. Bulk Skill
-  Point Allocation does not inspect or hook it when Shift confirmation is off,
-  and Transmute Hotkey calls the living dispatcher.
-- External Transmogrify may own `0x314110` and `0x2BD480`. Extended Item Stats
-  discovers its tooltip owner in either load order. Item Durability's optional
-  bow/crossbow extension must remain off while that standalone Transmogrify owns
-  `0x314110`; enabling both owners still requires a broker or a single owner.
+- Item-record and tooltip consumers use shared owner-and-consumer pipelines.
+  Optional features therefore compose without requiring a player-selected load
+  order or compatibility setting.
 
 The final D2R `3.2.92777` validation built all five Release DLLs from one commit,
-passed 19/19 CTest tests, and completed vanilla-default and jointly enabled cold
-starts at 24/24 startup stages. The active run kept Advanced Item Tooltips,
-RemoteStash, and Transmogrify loaded, while all 16 integrated features reached
-their intended active paths. D2RLoader reported `scanned=16 active=14 disabled=2
+passed 20/20 CTest tests, and completed vanilla-default and jointly enabled cold
+starts at 24/24 startup stages. In the active run, all 16 integrated features
+reached their intended active paths. D2RLoader
+reported `scanned=16 active=14 disabled=2
 rejected=0 failed=0`; the two disabled entries were lower-priority global
 duplicates of mod-local plugins. No fresh crash was produced.
 

@@ -602,12 +602,37 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
-	if (context == nullptr)
+	if (!PSh_ValidatePluginTarget(context))
 		return false;
 
 	auto cfg = PSh_Json_LoadConfig(context);
 	const auto skillsConfig = PSh_Json_GetSection(cfg, "skills");
 	g_skillPluginOptions.Load(context, skillsConfig);
+	const auto expected = [context](uint64_t rva, const auto& bytes) noexcept {
+		return context->CheckExpectedBytes(rva, bytes, sizeof(bytes));
+	};
+	bool originalSignaturesValid = true;
+	if (g_skillPluginOptions.bEnableManaCostsLife || g_skillPluginOptions.bEnableManaCostsStamina)
+		originalSignaturesValid = originalSignaturesValid
+			&& expected(OFF_CompileSkillsTxt, EXP_CompileSkillsTxt)
+			&& expected(OFF_CheckStat, EXP_CheckStat)
+			&& expected(OFF_ClientPredict, EXP_ClientPredict)
+			&& expected(OFF_GetUseState_Call, EXP_GetUseState_Call);
+	if (g_skillPluginOptions.bEnableManaCostsLife || g_skillPluginOptions.bEnableManaCostsStamina
+		|| g_skillPluginOptions.bEnableChargedPctDrainStat)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_Consume, EXP_Consume);
+	if (g_skillPluginOptions.bEnableClassicWW)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_ClassicWW, EXP_ClassicWW);
+	if (g_skillPluginOptions.bEnableWWCtc)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_EnableWWCtC, EXP_EnableWWCtC);
+	if (g_skillPluginOptions.bTelekinesisPicksUpEverything)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_Telekinesis, EXP_Telekinesis);
+	if (g_skillPluginOptions.bEnableSelfHealParams)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_MonDoSelfHeal, EXP_MonDoSelfHeal);
+	if (!originalSignaturesValid) {
+		context->LogError("plugin-skills: configured eezstreet patch-set signature mismatch; no skill patch was applied.");
+		return false;
+	}
 	g_ExeBase = context->exeBase;
 	g_Context = context;
 
@@ -615,13 +640,15 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// Entry hook on DATATBLS_CompileSkillsTxt itself -- see the comment above
 		// ApplyManaCostsColumnsFromTxt for why this replaced the old call-site
 		// redirect into DATATBLS_CompileTxt.
-		if (!context->InstallInlineHook(OFF_CompileSkillsTxt, EXP_CompileSkillsTxt, sizeof(EXP_CompileSkillsTxt), Hook_CompileSkillsTxt, &Original_CompileSkillsTxt)) {
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("skills.manaCosts.compileSkillsTxt"),
+			OFF_CompileSkillsTxt, EXP_CompileSkillsTxt, sizeof(EXP_CompileSkillsTxt), Hook_CompileSkillsTxt, &Original_CompileSkillsTxt)) {
 			D2RL::LogErrorF(context, "plugin-skills: failed to hook CompileSkillsTxt");
 			return false;
 		}
 
 		// Hook CheckStat so the skill orb turns red when life (not mana) is too low.
-		if (!context->InstallInlineHook(OFF_CheckStat, EXP_CheckStat, sizeof(EXP_CheckStat), Hook_CheckStat, &Original_CheckStat)) {
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("skills.manaCosts.checkStat"),
+			OFF_CheckStat, EXP_CheckStat, sizeof(EXP_CheckStat), Hook_CheckStat, &Original_CheckStat)) {
 			D2RL::LogErrorF(context, "plugin-skills: failed to hook CheckStat");
 			return false;
 		}
@@ -629,7 +656,8 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// Hook client-side mana prediction to drain life instead (prevents rubber-banding).
 		// First 6 bytes: push rbx (2) + sub rsp,0x20 (4) — old API needed hookSize=6 here;
 		// the new InstallInlineHook has no hookSize param, trusting the loader to size it.
-		if (!context->InstallInlineHook(OFF_ClientPredict, EXP_ClientPredict, sizeof(EXP_ClientPredict), Hook_ClientPredict, &Original_ClientPredict)) {
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("skills.manaCosts.clientPredict"),
+			OFF_ClientPredict, EXP_ClientPredict, sizeof(EXP_ClientPredict), Hook_ClientPredict, &Original_ClientPredict)) {
 			D2RL::LogErrorF(context, "plugin-skills: failed to hook ClientPredict");
 			return false;
 		}
@@ -638,15 +666,20 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// Uses PSh_PatchCallSite (not context->PatchRel32) since Hook_GetUseState
 		// lives in this plugin DLL, more than 2GB from the exe — see the comment
 		// above PSh_PatchCallSite in plugin-shared.h.
-		(void)PSh_PatchCallSite(context, OFF_GetUseState_Call, EXP_GetUseState_Call, sizeof(EXP_GetUseState_Call),
-			reinterpret_cast<void*>(&Hook_GetUseState));
+		if (!PSh_ManifestPatchCallSite(context, PSH_MANIFEST_SITE("skills.manaCosts.getUseStateCall"),
+			OFF_GetUseState_Call, EXP_GetUseState_Call, sizeof(EXP_GetUseState_Call),
+				reinterpret_cast<void*>(&Hook_GetUseState))) {
+			D2RL::LogErrorF(context, "plugin-skills: failed to patch GetUseState call site");
+			return false;
+		}
 	}
 
 	if (g_skillPluginOptions.bEnableManaCostsLife || g_skillPluginOptions.bEnableManaCostsStamina
 		|| g_skillPluginOptions.bEnableChargedPctDrainStat) {
 		// Hook Consume; it handles the ManaCostsLife/Stamina redirect and the
 		// ChargedPctDrainStat skip itself now (see the comment above Hook_Consume).
-		if (!context->InstallInlineHook(OFF_Consume, EXP_Consume, sizeof(EXP_Consume), Hook_Consume, &Original_Consume)) {
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("skills.consume"),
+			OFF_Consume, EXP_Consume, sizeof(EXP_Consume), Hook_Consume, &Original_Consume)) {
 			D2RL::LogErrorF(context, "plugin-skills: failed to hook Consume");
 			return false;
 		}
@@ -655,13 +688,21 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (g_skillPluginOptions.bEnableClassicWW)
 	{
 		uint8_t classicWWBytes[] = { 0xB8, 0x01, 0x00, 0x00, 0x00 };
-		(void)context->PatchBytes(OFF_ClassicWW, EXP_ClassicWW, sizeof(EXP_ClassicWW), classicWWBytes, sizeof(classicWWBytes));
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("skills.classicWhirlwind"),
+			OFF_ClassicWW, EXP_ClassicWW, sizeof(EXP_ClassicWW), classicWWBytes, sizeof(classicWWBytes))) {
+			D2RL::LogErrorF(context, "plugin-skills: Classic Whirlwind patch failed");
+			return false;
+		}
 	}
 
 	if (g_skillPluginOptions.bEnableWWCtc)
 	{
 		uint8_t ctcWWBytes[] = { 0x90, 0x90, 0x90, 0x90, 0x90, 0x90 };
-		(void)context->PatchBytes(OFF_EnableWWCtC, EXP_EnableWWCtC, sizeof(EXP_EnableWWCtC), ctcWWBytes, sizeof(ctcWWBytes));
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("skills.whirlwindCtC"),
+			OFF_EnableWWCtC, EXP_EnableWWCtC, sizeof(EXP_EnableWWCtC), ctcWWBytes, sizeof(ctcWWBytes))) {
+			D2RL::LogErrorF(context, "plugin-skills: Whirlwind CtC patch failed");
+			return false;
+		}
 	}
 
 	if (g_skillPluginOptions.bTelekinesisPicksUpEverything)
@@ -670,13 +711,18 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// Hook_CanBePickedUpWithTelekinesis lives in this plugin DLL, more than
 		// 2GB from the exe — see the comment above PSh_PatchCallSite in
 		// plugin-shared.h.
-		(void)PSh_PatchCallSite(context, OFF_Telekinesis, EXP_Telekinesis, sizeof(EXP_Telekinesis),
-			reinterpret_cast<void*>(&Hook_CanBePickedUpWithTelekinesis));
+		if (!PSh_ManifestPatchCallSite(context, PSH_MANIFEST_SITE("skills.telekinesisPicksUpEverything"),
+			OFF_Telekinesis, EXP_Telekinesis, sizeof(EXP_Telekinesis),
+				reinterpret_cast<void*>(&Hook_CanBePickedUpWithTelekinesis))) {
+			D2RL::LogErrorF(context, "plugin-skills: Telekinesis call-site patch failed");
+			return false;
+		}
 	}
 
 	if (g_skillPluginOptions.bEnableSelfHealParams)
 	{
-		if (!context->InstallInlineHook(OFF_MonDoSelfHeal, EXP_MonDoSelfHeal, sizeof(EXP_MonDoSelfHeal), Hook_MonDoSelfHeal, &Original_MonDoSelfHeal)) {
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("skills.selfHealParams"),
+			OFF_MonDoSelfHeal, EXP_MonDoSelfHeal, sizeof(EXP_MonDoSelfHeal), Hook_MonDoSelfHeal, &Original_MonDoSelfHeal)) {
 			D2RL::LogErrorF(context, "plugin-skills: failed to hook MonDoSelfHeal");
 			return false;
 		}

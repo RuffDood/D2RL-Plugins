@@ -1,5 +1,6 @@
 #include <D2RLPlugin/api.h>
 #include "bulk-skill-point-allocation.h"
+#include <plugin-shared.h>
 #include "bulk-skill-point-allocation-policy.h"
 
 #include <Windows.h>
@@ -497,7 +498,7 @@ bool Load(
             0x48, 0x33, 0xC4, 0x48, 0x89
         };
         if (Settings.confirmShiftAllocation
-            && !context->InstallInlineHook(
+            && !PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("skills.bulkSkillPointAllocation.localizedString"),
                 GetLocalizedStringByKeyRva,
                 localizedStringByKeyExpected.data(),
                 static_cast<std::uint32_t>(localizedStringByKeyExpected.size()),
@@ -518,7 +519,7 @@ bool Load(
         };
         if (Settings.confirmShiftAllocation
             && !UsingExternalUiMessageBroker.load(std::memory_order_acquire)
-            && !context->InstallInlineHook(
+            && !PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("skills.bulkSkillPointAllocation.uiDispatch"),
                     UiDispatchMessageRva,
                     uiDispatchExpected.data(),
                     static_cast<std::uint32_t>(uiDispatchExpected.size()),
@@ -536,7 +537,7 @@ bool Load(
             0x24, 0x49, 0xBA, 0x05, 0x00, 0x00, 0x00, 0x66,
             0x44, 0x89, 0x44, 0x24, 0x4B
         };
-        if (!context->InstallInlineHook(
+        if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("skills.bulkSkillPointAllocation.sendPacket"),
                 SendFiveBytePacketRva,
                 sendPacketExpected.data(),
                 static_cast<std::uint32_t>(sendPacketExpected.size()),

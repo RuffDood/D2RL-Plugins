@@ -227,7 +227,7 @@ bool Load(
         GetUnitRoom = At<GetUnitRoomFn>(GetUnitRoomRva);
         IsRoomInTown = At<IsRoomInTownFn>(IsRoomInTownRva);
         ScheduleEvent = At<SetEventFn>(SetEventRva);
-        if (!context->InstallInlineHook(
+        if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("misc.preventMercDeathInTown.applyMonsterStatRegen"),
             ApplyMonsterStatRegenRva,
             ApplyMonsterStatRegenExpected.data(),
             static_cast<std::uint32_t>(ApplyMonsterStatRegenExpected.size()),

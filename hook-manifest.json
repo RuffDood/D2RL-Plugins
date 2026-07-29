@@ -333,6 +333,36 @@
       "source": "src/plugin-items/items-main.cpp"
     },
     {
+      "id": "items.physResistCap.maximum",
+      "owner": "plugin-items",
+      "feature": "items.physResistCap",
+      "kind": "byte-patch",
+      "rva": "0x4524D6",
+      "length": 1,
+      "expectedBytes": "32",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.elementalResistCap.maximum",
+      "owner": "plugin-items",
+      "feature": "items.elementalResistCap",
+      "kind": "byte-patch",
+      "rva": "0x4524DE",
+      "length": 1,
+      "expectedBytes": "5F",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
+      "id": "items.absorbCap.maximum",
+      "owner": "plugin-items",
+      "feature": "items.absorbCap",
+      "kind": "byte-patch",
+      "rva": "0x4506A1",
+      "length": 1,
+      "expectedBytes": "28",
+      "source": "src/plugin-items/items-main.cpp"
+    },
+    {
       "id": "items.etherealItemRules.itemTypeCheck",
       "owner": "plugin-items",
       "feature": "items.etherealItemRules",

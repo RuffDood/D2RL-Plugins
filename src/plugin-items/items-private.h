@@ -59,5 +59,5 @@ struct ItemPluginOptions {
 	bool bEnableAbsorbCapChange; // one byte patch, see OFF_AbsorbCap
 	uint8_t MaxAbsorbPct;
 
-	void Load(const D2RL::PluginContext* context, const nlohmann::json& cfg);
+	bool Load(const D2RL::PluginContext* context, const nlohmann::json& cfg);
 };

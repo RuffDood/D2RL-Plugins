@@ -1,4 +1,5 @@
 #include "repair-costs-cap.h"
+#include <plugin-shared.h>
 #include "repair-costs-cap-policy.h"
 
 #include <array>
@@ -404,7 +405,7 @@ bool ValidateSignatures() noexcept {
 }
 
 bool InstallChanges() noexcept {
-	if (!Context->InstallInlineHook(
+	if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.repairCostsCap.transactionCost"),
 			TransactionCostBodyRva,
 			TransactionCostBodyExpected.data(),
 			static_cast<std::uint32_t>(TransactionCostBodyExpected.size()),
@@ -413,7 +414,7 @@ bool InstallChanges() noexcept {
 		Context->LogError("plugin-items: Repair Costs Cap transaction-cost hook failed.");
 		return false;
 	}
-	if (!Context->InstallInlineHook(
+	if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.repairCostsCap.repairAllCost"),
 			RepairAllCostRva,
 			RepairAllCostExpected.data(),
 			static_cast<std::uint32_t>(RepairAllCostExpected.size()),
@@ -425,7 +426,7 @@ bool InstallChanges() noexcept {
 
 	auto replacement = RepairAllZeroCostBranchExpected;
 	replacement[RepairAllBranchDisplacementOffset] = 0x21;
-	if (!Context->PatchBytes(
+	if (!PSh_ManifestPatchBytes(Context, PSH_MANIFEST_SITE("items.repairCostsCap.zeroCostBranch"),
 			RepairAllZeroCostBranchSignatureRva,
 			RepairAllZeroCostBranchExpected.data(),
 			static_cast<std::uint32_t>(RepairAllZeroCostBranchExpected.size()),
@@ -435,7 +436,7 @@ bool InstallChanges() noexcept {
 		return false;
 	}
 	if (Settings.durabilityWearEnabled
-		&& !Context->InstallInlineHook(
+		&& !PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.repairCostsCap.repairItem"),
 			RepairItemRva,
 			RepairItemExpected.data(),
 			static_cast<std::uint32_t>(RepairItemExpected.size()),

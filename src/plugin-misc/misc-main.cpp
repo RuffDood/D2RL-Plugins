@@ -133,7 +133,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
-	if (context == nullptr) {
+	if (!PSh_ValidatePluginTarget(context)) {
 		return false;
 	}
 
@@ -142,6 +142,17 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	g_PlayersCommandLimit = misc.value("playersCommandLimit", 8);
 	g_MonsterHpPlayerCountCap = misc.value("monsterHpPlayerCountCap", 0);
 	g_MonsterExperiencePlayerCountCap = misc.value("monsterExperiencePlayerCountCap", 0);
+	if (g_PlayersCommandLimit > 8
+		&& (!context->CheckExpectedBytes(OFF_Players_AtoiCall, EXP_Players_AtoiCall, sizeof(EXP_Players_AtoiCall))
+			|| !context->CheckExpectedBytes(OFF_Players_ApplyCall, EXP_Players_ApplyCall, sizeof(EXP_Players_ApplyCall)))) {
+		context->LogError("plugin-misc: /players command signature mismatch; no /players patch was applied.");
+		return false;
+	}
+	if ((g_MonsterHpPlayerCountCap > 0 || g_MonsterExperiencePlayerCountCap > 0)
+		&& !context->CheckExpectedBytes(OFF_GetPlayerCountBonus, EXP_GetPlayerCountBonus, sizeof(EXP_GetPlayerCountBonus))) {
+		context->LogError("plugin-misc: monster player-count cap signature mismatch; hook refused.");
+		return false;
+	}
 	if (!RuffnecKk::CubeQuickMove::Load(context, misc)) {
 		return false;
 	}
@@ -159,14 +170,20 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		Real_PlayersAtoi    = reinterpret_cast<PlayersAtoi_t>(context->exeBase + OFF_Players_Atoi);
 		Real_SetPlayerCount = reinterpret_cast<SetPlayerCount_t>(context->exeBase + OFF_SetPlayerCount);
 
-		(void)context->PatchRel32(OFF_Players_AtoiCall, EXP_Players_AtoiCall, sizeof(EXP_Players_AtoiCall),
-			reinterpret_cast<uint64_t>(&Hook_PlayersAtoi) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
-		(void)context->PatchRel32(OFF_Players_ApplyCall, EXP_Players_ApplyCall, sizeof(EXP_Players_ApplyCall),
-			reinterpret_cast<uint64_t>(&Hook_SetPlayerCount) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
+		if (!PSh_ManifestPatchCallSite(context, PSH_MANIFEST_SITE("misc.playersCommandLimit.parseCall"),
+				OFF_Players_AtoiCall, EXP_Players_AtoiCall, sizeof(EXP_Players_AtoiCall),
+				reinterpret_cast<void*>(&Hook_PlayersAtoi))
+			|| !PSh_ManifestPatchCallSite(context, PSH_MANIFEST_SITE("misc.playersCommandLimit.applyCall"),
+				OFF_Players_ApplyCall, EXP_Players_ApplyCall, sizeof(EXP_Players_ApplyCall),
+				reinterpret_cast<void*>(&Hook_SetPlayerCount))) {
+			context->LogError("plugin-misc: /players command call-site patch failed.");
+			return false;
+		}
 	}
 
 	if (g_MonsterHpPlayerCountCap > 0 || g_MonsterExperiencePlayerCountCap > 0) {
-		if (!context->InstallInlineHook(OFF_GetPlayerCountBonus, EXP_GetPlayerCountBonus, sizeof(EXP_GetPlayerCountBonus),
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("misc.playerCountCaps.getBonus"),
+				OFF_GetPlayerCountBonus, EXP_GetPlayerCountBonus, sizeof(EXP_GetPlayerCountBonus),
 				&Hook_GetPlayerCountBonus, &Real_GetPlayerCountBonus)) {
 			context->LogError("plugin-misc: failed to hook GetPlayerCountBonus");
 			return false;

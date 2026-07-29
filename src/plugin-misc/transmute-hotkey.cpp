@@ -1,4 +1,5 @@
 #include "transmute-hotkey.h"
+#include <plugin-shared.h>
 #include "transmute-hotkey-policy.h"
 
 #include <Windows.h>
@@ -681,7 +682,7 @@ bool Load(
     FindTopLevelPanel = At<FindTopLevelPanelFn>(FindTopLevelPanelRva);
     FindWidget = At<FindWidgetFn>(FindWidgetRva);
 
-    if (!context->InstallInlineHook(
+    if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("misc.transmuteHotkey.integratedCubeUpdate"),
             IntegratedCubeUpdateRva,
             IntegratedCubeUpdateExpected.data(),
             static_cast<std::uint32_t>(IntegratedCubeUpdateExpected.size()),
@@ -692,7 +693,7 @@ bool Load(
             "plugin-misc: Transmute Hotkey integrated Cube hook failed.");
         return false;
     }
-    if (!context->InstallInlineHook(
+    if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("misc.transmuteHotkey.standaloneCubeUpdate"),
             StandaloneCubeUpdateRva,
             StandaloneCubeUpdateExpected.data(),
             static_cast<std::uint32_t>(StandaloneCubeUpdateExpected.size()),

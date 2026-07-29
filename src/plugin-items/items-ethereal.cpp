@@ -1,4 +1,5 @@
 #include "items-ethereal.h"
+#include <plugin-shared.h>
 #include "items-ethereal-policy.h"
 
 #include <intrin.h>
@@ -246,7 +247,7 @@ bool InstallExclusionHook() noexcept {
 	if (!HasExcludedItemTypes(Settings)) return true;
 	GetItemContext = At<GetItemContextFn>(GetItemContextRva);
 	GetDataTables = At<GetDataTablesFn>(GetDataTablesRva);
-	if (!Context->InstallInlineHook(
+	if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.etherealItemRules.itemTypeCheck"),
 			CheckItemTypeRva,
 			ExpectedCheckItemType.data(),
 			static_cast<std::uint32_t>(ExpectedCheckItemType.size()),
@@ -261,7 +262,7 @@ bool InstallExclusionHook() noexcept {
 
 bool InstallRulePatches() noexcept {
 	if (PatchIndestructibleItems(Settings)) {
-		if (!Context->PatchBytes(
+		if (!PSh_ManifestPatchBytes(Context, PSH_MANIFEST_SITE("items.etherealItemRules.indestructibleHelper"),
 				IndestructibleHelperCaveRva,
 				ExpectedIndestructibleHelperCave.data(),
 				static_cast<std::uint32_t>(ExpectedIndestructibleHelperCave.size()),
@@ -271,7 +272,7 @@ bool InstallRulePatches() noexcept {
 			Context->LogError("plugin-items: RuffnecKk ethereal helper patch failed.");
 			return false;
 		}
-		if (!Context->PatchCallRel32(
+		if (!PSh_ManifestPatchCallRel32(Context, PSH_MANIFEST_SITE("items.etherealItemRules.durabilityEligibilityCall"),
 				DurabilityEligibilityCallRva,
 				ExpectedDurabilityEligibilityCall.data(),
 				static_cast<std::uint32_t>(ExpectedDurabilityEligibilityCall.size()),
@@ -282,7 +283,7 @@ bool InstallRulePatches() noexcept {
 		}
 	}
 	if (PatchSetItems(Settings)
-		&& !Context->PatchNop(
+		&& !PSh_ManifestPatchNop(Context, PSH_MANIFEST_SITE("items.etherealItemRules.setEligibility"),
 			SetQualityBranchRva,
 			ExpectedSetQualityBranch.data(),
 			static_cast<std::uint32_t>(ExpectedSetQualityBranch.size()),
@@ -292,7 +293,7 @@ bool InstallRulePatches() noexcept {
 		return false;
 	}
 	if (PatchChance(Settings)
-		&& !Context->PatchWriteU8(
+		&& !PSh_ManifestPatchWriteU8(Context, PSH_MANIFEST_SITE("items.etherealItemRules.chance"),
 			EtherealChanceRva,
 			ExpectedEtherealChance.data(),
 			static_cast<std::uint32_t>(ExpectedEtherealChance.size()),

@@ -1,4 +1,5 @@
 #include "enhanced-damage-min-max-fix.h"
+#include <plugin-shared.h>
 #include "enhanced-damage-min-max-fix-policy.h"
 
 #include <array>
@@ -192,7 +193,7 @@ D2RL::ConsoleCommandResult Status(
 }
 
 bool InstallHook() noexcept {
-	if (!Context->InstallInlineHook(
+	if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.enhancedDamageMinMaxFix.evaluateAndUpdateStat"),
 			EvaluateAndUpdateStatRva,
 			ExpectedEvaluateAndUpdateStat.data(),
 			static_cast<std::uint32_t>(ExpectedEvaluateAndUpdateStat.size()),

@@ -43,8 +43,8 @@ CMake validates the manifest during configuration and before every build. A dupl
 The shipped JSON enables five selected features by default: Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and Extended Item Stats. Other newly added configurable features remain disabled. `items.extendedItemStats` informs players that the pack supports item payloads up to 4096 bytes and makes only oversized tooltips scrollable; setting `enabled=false` leaves its hooks and input listeners uninstalled.
 
 See [RUFFNECKK-INTEGRATION.md](RUFFNECKK-INTEGRATION.md) for the complete
-feature inventory, hook-ownership decisions, compatibility limits, final cold
-start results, and the recommended player test batches.
+feature inventory, internal safety design, validation results, and recommended
+player test batches.
 
 ## Plugins
 
@@ -58,7 +58,7 @@ start results, and the recommended player test batches.
 
 ## Configuration
 
-`D2RPlugins.json` contains every public option with documented defaults. Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube are enabled in the shipped player configuration; other new configurable features remain disabled. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Single keys and combinations are accepted; with `consume=true`, a successfully captured shortcut does not also reach the game, while the key keeps its normal behavior outside the Cube. Vendor Stock Refresh is available as `items.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels. Prevent Merc Death in Town is available as `misc.preventMercDeathInTown`; enabling it suppresses only projected-lethal persistent-damage ticks against mercenaries currently in town.
+`D2RPlugins.json` contains every public option with documented defaults. Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and Extended Item Stats are enabled in the shipped player configuration; other new configurable features remain disabled. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Single keys and combinations are accepted; with `consume=true`, a successfully captured shortcut does not also reach the game, while the key keeps its normal behavior outside the Cube. Vendor Stock Refresh is available as `items.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels. Prevent Merc Death in Town is available as `misc.preventMercDeathInTown`; enabling it suppresses only projected-lethal persistent-damage ticks against mercenaries currently in town.
 
 ```jsonc
 {

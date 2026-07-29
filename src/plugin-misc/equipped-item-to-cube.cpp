@@ -1,4 +1,5 @@
 #include "equipped-item-to-cube.h"
+#include <plugin-shared.h>
 #include "equipped-item-to-cube-policy.h"
 
 #include <Windows.h>
@@ -212,7 +213,7 @@ void __fastcall HookActualEquippedClickHandler(
 }
 
 bool InstallHooks() noexcept {
-    if (!Context->InstallInlineHook(
+    if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("misc.equippedItemToCube.queuePacket"),
             QueuePacketRva,
             QueuePacketExpected.data(),
             static_cast<std::uint32_t>(QueuePacketExpected.size()),
@@ -222,7 +223,7 @@ bool InstallHooks() noexcept {
             "plugin-misc: Equipped Item to Cube outgoing packet hook refused.");
         return false;
     }
-    if (!Context->InstallInlineHook(
+    if (!PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("misc.equippedItemToCube.equippedClick"),
             ActualEquippedClickHandlerRva,
             ActualEquippedClickHandlerExpected.data(),
             static_cast<std::uint32_t>(ActualEquippedClickHandlerExpected.size()),

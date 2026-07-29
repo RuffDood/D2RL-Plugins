@@ -1,4 +1,5 @@
 #include "gamble-screen-limit.h"
+#include <plugin-shared.h>
 #include "gamble-screen-limit-policy.h"
 
 #include <array>
@@ -50,7 +51,7 @@ bool InstallPatch() noexcept {
 		);
 		return false;
 	}
-	if (!Context->PatchWriteU8(
+	if (!PSh_ManifestPatchWriteU8(Context, PSH_MANIFEST_SITE("items.gambleScreenLimit.generationLimit"),
 			GambleLoopLimitRva,
 			GambleLimitExpected.data(),
 			static_cast<std::uint32_t>(GambleLimitExpected.size()),

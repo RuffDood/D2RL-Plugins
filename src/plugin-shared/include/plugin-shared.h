@@ -10,6 +10,26 @@
 #define PLUGINID_QUESTS 0xEE000004
 #define PLUGINID_SKILLS 0xEE000005
 
+inline constexpr uint32_t PSh_SupportedD2RBuild = 92777;
+
+inline bool PSh_ValidatePluginTarget(const D2RL::PluginContext* context) noexcept
+{
+	if (context == nullptr)
+		return false;
+	if (context->exeBase == 0)
+	{
+		context->LogError("PluginPack: D2R executable base is unavailable.");
+		return false;
+	}
+	if (context->modDataVersionBuild != 0
+		&& context->modDataVersionBuild != PSh_SupportedD2RBuild)
+	{
+		context->LogError("PluginPack: only D2R build 92777 is supported.");
+		return false;
+	}
+	return true;
+}
+
 // ── D2R types ───────────────────────────────────────────────────────
 
 enum class D2Difficulty : uint8_t {
@@ -506,9 +526,96 @@ extern "C" void* PSh_AllocNear(void* hint, size_t size) noexcept;
 // calling convention and parameters — it's simply substituted for whatever
 // the CALL used to target. expected/expectedSize are the call site's current
 // 5 bytes (E8 + rel32), verified before patching; pass the site's known
-// EXP_* array.
-extern "C" bool PSh_PatchCallSite(const D2RL::PluginContext* context, uint64_t callOffset,
-                                   const void* expected, uint32_t expectedSize, void* hookFn) noexcept;
+// EXP_* array. Every executable write must carry exactly one manifest ID;
+// CMake audits these IDs against hook-manifest.json and rejects raw patch API
+// calls outside plugin-shared.
+#define PSH_MANIFEST_SITE(id) id
+
+inline bool PSh_ManifestPatchBytes(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t rva,
+	const void* expected,
+	uint32_t expectedSize,
+	const void* bytes,
+	uint32_t size) noexcept
+{
+	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
+		&& context->PatchBytes(rva, expected, expectedSize, bytes, size);
+}
+
+inline bool PSh_ManifestPatchNop(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t rva,
+	const void* expected,
+	uint32_t expectedSize,
+	uint32_t size) noexcept
+{
+	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
+		&& context->PatchNop(rva, expected, expectedSize, size);
+}
+
+inline bool PSh_ManifestPatchWriteU8(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t rva,
+	const void* expected,
+	uint32_t expectedSize,
+	uint8_t value) noexcept
+{
+	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
+		&& context->PatchWriteU8(rva, expected, expectedSize, value);
+}
+
+inline bool PSh_ManifestPatchRel32(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t rva,
+	const void* expected,
+	uint32_t expectedSize,
+	uint64_t targetRva,
+	uint32_t size,
+	D2RL::Rel32PatchKind kind) noexcept
+{
+	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
+		&& context->PatchRel32(rva, expected, expectedSize, targetRva, size, kind);
+}
+
+inline bool PSh_ManifestPatchCallRel32(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t rva,
+	const void* expected,
+	uint32_t expectedSize,
+	uint64_t targetRva,
+	uint32_t size = 5) noexcept
+{
+	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
+		&& context->PatchCallRel32(rva, expected, expectedSize, targetRva, size);
+}
+
+template <typename Function>
+inline bool PSh_ManifestInstallInlineHook(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t rva,
+	const void* expected,
+	uint32_t expectedSize,
+	Function target,
+	Function* original = nullptr) noexcept
+{
+	return context != nullptr && manifestId != nullptr && *manifestId != '\0'
+		&& context->InstallInlineHook(rva, expected, expectedSize, target, original);
+}
+
+extern "C" bool PSh_ManifestPatchCallSite(
+	const D2RL::PluginContext* context,
+	const char* manifestId,
+	uint64_t callOffset,
+	const void* expected,
+	uint32_t expectedSize,
+	void* hookFn) noexcept;
 
 // ── RNG ───────────────────────────────────────────────────────────────────────
 

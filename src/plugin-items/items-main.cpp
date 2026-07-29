@@ -16,8 +16,6 @@
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
-static constexpr uint32_t SUPPORTED_BUILD = 92777;
-
 // Both found via D2MOO source cross-reference: profile's containing functions
 // are D2MOO's sub_6FC4D5E0 (magic, single prefix+suffix roll) and the
 // table-based new-format rare-item roll near D2GAME_RollRareItem_6FC53360
@@ -48,6 +46,14 @@ static constexpr uint64_t OFF_GetInventoryGoldLimit      = 0x34b320; // D2GAME_G
 static constexpr uint64_t OFF_GoldPenaltyCall            = 0x424ad1; // lone CALL site that applies the gold penalty (D2GAME_ApplyDeathGoldPenalty)
 static constexpr uint64_t OFF_RunewordQualityJumpTable   = 0x372638; // inside ITEMS_ValidateRuneword
 static constexpr unsigned char RUNEWORD_QUALITY_PASS[]   = { 0xE4, 0x22, 0x37, 0x00 }; // RVA 0x3722e4 LE
+static constexpr const char* RUNEWORD_QUALITY_MANIFEST_IDS[6] = {
+	PSH_MANIFEST_SITE("items.runewordQualities.magic"),
+	PSH_MANIFEST_SITE("items.runewordQualities.set"),
+	PSH_MANIFEST_SITE("items.runewordQualities.rare"),
+	PSH_MANIFEST_SITE("items.runewordQualities.unique"),
+	PSH_MANIFEST_SITE("items.runewordQualities.crafted"),
+	PSH_MANIFEST_SITE("items.runewordQualities.tempered"),
+};
 
 static constexpr uint64_t OFF_FillStoreInventory         = 0x53c9f0; // D2GAME_NPC_FillStoreInventory
 static constexpr uint64_t OFF_GenerateStoreItem          = 0x540ea0; // D2GAME_NPC_GenerateStoreItem
@@ -106,6 +112,9 @@ static constexpr uint8_t EXP_CreateCompiledTCStructCall[5]  = { 0xE8, 0x39, 0xE7
 static constexpr uint8_t EXP_TCDropFunction[6]              = { 0x40, 0x53, 0x55, 0x56, 0x57, 0x41 };
 static constexpr uint8_t EXP_ConditionGate[5]               = { 0x48, 0x89, 0x5C, 0x24, 0x08 };
 static constexpr uint8_t EXP_ConditionCalcEval[5]           = { 0x48, 0x89, 0x5C, 0x24, 0x08 };
+static constexpr uint8_t EXP_PhysResistCap[1]               = { 0x32 };
+static constexpr uint8_t EXP_ElementalResistCap[1]          = { 0x5F };
+static constexpr uint8_t EXP_AbsorbCap[1]                   = { 0x28 };
 
 // ── D2ItemsTxt field offsets (confirmed from Ghidra, stride = 0x1c0) ─────────
 static constexpr uint32_t ITEMREC_STRIDE      = 0x1c0;
@@ -494,7 +503,7 @@ static int __fastcall Hook_GetInventoryGoldLimit(int64_t unitPtr)
 
 // ── INI loading ───────────────────────────────────────────────────────────────
 
-void ItemPluginOptions::Load(const D2RL::PluginContext* context, const nlohmann::json& cfg)
+bool ItemPluginOptions::Load(const D2RL::PluginContext* context, const nlohmann::json& cfg)
 {
 	bMagicItemsSpawnIdentified = cfg.value("magicItemsSpawnIdentified", false);
 	bRareItemsSpawnIdentified  = cfg.value("rareItemsSpawnIdentified", false);
@@ -550,18 +559,34 @@ void ItemPluginOptions::Load(const D2RL::PluginContext* context, const nlohmann:
 	{
 		auto physCap = cfg.value("physResistCap", nlohmann::json::object());
 		bEnablePhysResistMaxChange = physCap.value("enabled", false);
-		MaxPhysResist              = physCap.value("max", 50);
+		const auto maximum = physCap.value("max", 50);
+		if (maximum < 0 || maximum > 255) {
+			context->LogError("plugin-items: items.physResistCap.max must be between 0 and 255.");
+			return false;
+		}
+		MaxPhysResist = static_cast<uint8_t>(maximum);
 	}
 	{
 		auto elemCap = cfg.value("elementalResistCap", nlohmann::json::object());
 		bEnableElementalResistMaxChange = elemCap.value("enabled", false);
-		MaxElementalResist              = elemCap.value("max", 95);
+		const auto maximum = elemCap.value("max", 95);
+		if (maximum < 0 || maximum > 255) {
+			context->LogError("plugin-items: items.elementalResistCap.max must be between 0 and 255.");
+			return false;
+		}
+		MaxElementalResist = static_cast<uint8_t>(maximum);
 	}
 	{
 		auto absorbCap = cfg.value("absorbCap", nlohmann::json::object());
 		bEnableAbsorbCapChange = absorbCap.value("enabled", false);
-		MaxAbsorbPct           = absorbCap.value("max", 40);
+		const auto maximum = absorbCap.value("max", 40);
+		if (maximum < 0 || maximum > 255) {
+			context->LogError("plugin-items: items.absorbCap.max must be between 0 and 255.");
+			return false;
+		}
+		MaxAbsorbPct = static_cast<uint8_t>(maximum);
 	}
+	return true;
 }
 
 // Returns the SHL shift count for a given power-of-2 multiplier (floor log2).
@@ -590,22 +615,69 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) noexcept -> bool {
-	if (context == nullptr) {
-		return false;
-	}
-	if (context->modDataVersionBuild != 0
-		&& context->modDataVersionBuild != SUPPORTED_BUILD) {
-		D2RL::LogErrorF(context, "plugin-items: only D2R build 92777 is supported");
-		return false;
-	}
-	if (context->exeBase == 0) {
-		D2RL::LogErrorF(context, "plugin-items: D2R executable base is unavailable");
+	if (!PSh_ValidatePluginTarget(context)) {
 		return false;
 	}
 
 	auto cfg = PSh_Json_LoadConfig(context);
 	const auto itemsConfig = PSh_Json_GetSection(cfg, "items");
-	g_pluginOptions.Load(context, itemsConfig);
+	if (!g_pluginOptions.Load(context, itemsConfig)) {
+		return false;
+	}
+	const auto expected = [context](uint64_t rva, const auto& bytes) noexcept {
+		return context->CheckExpectedBytes(rva, bytes, sizeof(bytes));
+	};
+	bool originalSignaturesValid = true;
+	if (g_pluginOptions.bEnableVendorOverhaul) {
+		originalSignaturesValid = originalSignaturesValid
+			&& expected(OFF_FillStoreInventory, EXP_FillStoreInventory);
+		if (g_pluginOptions.VendorNightmareUpgradeBaseChance > 0)
+			originalSignaturesValid = originalSignaturesValid && expected(OFF_NMUberBaseImm, EXP_NMUberBaseImm);
+		if (g_pluginOptions.VendorHellUberUpgradeBaseChance > 0)
+			originalSignaturesValid = originalSignaturesValid && expected(OFF_HellUberBaseImm, EXP_HellUberBaseImm);
+		if (g_pluginOptions.VendorHellUpgradeBaseChance > 0)
+			originalSignaturesValid = originalSignaturesValid && expected(OFF_HellUltraBaseImm, EXP_HellUltraBaseImm);
+		if (g_pluginOptions.VendorNightmareUpgradeLevelScale > 0)
+			originalSignaturesValid = originalSignaturesValid && expected(OFF_NMUberScaleByte, EXP_NMUberScaleByte);
+		if (g_pluginOptions.VendorHellUberUpgradeLevelScale > 0)
+			originalSignaturesValid = originalSignaturesValid && expected(OFF_HellUberScaleByte, EXP_HellUberScaleByte);
+		if (g_pluginOptions.VendorHellUpgradeLevelScale > 0)
+			originalSignaturesValid = originalSignaturesValid && expected(OFF_HellUltraScaleByte, EXP_HellUltraScaleByte);
+	}
+	if (g_pluginOptions.GambleFilter == GambleOption::NoRingAmuletGuarantee)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_FillGamble_JgeOpcode, EXP_FillGamble_JgeOpcode);
+	else if (g_pluginOptions.GambleFilter == GambleOption::Bitfield)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_FillGamble, EXP_FillGamble);
+	if (g_pluginOptions.bDisableGoldPenalty)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_GoldPenaltyCall, EXP_GoldPenaltyCall);
+	if (g_pluginOptions.bMagicItemsSpawnIdentified)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_MagicItemsSpawnIdentified, EXP_MagicItemsSpawnIdentified);
+	if (g_pluginOptions.bRareItemsSpawnIdentified)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_RareItemsSpawnIdentified, EXP_RareItemsSpawnIdentified);
+	if (g_pluginOptions.InventoryGoldLimitChange != GoldOption::Disabled)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_GetInventoryGoldLimit, EXP_GetInventoryGoldLimit);
+	for (int i = 0; i < 6; ++i) {
+		if (g_pluginOptions.bRunewordQualities[i])
+			originalSignaturesValid = originalSignaturesValid
+				&& expected(OFF_RunewordQualityJumpTable + static_cast<uint64_t>(i) * 4, EXP_RunewordQualityJumpTableEntry);
+	}
+	if (g_pluginOptions.bEnablePlayerConditionCalc)
+		originalSignaturesValid = originalSignaturesValid
+			&& expected(OFF_CompileTxtCallInTC, EXP_CompileTxtCallInTC)
+			&& expected(OFF_CreateCompiledTCStructCall, EXP_CreateCompiledTCStructCall)
+			&& expected(OFF_TCDropFunction, EXP_TCDropFunction)
+			&& expected(OFF_ConditionGate, EXP_ConditionGate)
+			&& expected(OFF_ConditionCalcEval, EXP_ConditionCalcEval);
+	if (g_pluginOptions.bEnablePhysResistMaxChange)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_PhysResist, EXP_PhysResistCap);
+	if (g_pluginOptions.bEnableElementalResistMaxChange)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_ElementalResist, EXP_ElementalResistCap);
+	if (g_pluginOptions.bEnableAbsorbCapChange)
+		originalSignaturesValid = originalSignaturesValid && expected(OFF_AbsorbCap, EXP_AbsorbCap);
+	if (!originalSignaturesValid) {
+		context->LogError("plugin-items: configured eezstreet patch-set signature mismatch; no item patch was applied.");
+		return false;
+	}
 	g_exeBase = context->exeBase;
 	if (!RuffnecKk::ExtendedItemStats::Load(context, itemsConfig)) {
 		return false;
@@ -648,10 +720,12 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (g_pluginOptions.bEnableVendorOverhaul)
 	{
 		// First instruction is MOV qword ptr [RSP+0x18],R8 = 5 bytes (4C 89 44 24 18).
-		if (!context->InstallInlineHook(OFF_FillStoreInventory, EXP_FillStoreInventory, sizeof(EXP_FillStoreInventory),
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.vendorOverhaul.fillStoreInventory"),
+			OFF_FillStoreInventory, EXP_FillStoreInventory, sizeof(EXP_FillStoreInventory),
 			Hook_FillStoreInventory, &Original_FillStoreInventory))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook FillStoreInventory");
+			return false;
 		}
 
 		// Difficulty upgrade threshold patches inside D2GAME_NPC_GenerateStoreItem.
@@ -659,16 +733,34 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 			uint32_t nmBase = (uint32_t)g_pluginOptions.VendorNightmareUpgradeBaseChance;
 			uint32_t hellBase = (uint32_t)g_pluginOptions.VendorHellUberUpgradeBaseChance;
 			uint32_t ultBase = (uint32_t)g_pluginOptions.VendorHellUpgradeBaseChance;
-			(void)context->PatchBytes(OFF_NMUberBaseImm, EXP_NMUberBaseImm, sizeof(EXP_NMUberBaseImm), &nmBase, sizeof(nmBase));
-			(void)context->PatchBytes(OFF_HellUberBaseImm, EXP_HellUberBaseImm, sizeof(EXP_HellUberBaseImm), &hellBase, sizeof(hellBase));
-			(void)context->PatchBytes(OFF_HellUltraBaseImm, EXP_HellUltraBaseImm, sizeof(EXP_HellUltraBaseImm), &ultBase, sizeof(ultBase));
+			if ((g_pluginOptions.VendorNightmareUpgradeBaseChance > 0
+					&& !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.vendorOverhaul.nightmareBase"),
+						OFF_NMUberBaseImm, EXP_NMUberBaseImm, sizeof(EXP_NMUberBaseImm), &nmBase, sizeof(nmBase)))
+				|| (g_pluginOptions.VendorHellUberUpgradeBaseChance > 0
+					&& !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.vendorOverhaul.hellUberBase"),
+						OFF_HellUberBaseImm, EXP_HellUberBaseImm, sizeof(EXP_HellUberBaseImm), &hellBase, sizeof(hellBase)))
+				|| (g_pluginOptions.VendorHellUpgradeBaseChance > 0
+					&& !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.vendorOverhaul.hellBase"),
+						OFF_HellUltraBaseImm, EXP_HellUltraBaseImm, sizeof(EXP_HellUltraBaseImm), &ultBase, sizeof(ultBase)))) {
+				D2RL::LogErrorF(context, "plugin-items: Vendor Overhaul base-chance patch failed");
+				return false;
+			}
 
 			unsigned char nmScale = ShiftCount(g_pluginOptions.VendorNightmareUpgradeLevelScale);
 			unsigned char hellScale = ShiftCount(g_pluginOptions.VendorHellUberUpgradeLevelScale);
 			unsigned char ultScale = ShiftCount(g_pluginOptions.VendorHellUpgradeLevelScale);
-			(void)context->PatchBytes(OFF_NMUberScaleByte, EXP_NMUberScaleByte, sizeof(EXP_NMUberScaleByte), &nmScale, sizeof(nmScale));
-			(void)context->PatchBytes(OFF_HellUberScaleByte, EXP_HellUberScaleByte, sizeof(EXP_HellUberScaleByte), &hellScale, sizeof(hellScale));
-			(void)context->PatchBytes(OFF_HellUltraScaleByte, EXP_HellUltraScaleByte, sizeof(EXP_HellUltraScaleByte), &ultScale, sizeof(ultScale));
+			if ((g_pluginOptions.VendorNightmareUpgradeLevelScale > 0
+					&& !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.vendorOverhaul.nightmareScale"),
+						OFF_NMUberScaleByte, EXP_NMUberScaleByte, sizeof(EXP_NMUberScaleByte), &nmScale, sizeof(nmScale)))
+				|| (g_pluginOptions.VendorHellUberUpgradeLevelScale > 0
+					&& !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.vendorOverhaul.hellUberScale"),
+						OFF_HellUberScaleByte, EXP_HellUberScaleByte, sizeof(EXP_HellUberScaleByte), &hellScale, sizeof(hellScale)))
+				|| (g_pluginOptions.VendorHellUpgradeLevelScale > 0
+					&& !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.vendorOverhaul.hellScale"),
+						OFF_HellUltraScaleByte, EXP_HellUltraScaleByte, sizeof(EXP_HellUltraScaleByte), &ultScale, sizeof(ultScale)))) {
+				D2RL::LogErrorF(context, "plugin-items: Vendor Overhaul level-scale patch failed");
+				return false;
+			}
 		}
 	}
 
@@ -677,22 +769,32 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// Change JGE (0x7D) → JMP (0xEB) at the ring/amulet override check in FillGamble.
 		// This makes the jump unconditional, permanently skipping the forced ring/amulet logic.
 		unsigned char patch[] = { 0xEB };
-		(void)context->PatchBytes(OFF_FillGamble_JgeOpcode, EXP_FillGamble_JgeOpcode, sizeof(EXP_FillGamble_JgeOpcode), patch, sizeof(patch));
+		if (!PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.gambleFilter.noRingAmuletGuarantee"),
+			OFF_FillGamble_JgeOpcode, EXP_FillGamble_JgeOpcode, sizeof(EXP_FillGamble_JgeOpcode), patch, sizeof(patch))) {
+			D2RL::LogErrorF(context, "plugin-items: Gamble Filter branch patch failed");
+			return false;
+		}
 	}
 	else if (g_pluginOptions.GambleFilter == GambleOption::Bitfield)
 	{
 		// First 7 bytes: PUSH RBP (1) + PUSH RSI (1) + PUSH RDI (1) + PUSH R14 (2) + PUSH R15 (2).
-		if (!context->InstallInlineHook(OFF_FillGamble, EXP_FillGamble, sizeof(EXP_FillGamble),
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.gambleFilter.bitfield"),
+			OFF_FillGamble, EXP_FillGamble, sizeof(EXP_FillGamble),
 			Hook_FillGamble_Bitfield, &Original_FillGamble))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook FillGamble");
+			return false;
 		}
 	}
 
 	if (g_pluginOptions.bDisableGoldPenalty)
 	{
 		// CALL is 5 bytes (E8 + 4-byte rel32); replace with NOPs to skip the penalty entirely.
-		(void)context->PatchNop(OFF_GoldPenaltyCall, EXP_GoldPenaltyCall, sizeof(EXP_GoldPenaltyCall), 5);
+		if (!PSh_ManifestPatchNop(context, PSH_MANIFEST_SITE("items.disableGoldPenalty"),
+			OFF_GoldPenaltyCall, EXP_GoldPenaltyCall, sizeof(EXP_GoldPenaltyCall), 5)) {
+			D2RL::LogErrorF(context, "plugin-items: Disable Gold Penalty patch failed");
+			return false;
+		}
 	}
 
 	if (g_pluginOptions.bMagicItemsSpawnIdentified)
@@ -700,21 +802,31 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		// CALL is 5 bytes (E8 + 4-byte rel32); NOP out the IFLAG_IDENTIFIED-clear
 		// call so the item keeps its default identified state. See the comment by
 		// OFF_MagicItemsSpawnIdentified's declaration.
-		(void)context->PatchNop(OFF_MagicItemsSpawnIdentified, EXP_MagicItemsSpawnIdentified, sizeof(EXP_MagicItemsSpawnIdentified), 5);
+		if (!PSh_ManifestPatchNop(context, PSH_MANIFEST_SITE("items.magicItemsSpawnIdentified"),
+			OFF_MagicItemsSpawnIdentified, EXP_MagicItemsSpawnIdentified, sizeof(EXP_MagicItemsSpawnIdentified), 5)) {
+			D2RL::LogErrorF(context, "plugin-items: Magic Items Spawn Identified patch failed");
+			return false;
+		}
 	}
 
 	if (g_pluginOptions.bRareItemsSpawnIdentified)
 	{
-		(void)context->PatchNop(OFF_RareItemsSpawnIdentified, EXP_RareItemsSpawnIdentified, sizeof(EXP_RareItemsSpawnIdentified), 5);
+		if (!PSh_ManifestPatchNop(context, PSH_MANIFEST_SITE("items.rareItemsSpawnIdentified"),
+			OFF_RareItemsSpawnIdentified, EXP_RareItemsSpawnIdentified, sizeof(EXP_RareItemsSpawnIdentified), 5)) {
+			D2RL::LogErrorF(context, "plugin-items: Rare Items Spawn Identified patch failed");
+			return false;
+		}
 	}
 
 	if (g_pluginOptions.InventoryGoldLimitChange != GoldOption::Disabled)
 	{
 		// SUB RSP,0x28 (4 bytes) + TEST RCX,RCX (3 bytes) = 7 bytes.
-		if (!context->InstallInlineHook(OFF_GetInventoryGoldLimit, EXP_GetInventoryGoldLimit, sizeof(EXP_GetInventoryGoldLimit),
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.inventoryGoldLimit"),
+			OFF_GetInventoryGoldLimit, EXP_GetInventoryGoldLimit, sizeof(EXP_GetInventoryGoldLimit),
 			Hook_GetInventoryGoldLimit, &Original_GetInventoryGoldLimit))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook GetInventoryGoldLimit");
+			return false;
 		}
 	}
 
@@ -722,35 +834,72 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	{
 		if (g_pluginOptions.bRunewordQualities[i])
 		{
-			(void)context->PatchBytes(OFF_RunewordQualityJumpTable + static_cast<uint64_t>(i) * 4,
-				EXP_RunewordQualityJumpTableEntry, sizeof(EXP_RunewordQualityJumpTableEntry), RUNEWORD_QUALITY_PASS, sizeof(RUNEWORD_QUALITY_PASS));
+			if (!PSh_ManifestPatchBytes(context, RUNEWORD_QUALITY_MANIFEST_IDS[i],
+				OFF_RunewordQualityJumpTable + static_cast<uint64_t>(i) * 4,
+				EXP_RunewordQualityJumpTableEntry, sizeof(EXP_RunewordQualityJumpTableEntry), RUNEWORD_QUALITY_PASS, sizeof(RUNEWORD_QUALITY_PASS))) {
+				D2RL::LogErrorF(context, "plugin-items: Runeword Qualities patch failed");
+				return false;
+			}
 		}
 	}
 
 	if (g_pluginOptions.bEnablePlayerConditionCalc)
 	{
-		(void)context->PatchRel32(OFF_CompileTxtCallInTC, EXP_CompileTxtCallInTC, sizeof(EXP_CompileTxtCallInTC),
-			reinterpret_cast<uint64_t>(&Hook_CompileTxt_TC) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
-		(void)context->PatchRel32(OFF_CreateCompiledTCStructCall, EXP_CreateCompiledTCStructCall, sizeof(EXP_CreateCompiledTCStructCall),
-			reinterpret_cast<uint64_t>(&Hook_CreateCompiledTCStruct) - context->exeBase, 5, D2RL::Rel32PatchKind::Call);
+		if (!PSh_ManifestPatchCallSite(context, PSH_MANIFEST_SITE("items.playerConditionCalc.compileTxtCall"),
+				OFF_CompileTxtCallInTC, EXP_CompileTxtCallInTC, sizeof(EXP_CompileTxtCallInTC),
+				reinterpret_cast<void*>(&Hook_CompileTxt_TC))
+			|| !PSh_ManifestPatchCallSite(context, PSH_MANIFEST_SITE("items.playerConditionCalc.createCompiledStructCall"),
+				OFF_CreateCompiledTCStructCall, EXP_CreateCompiledTCStructCall, sizeof(EXP_CreateCompiledTCStructCall),
+				reinterpret_cast<void*>(&Hook_CreateCompiledTCStruct))) {
+			D2RL::LogErrorF(context, "plugin-items: Player Condition Calc call-site patch failed");
+			return false;
+		}
 		// hookSize=6: MOV R11,RSP (3) + PUSH RBP (1) + PUSH R13 (2)
-		if (!context->InstallInlineHook(OFF_TCDropFunction, EXP_TCDropFunction, sizeof(EXP_TCDropFunction),
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.playerConditionCalc.tcDropFunction"),
+			OFF_TCDropFunction, EXP_TCDropFunction, sizeof(EXP_TCDropFunction),
 			Hook_TCDropFunction, &Original_TCDropFunction))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook TCDropFunction");
+			return false;
 		}
 		// hookSize=5: MOV qword ptr [RSP+0x8],RBX (5 bytes)
-		if (!context->InstallInlineHook(OFF_ConditionGate, EXP_ConditionGate, sizeof(EXP_ConditionGate),
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.playerConditionCalc.conditionGate"),
+			OFF_ConditionGate, EXP_ConditionGate, sizeof(EXP_ConditionGate),
 			Hook_ConditionGate, &Original_ConditionGate))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook ConditionGate");
+			return false;
 		}
 		// hookSize=5: MOV qword ptr [RSP+0x8],RBX (5 bytes)
-		if (!context->InstallInlineHook(OFF_ConditionCalcEval, EXP_ConditionCalcEval, sizeof(EXP_ConditionCalcEval),
+		if (!PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("items.playerConditionCalc.conditionCalcEval"),
+			OFF_ConditionCalcEval, EXP_ConditionCalcEval, sizeof(EXP_ConditionCalcEval),
 			Hook_ConditionCalcEval, &Original_ConditionCalcEval))
 		{
 			D2RL::LogErrorF(context, "plugin-items: failed to hook ConditionCalcEval");
+			return false;
 		}
+	}
+
+	if (g_pluginOptions.bEnablePhysResistMaxChange
+		&& !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.physResistCap.maximum"),
+			OFF_PhysResist, EXP_PhysResistCap, sizeof(EXP_PhysResistCap),
+			&g_pluginOptions.MaxPhysResist, sizeof(g_pluginOptions.MaxPhysResist))) {
+		D2RL::LogErrorF(context, "plugin-items: Physical Resistance Cap patch failed");
+		return false;
+	}
+	if (g_pluginOptions.bEnableElementalResistMaxChange
+		&& !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.elementalResistCap.maximum"),
+			OFF_ElementalResist, EXP_ElementalResistCap, sizeof(EXP_ElementalResistCap),
+			&g_pluginOptions.MaxElementalResist, sizeof(g_pluginOptions.MaxElementalResist))) {
+		D2RL::LogErrorF(context, "plugin-items: Elemental Resistance Cap patch failed");
+		return false;
+	}
+	if (g_pluginOptions.bEnableAbsorbCapChange
+		&& !PSh_ManifestPatchBytes(context, PSH_MANIFEST_SITE("items.absorbCap.maximum"),
+			OFF_AbsorbCap, EXP_AbsorbCap, sizeof(EXP_AbsorbCap),
+			&g_pluginOptions.MaxAbsorbPct, sizeof(g_pluginOptions.MaxAbsorbPct))) {
+		D2RL::LogErrorF(context, "plugin-items: Absorb Percentage Cap patch failed");
+		return false;
 	}
 
 	return true;
