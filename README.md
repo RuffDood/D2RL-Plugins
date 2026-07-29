@@ -48,13 +48,13 @@ The shipped JSON preserves vanilla behavior for every configurable feature. `Ext
 |---|---|---|
 | `plugin-items.dll` | `items` | Item rules, fixes, limits, vendor options, 4096-byte item transport, and scrollable oversized tooltips |
 | `plugin-levels.dll` | `levels` | Level and area tweaks |
-| `plugin-misc.dll` | `misc` | Miscellaneous tweaks, including Cube placement, transfers, and a Transmute hotkey |
+| `plugin-misc.dll` | `misc` | Miscellaneous tweaks, including Cube actions and vendor stock refresh |
 | `plugin-quests.dll` | `quests` | Quest reward overrides, including configurable Larzuk socket counts |
 | `plugin-skills.dll` | `skills` | Skill-system extensions and bulk skill-point allocation |
 
 ## Configuration
 
-`D2RPlugins.json` contains every public option with documented, vanilla-preserving defaults. Change only the feature blocks you want to enable. Qty Display Fix is available as `items.qtyDisplayIssue`; enabling it restores D2R's native quantity line on socketed stackable items. Equipped Item to Cube is available as `misc.equippedItemToCube`; enabling it moves Ctrl-left-clicked equipped items directly to the Horadric Cube. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button.
+`D2RPlugins.json` contains every public option with documented, vanilla-preserving defaults. Change only the feature blocks you want to enable. Qty Display Fix is available as `items.qtyDisplayIssue`; enabling it restores D2R's native quantity line on socketed stackable items. Equipped Item to Cube is available as `misc.equippedItemToCube`; enabling it moves Ctrl-left-clicked equipped items directly to the Horadric Cube. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Vendor Stock Refresh is available as `misc.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels.
 
 ```jsonc
 {

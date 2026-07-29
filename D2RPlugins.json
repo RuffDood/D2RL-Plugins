@@ -235,6 +235,11 @@
 			"hotkey": "CTRL+SHIFT+T",
 			"consume": true,
 			"diagnostics": false
+		},
+
+		// Keep normal vendor stock unchanged unless manual refresh is enabled.
+		"vendorStockRefresh": {
+			"enabled": false
 		}
     },
 

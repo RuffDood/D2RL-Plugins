@@ -4,6 +4,7 @@
 #include "cube-quick-move.h"
 #include "equipped-item-to-cube.h"
 #include "transmute-hotkey.h"
+#include "vendor-stock-refresh.h"
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
 
@@ -150,6 +151,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (!RuffnecKk::TransmuteHotkey::Load(context, misc)) {
 		return false;
 	}
+	if (!RuffnecKk::VendorStockRefresh::Load(context, misc)) {
+		return false;
+	}
 
 	if (g_PlayersCommandLimit > 8) {
 		Real_PlayersAtoi    = reinterpret_cast<PlayersAtoi_t>(context->exeBase + OFF_Players_Atoi);
@@ -173,6 +177,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	RuffnecKk::VendorStockRefresh::Unload();
 	RuffnecKk::TransmuteHotkey::Unload();
 	RuffnecKk::EquippedItemToCube::Unload();
 	RuffnecKk::CubeQuickMove::Unload();
