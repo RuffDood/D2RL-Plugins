@@ -7,6 +7,7 @@
 #include "item-durability.h"
 #include "items-ethereal.h"
 #include "items-private.h"
+#include "qty-display-issue.h"
 #include "repair-costs-cap.h"
 #include <cstring>
 #include <vector>
@@ -629,6 +630,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (!RuffnecKk::RepairCostsCap::Load(context, itemsConfig)) {
 		return false;
 	}
+	if (!RuffnecKk::QtyDisplayIssue::Load(context, itemsConfig)) {
+		return false;
+	}
 
 	// Resolve internal function pointers used by both hooks.
 	Fn_GenerateStoreItem = reinterpret_cast<GenerateStoreItem_t>(g_exeBase + OFF_GenerateStoreItem);
@@ -749,6 +753,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	RuffnecKk::QtyDisplayIssue::Unload();
 	RuffnecKk::RepairCostsCap::Unload();
 	RuffnecKk::EnhancedDamageMinMaxFix::Unload();
 	RuffnecKk::CharmAuraTriggerFix::Unload();

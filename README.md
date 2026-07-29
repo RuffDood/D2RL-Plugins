@@ -54,7 +54,7 @@ The shipped JSON preserves vanilla behavior for every configurable feature. `Ext
 
 ## Configuration
 
-`D2RPlugins.json` contains every public option with documented, vanilla-preserving defaults. Change only the feature blocks you want to enable.
+`D2RPlugins.json` contains every public option with documented, vanilla-preserving defaults. Change only the feature blocks you want to enable. Qty Display Fix is available as `items.qtyDisplayIssue`; enabling it restores D2R's native quantity line on socketed stackable items.
 
 ```jsonc
 {

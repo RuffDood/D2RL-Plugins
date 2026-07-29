@@ -83,6 +83,12 @@
 			"enabled": false
 		},
 
+		// Restore D2R's native quantity line on socketed stackable items.
+		// Disabled preserves the vanilla tooltip omission.
+		"qtyDisplayIssue": {
+			"enabled": false
+		},
+
         // Vendor overhaul: replaces the vanilla random-item generator for shops.
         "vendorOverhaul": {
             "enabled": false,

@@ -159,4 +159,15 @@ if(BUILD_TESTING)
 		NAME extended-item-stats-tooltip
 		COMMAND extended-item-stats-tooltip-tests
 	)
+
+	add_executable(qty-display-issue-policy-tests
+		tests/qty-display-issue-policy-tests.cpp
+	)
+	target_link_libraries(qty-display-issue-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		qty-display-issue-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME qty-display-issue-policy
+		COMMAND qty-display-issue-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()
