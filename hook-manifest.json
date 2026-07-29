@@ -1311,6 +1311,16 @@
       "length": 19,
       "expectedBytes": "44 8B 05 35 92 93 02 BA 02 00 00 00 B1 38 E9 FD D1 FD FF",
       "source": "src/plugin-misc/vendor-stock-refresh.cpp"
+    },
+    {
+      "id": "misc.preventMercDeathInTown.applyMonsterStatRegen",
+      "owner": "plugin-misc",
+      "feature": "misc.preventMercDeathInTown",
+      "kind": "inline-hook",
+      "rva": "0x448C00",
+      "length": 32,
+      "expectedBytes": "40 53 55 57 48 81 EC 90 00 00 00 48 8B 05 B6 26 58 02 48 33 C4 48 89 44 24 70 48 8B FA 45 33 C0",
+      "source": "src/plugin-misc/prevent-merc-death-in-town.cpp"
     }
   ]
 }

@@ -54,4 +54,16 @@ if(BUILD_TESTING)
 		NAME vendor-stock-refresh-policy
 		COMMAND vendor-stock-refresh-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(prevent-merc-death-in-town-policy-tests
+		tests/prevent-merc-death-in-town-policy-tests.cpp
+	)
+	target_link_libraries(
+		prevent-merc-death-in-town-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		prevent-merc-death-in-town-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME prevent-merc-death-in-town-policy
+		COMMAND prevent-merc-death-in-town-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()
