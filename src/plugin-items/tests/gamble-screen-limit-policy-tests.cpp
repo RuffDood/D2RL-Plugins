@@ -1,6 +1,6 @@
 #include "gamble-screen-limit-policy.h"
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -22,43 +22,43 @@ int main(int argc, char** argv) {
 	using namespace RuffnecKk::GambleScreenLimit;
 
 	const auto missing = ParseConfig(nlohmann::json::object());
-	assert(!missing.enabled);
-	assert(EffectiveLimit(missing) == VanillaLimit);
+	TEST_REQUIRE(!missing.enabled);
+	TEST_REQUIRE(EffectiveLimit(missing) == VanillaLimit);
 
 	const auto disabled = ParseConfig(nlohmann::json::parse(
 		R"json({"gambleScreenLimit":{"enabled":false}})json"
 	));
-	assert(!disabled.enabled);
-	assert(EffectiveLimit(disabled) == VanillaLimit);
+	TEST_REQUIRE(!disabled.enabled);
+	TEST_REQUIRE(EffectiveLimit(disabled) == VanillaLimit);
 
 	const auto enabled = ParseConfig(nlohmann::json::parse(
 		R"json({"gambleScreenLimit":{"enabled":true}})json"
 	));
-	assert(enabled.enabled);
-	assert(EffectiveLimit(enabled) == ExpandedLimit);
+	TEST_REQUIRE(enabled.enabled);
+	TEST_REQUIRE(EffectiveLimit(enabled) == ExpandedLimit);
 
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"gambleScreenLimit":true})json"
 		));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"gambleScreenLimit":{"enabled":1}})json"
 		));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"gambleScreenLimit":{"enabled":true,"itemLimit":64}})json"
 		));
 	}));
 
-	assert(argc == 2);
+	TEST_REQUIRE(argc == 2);
 	std::ifstream shippedConfig(argv[1]);
-	assert(shippedConfig.is_open());
+	TEST_REQUIRE(shippedConfig.is_open());
 	const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
 	const auto shipped = ParseConfig(root.at("items"));
-	assert(!shipped.enabled);
-	assert(EffectiveLimit(shipped) == VanillaLimit);
+	TEST_REQUIRE(!shipped.enabled);
+	TEST_REQUIRE(EffectiveLimit(shipped) == VanillaLimit);
 	return 0;
 }

@@ -162,9 +162,15 @@
             "allowIndestructibleItems": false
         },
 
-        // Support larger item data and make oversized item tooltips scrollable.
+        // Show all item stats in a scrollable tooltip instead of cutting off long lists.
         "extendedItemStats": {
-            "enabled": true
+            "enabled": true,
+            // Send item data that is too large for vanilla item packets.
+            // Keep disabled unless every player in the game uses the same pack version.
+            "oversizedItemDataTransport": false,
+            // Draw a scroll bar beside long item tooltips. Tooltip scrolling works without it.
+            // This uses graphics hooks, so leave it disabled when using another overlay.
+            "showScrollBar": false
         }
     },
 

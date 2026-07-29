@@ -1,7 +1,7 @@
 #include "items-ethereal-policy.h"
 
 #include <array>
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <cstdint>
 #include <cstring>
 #include <fstream>
@@ -32,32 +32,32 @@ int main(int argc, char** argv) {
 	using namespace ruffneckk::plugin_items::ethereal;
 
 	ItemTypeCode belt{};
-	assert(NormalizeItemTypeCode(" BeLt ", belt));
-	assert(belt.text[0] == 'b' && belt.text[3] == 't');
+	TEST_REQUIRE(NormalizeItemTypeCode(" BeLt ", belt));
+	TEST_REQUIRE(belt.text[0] == 'b' && belt.text[3] == 't');
 
 	ItemTypeCode gem{};
-	assert(NormalizeItemTypeCode("gem", gem));
-	assert(gem.bytes[3] == ' ');
+	TEST_REQUIRE(NormalizeItemTypeCode("gem", gem));
+	TEST_REQUIRE(gem.bytes[3] == ' ');
 
 	ItemTypeCode invalid{};
-	assert(!NormalizeItemTypeCode("too-long", invalid));
-	assert(!NormalizeItemTypeCode("a-b", invalid));
+	TEST_REQUIRE(!NormalizeItemTypeCode("too-long", invalid));
+	TEST_REQUIRE(!NormalizeItemTypeCode("a-b", invalid));
 
 	std::array<Record, 3> records{};
 	std::memcpy(records[0].code.data(), "armo", 4);
 	std::memcpy(records[1].code.data(), "belt", 4);
 	std::memcpy(records[2].code.data(), "gem ", 4);
-	assert(FindItemTypeId(records.data(), records.size(), sizeof(Record), belt) == 1);
-	assert(FindItemTypeId(records.data(), records.size(), sizeof(Record), gem) == 2);
-	assert(FindItemTypeId(nullptr, records.size(), sizeof(Record), belt) == -1);
-	assert(FindItemTypeId(records.data(), 4097, sizeof(Record), belt) == -1);
+	TEST_REQUIRE(FindItemTypeId(records.data(), records.size(), sizeof(Record), belt) == 1);
+	TEST_REQUIRE(FindItemTypeId(records.data(), records.size(), sizeof(Record), gem) == 2);
+	TEST_REQUIRE(FindItemTypeId(nullptr, records.size(), sizeof(Record), belt) == -1);
+	TEST_REQUIRE(FindItemTypeId(records.data(), 4097, sizeof(Record), belt) == -1);
 
 	const auto defaults = ParseConfig(nlohmann::json::object());
-	assert(!defaults.enabled);
-	assert(defaults.excludedItemTypeCount == 0);
-	assert(defaults.chancePercent == VanillaChancePercent);
-	assert(!HasExcludedItemTypes(defaults));
-	assert(!HasDirectRulePatches(defaults));
+	TEST_REQUIRE(!defaults.enabled);
+	TEST_REQUIRE(defaults.excludedItemTypeCount == 0);
+	TEST_REQUIRE(defaults.chancePercent == VanillaChancePercent);
+	TEST_REQUIRE(!HasExcludedItemTypes(defaults));
+	TEST_REQUIRE(!HasDirectRulePatches(defaults));
 
 	const auto configured = ParseConfig(nlohmann::json::parse(R"json(
 		{
@@ -71,54 +71,54 @@ int main(int argc, char** argv) {
 		  }
 		}
 	)json"));
-	assert(configured.enabled);
-	assert(configured.excludedItemTypeCount == 2);
-	assert(configured.chancePercent == 6);
-	assert(HasExcludedItemTypes(configured));
-	assert(PatchChance(configured));
-	assert(PatchSetItems(configured));
-	assert(PatchIndestructibleItems(configured));
-	assert(HasDirectRulePatches(configured));
+	TEST_REQUIRE(configured.enabled);
+	TEST_REQUIRE(configured.excludedItemTypeCount == 2);
+	TEST_REQUIRE(configured.chancePercent == 6);
+	TEST_REQUIRE(HasExcludedItemTypes(configured));
+	TEST_REQUIRE(PatchChance(configured));
+	TEST_REQUIRE(PatchSetItems(configured));
+	TEST_REQUIRE(PatchIndestructibleItems(configured));
+	TEST_REQUIRE(HasDirectRulePatches(configured));
 
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"etherealExclusions":{"enabled":true}})json"
 		));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"etherealItemRules":{"enabled":true,"extra":1}})json"
 		));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"etherealItemRules":{"excludedItemTypes":["too-long"]}})json"
 		));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"etherealItemRules":{"chancePercent":-1}})json"
 		));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"etherealItemRules":{"chancePercent":101}})json"
 		));
 	}));
 
-	assert(argc == 2);
+	TEST_REQUIRE(argc == 2);
 	std::ifstream shippedConfig(argv[1]);
-	assert(shippedConfig.is_open());
+	TEST_REQUIRE(shippedConfig.is_open());
 	const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
-	assert(root.at("skills").at("selfHealParams").is_boolean());
-	assert(root.at("skills").at("selfHealParams").get<bool>());
+	TEST_REQUIRE(root.at("skills").at("selfHealParams").is_boolean());
+	TEST_REQUIRE(root.at("skills").at("selfHealParams").get<bool>());
 	const auto shipped = ParseConfig(root.at("items"));
-	assert(!shipped.enabled);
-	assert(shipped.excludedItemTypeCount == 0);
-	assert(shipped.chancePercent == VanillaChancePercent);
-	assert(!shipped.allowSetItems);
-	assert(!shipped.allowIndestructibleItems);
-	assert(!HasExcludedItemTypes(shipped));
-	assert(!HasDirectRulePatches(shipped));
+	TEST_REQUIRE(!shipped.enabled);
+	TEST_REQUIRE(shipped.excludedItemTypeCount == 0);
+	TEST_REQUIRE(shipped.chancePercent == VanillaChancePercent);
+	TEST_REQUIRE(!shipped.allowSetItems);
+	TEST_REQUIRE(!shipped.allowIndestructibleItems);
+	TEST_REQUIRE(!HasExcludedItemTypes(shipped));
+	TEST_REQUIRE(!HasDirectRulePatches(shipped));
 	return 0;
 }

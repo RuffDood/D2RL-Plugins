@@ -43,14 +43,6 @@ using IsVirtualKeyDownFn = std::uint32_t(__fastcall*)(std::int32_t) noexcept;
 using GetLocalizedStringByKeyFn = const char*(__fastcall*)(const GameStringView*) noexcept;
 using ShowAssignAllStatsConfirmationFn = void(__fastcall*)(const void*) noexcept;
 using UiDispatchMessageFn = void(__fastcall*)(void*) noexcept;
-using RegisterUiMessageInterceptorFn = bool(__cdecl*)(UiMessageInterceptorFn) noexcept;
-using UnregisterUiMessageInterceptorFn = void(__cdecl*)(UiMessageInterceptorFn) noexcept;
-
-constexpr wchar_t ExternalUiMessageBrokerModule[] = L"RemoteStash.dll";
-constexpr char RegisterUiMessageInterceptorExport[] =
-    "RuffneckkRegisterUiMessageInterceptor";
-constexpr char UnregisterUiMessageInterceptorExport[] =
-    "RuffneckkUnregisterUiMessageInterceptor";
 
 const D2RL::PluginContext* Context{};
 std::uint8_t* Base{};
@@ -62,8 +54,6 @@ ShowAssignAllStatsConfirmationFn ShowAssignAllStatsConfirmation{};
 UiDispatchMessageFn OriginalUiDispatchMessage{};
 std::atomic<UiMessageInterceptorFn> ExternalUiMessageInterceptor{};
 std::atomic_bool BrokerReady{};
-std::atomic_bool UsingExternalUiMessageBroker{};
-UnregisterUiMessageInterceptorFn ExternalBrokerUnregister{};
 
 std::mutex ConfirmationMutex;
 PendingConfirmationState PendingConfirmation{};
@@ -244,14 +234,6 @@ void __fastcall HookUiDispatchMessage(void* message) noexcept {
     OriginalUiDispatchMessage(message);
 }
 
-void ReleaseExternalUiMessageBroker() noexcept {
-    if (UsingExternalUiMessageBroker.exchange(false, std::memory_order_acq_rel)
-        && ExternalBrokerUnregister) {
-        ExternalBrokerUnregister(InterceptUiMessageChain);
-    }
-    ExternalBrokerUnregister = nullptr;
-}
-
 void __fastcall HookSendFiveBytePacket(
     std::uint8_t opcode,
     std::uint16_t value,
@@ -329,10 +311,7 @@ D2RL::ConsoleCommandResult __cdecl Status(
     return D2RL::ConsoleCommandResult::Handled;
 }
 
-bool ValidateRuntime(
-    bool validateConfirmationUi,
-    bool validateUiDispatch
-) noexcept {
+bool ValidateRuntime(bool validateConfirmationUi) noexcept {
     constexpr std::array<std::uint8_t, 29> sendPacketExpected{
         0x48, 0x83, 0xEC, 0x28, 0x88, 0x4C, 0x24, 0x48,
         0x48, 0x8D, 0x4C, 0x24, 0x48, 0x66, 0x89, 0x54,
@@ -379,7 +358,7 @@ bool ValidateRuntime(
                     ShowAssignAllStatsConfirmationRva,
                     statsConfirmationExpected.data(),
                     statsConfirmationExpected.size())))
-        && (!validateUiDispatch
+        && (!validateConfirmationUi
             || Context->CheckExpectedBytes(
                 UiDispatchMessageRva,
                 uiDispatchExpected.data(),
@@ -423,8 +402,6 @@ bool Load(
     Base = reinterpret_cast<std::uint8_t*>(context->exeBase);
     ExternalUiMessageInterceptor.store(nullptr, std::memory_order_relaxed);
     BrokerReady.store(false, std::memory_order_relaxed);
-    UsingExternalUiMessageBroker.store(false, std::memory_order_relaxed);
-    ExternalBrokerUnregister = nullptr;
     if (!Base) return false;
     if (context->modDataVersionBuild != 0 && context->modDataVersionBuild != SupportedBuild) {
         context->LogError(
@@ -463,29 +440,7 @@ bool Load(
             );
         }
 
-        const auto brokerModule = Settings.confirmShiftAllocation
-            ? GetModuleHandleW(ExternalUiMessageBrokerModule)
-            : nullptr;
-        const auto registerBroker = brokerModule
-            ? reinterpret_cast<RegisterUiMessageInterceptorFn>(
-                GetProcAddress(brokerModule, RegisterUiMessageInterceptorExport))
-            : nullptr;
-        const auto unregisterBroker = brokerModule
-            ? reinterpret_cast<UnregisterUiMessageInterceptorFn>(
-                GetProcAddress(brokerModule, UnregisterUiMessageInterceptorExport))
-            : nullptr;
-        if (registerBroker && unregisterBroker
-            && registerBroker(InterceptUiMessageChain)) {
-            ExternalBrokerUnregister = unregisterBroker;
-            UsingExternalUiMessageBroker.store(true, std::memory_order_release);
-        }
-
-        if (!ValidateRuntime(
-                Settings.confirmShiftAllocation,
-                Settings.confirmShiftAllocation
-                    && !UsingExternalUiMessageBroker.load(
-                        std::memory_order_acquire))) {
-            ReleaseExternalUiMessageBroker();
+        if (!ValidateRuntime(Settings.confirmShiftAllocation)) {
             context->LogError(
                 "plugin-skills: Bulk Skill Point Allocation runtime signature mismatch.");
             return false;
@@ -505,7 +460,6 @@ bool Load(
                 HookGetLocalizedStringByKey,
                 &OriginalGetLocalizedStringByKey
             )) {
-            ReleaseExternalUiMessageBroker();
             context->LogError(
                 "plugin-skills: Bulk Skill Point Allocation localized-string hook failed.");
             return false;
@@ -518,7 +472,6 @@ bool Load(
             0x18, 0x01, 0x00, 0x00, 0x84
         };
         if (Settings.confirmShiftAllocation
-            && !UsingExternalUiMessageBroker.load(std::memory_order_acquire)
             && !PSh_ManifestInstallInlineHook(context, PSH_MANIFEST_SITE("skills.bulkSkillPointAllocation.uiDispatch"),
                     UiDispatchMessageRva,
                     uiDispatchExpected.data(),
@@ -544,14 +497,12 @@ bool Load(
                 HookSendFiveBytePacket,
                 &OriginalSendFiveBytePacket
             )) {
-            ReleaseExternalUiMessageBroker();
             context->LogError(
                 "plugin-skills: Bulk Skill Point Allocation skill-packet hook failed.");
             return false;
         }
         BrokerReady.store(
-            Settings.confirmShiftAllocation
-                && !UsingExternalUiMessageBroker.load(std::memory_order_acquire),
+            Settings.confirmShiftAllocation,
             std::memory_order_release);
     }
 
@@ -577,9 +528,7 @@ bool Load(
             ? "inactive"
             : (!Settings.confirmShiftAllocation
                 ? "not-needed"
-                : (UsingExternalUiMessageBroker.load(std::memory_order_acquire)
-                    ? "RemoteStash"
-                    : "plugin-skills")));
+                : "plugin-skills"));
     context->LogInfo(activeMessage);
     return true;
 }
@@ -587,7 +536,6 @@ bool Load(
 void Unload() noexcept {
     BrokerReady.store(false, std::memory_order_release);
     ExternalUiMessageInterceptor.store(nullptr, std::memory_order_release);
-    ReleaseExternalUiMessageBroker();
     CancelPendingConfirmation();
     OpeningSkillConfirmation = false;
     OriginalUiDispatchMessage = nullptr;

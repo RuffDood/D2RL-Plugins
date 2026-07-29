@@ -40,7 +40,7 @@ CMake validates the manifest during configuration and before every build. A dupl
 1. Copy the five DLLs to either `<D2R>/d2rloader/plugins/` or `<D2R>/mods/<mod>/d2rloader/plugins/`.
 2. Copy `D2RPlugins.json` to the active mod data directory as `<modDirectory>/D2RPlugins.json`, or beside `D2RLoader.exe` for the global fallback.
 
-The shipped JSON enables five selected features by default: Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and Extended Item Stats. Other newly added configurable features remain disabled. `items.extendedItemStats` informs players that the pack supports item payloads up to 4096 bytes and makes only oversized tooltips scrollable; setting `enabled=false` leaves its hooks and input listeners uninstalled.
+The shipped JSON enables five selected features by default: Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and Extended Item Stats. Other newly added configurable features remain disabled. Extended Item Stats shows complete stat lists in scrollable tooltips; its custom oversized-item transport and graphical scroll bar are separate opt-in settings. Setting `enabled=false` leaves all of its hooks and input listeners uninstalled.
 
 See [RUFFNECKK-INTEGRATION.md](RUFFNECKK-INTEGRATION.md) for the complete
 feature inventory, internal safety design, validation results, and recommended
@@ -50,7 +50,7 @@ player test batches.
 
 | DLL | JSON section | Description |
 |---|---|---|
-| `plugin-items.dll` | `items` | Item rules, fixes, limits, vendor options, 4096-byte item transport, and scrollable oversized tooltips |
+| `plugin-items.dll` | `items` | Item rules, fixes, limits, vendor options, and scrollable full-stat tooltips |
 | `plugin-levels.dll` | `levels` | Level and area tweaks |
 | `plugin-misc.dll` | `misc` | Miscellaneous tweaks, including Cube actions and town safety |
 | `plugin-quests.dll` | `quests` | Quest reward overrides, including configurable Larzuk socket counts |
@@ -58,7 +58,7 @@ player test batches.
 
 ## Configuration
 
-`D2RPlugins.json` contains every public option with documented defaults. Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and Extended Item Stats are enabled in the shipped player configuration; other new configurable features remain disabled. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Single keys and combinations are accepted; with `consume=true`, a successfully captured shortcut does not also reach the game, while the key keeps its normal behavior outside the Cube. Vendor Stock Refresh is available as `items.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels. Prevent Merc Death in Town is available as `misc.preventMercDeathInTown`; enabling it suppresses only projected-lethal persistent-damage ticks against mercenaries currently in town.
+`D2RPlugins.json` contains every public option with documented defaults. Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and Extended Item Stats are enabled in the shipped player configuration; other new configurable features remain disabled. Extended Item Stats keeps `oversizedItemDataTransport` and `showScrollBar` disabled by default, so its standard path neither changes item packets nor installs graphics hooks. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Single keys and combinations are accepted; with `consume=true`, a successfully captured shortcut does not also reach the game, while the key keeps its normal behavior outside the Cube. Vendor Stock Refresh is available as `items.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels. Prevent Merc Death in Town is available as `misc.preventMercDeathInTown`; enabling it suppresses only projected-lethal persistent-damage ticks against mercenaries currently in town.
 
 If the mod-local JSON is missing, the pack uses the global JSON beside
 `D2RLoader.exe`. If a configuration file exists but is malformed or contains an
@@ -83,4 +83,6 @@ reason to its log instead of silently applying a different configuration.
 
 ## License
 
-MIT
+The PluginPack is available under the [MIT License](LICENSE).
+`plugin-items.dll` also includes third-party components listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

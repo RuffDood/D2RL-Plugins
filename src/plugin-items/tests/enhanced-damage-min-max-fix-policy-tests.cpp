@@ -2,7 +2,7 @@
 
 #include <json.hpp>
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -16,7 +16,7 @@ void ExpectInvalid(Callback&& callback) {
 	} catch (const std::exception&) {
 		rejected = true;
 	}
-	assert(rejected);
+	TEST_REQUIRE(rejected);
 }
 
 int main(int argc, char** argv) {
@@ -28,10 +28,10 @@ int main(int argc, char** argv) {
 	static_assert(!IsEnhancedDamagePackedStat(0x00110001));
 	static_assert(!IsEnhancedDamagePackedStat(17));
 
-	assert(!ParseConfig(nlohmann::json::object()).enabled);
-	assert(!ParseConfig(nlohmann::json::parse(
+	TEST_REQUIRE(!ParseConfig(nlohmann::json::object()).enabled);
+	TEST_REQUIRE(!ParseConfig(nlohmann::json::parse(
 		R"json({"enhancedDamageMinMaxFix":{"enabled":false}})json")).enabled);
-	assert(ParseConfig(nlohmann::json::parse(
+	TEST_REQUIRE(ParseConfig(nlohmann::json::parse(
 		R"json({"enhancedDamageMinMaxFix":{"enabled":true}})json")).enabled);
 
 	ExpectInvalid([] { ParseConfig(nlohmann::json::array()); });
@@ -44,42 +44,42 @@ int main(int argc, char** argv) {
 	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
 		R"json({"enhancedDamageMinMaxFix":{"enabled":false,"extra":false}})json")); });
 
-	assert(ShouldRestoreSuppressedUpdate(
+	TEST_REQUIRE(ShouldRestoreSuppressedUpdate(
 		ItemUnitType,
 		AddItemStatPercentOperation,
 		PackStat(ItemMaxDamagePercentStat),
 		false,
 		510,
 		0));
-	assert(ShouldRestoreSuppressedUpdate(
+	TEST_REQUIRE(ShouldRestoreSuppressedUpdate(
 		ItemUnitType,
 		AddItemStatPercentOperation,
 		PackStat(ItemMinDamagePercentStat),
 		false,
 		505,
 		500));
-	assert(!ShouldRestoreSuppressedUpdate(
+	TEST_REQUIRE(!ShouldRestoreSuppressedUpdate(
 		ItemUnitType,
 		AddItemStatPercentOperation,
 		PackStat(ItemMaxDamagePercentStat),
 		true,
 		510,
 		0));
-	assert(!ShouldRestoreSuppressedUpdate(
+	TEST_REQUIRE(!ShouldRestoreSuppressedUpdate(
 		ItemUnitType,
 		AddItemStatPercentOperation,
 		PackStat(ItemMaxDamagePercentStat),
 		false,
 		500,
 		500));
-	assert(!ShouldRestoreSuppressedUpdate(
+	TEST_REQUIRE(!ShouldRestoreSuppressedUpdate(
 		0,
 		AddItemStatPercentOperation,
 		PackStat(ItemMaxDamagePercentStat),
 		false,
 		510,
 		0));
-	assert(!ShouldRestoreSuppressedUpdate(
+	TEST_REQUIRE(!ShouldRestoreSuppressedUpdate(
 		ItemUnitType,
 		12,
 		PackStat(ItemMaxDamagePercentStat),
@@ -89,10 +89,10 @@ int main(int argc, char** argv) {
 
 	if (argc == 2) {
 		std::ifstream stream(argv[1], std::ios::binary);
-		assert(stream.good());
+		TEST_REQUIRE(stream.good());
 		const auto templateConfig = nlohmann::json::parse(
 			stream, nullptr, true, true);
-		assert(ParseConfig(templateConfig.at("items")).enabled);
+		TEST_REQUIRE(ParseConfig(templateConfig.at("items")).enabled);
 	}
 
 	return 0;

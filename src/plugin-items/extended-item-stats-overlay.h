@@ -36,7 +36,7 @@ void SetCallbacks(
     PinHandler pinHandler) noexcept;
 
 bool Install(HMODULE module) noexcept;
-void Remove() noexcept;
+bool Remove() noexcept;
 bool IsReady() noexcept;
 bool HitTestScreenPoint(POINT point) noexcept;
 bool HasInteractionRegion() noexcept;

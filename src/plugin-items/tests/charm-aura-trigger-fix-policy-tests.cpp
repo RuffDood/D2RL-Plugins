@@ -1,6 +1,6 @@
 #include "charm-aura-trigger-fix-policy.h"
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <exception>
 #include <fstream>
 
@@ -14,16 +14,16 @@ void ExpectInvalid(Callback&& callback) {
 	} catch (const std::exception&) {
 		rejected = true;
 	}
-	assert(rejected);
+	TEST_REQUIRE(rejected);
 }
 
 int main(int argc, char** argv) {
-	assert(IsEligible(true, 3, 0x10));
-	assert(IsEligible(true, 3, 0x30));
-	assert(!IsEligible(false, 3, 0x10));
-	assert(!IsEligible(true, 6, 0x10));
-	assert(!IsEligible(true, 7, 0x10));
-	assert(!IsEligible(true, 3, 0));
+	TEST_REQUIRE(IsEligible(true, 3, 0x10));
+	TEST_REQUIRE(IsEligible(true, 3, 0x30));
+	TEST_REQUIRE(!IsEligible(false, 3, 0x10));
+	TEST_REQUIRE(!IsEligible(true, 6, 0x10));
+	TEST_REQUIRE(!IsEligible(true, 7, 0x10));
+	TEST_REQUIRE(!IsEligible(true, 3, 0));
 
 	constexpr PackedStatRecord stats[]{
 		{97u << 16U | 42u, 1},
@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
 	static_assert(!HasNonzeroStat(nullptr, 3, 151));
 
 	const auto absent = ParseConfig(nlohmann::json::object());
-	assert(!absent.enabled);
+	TEST_REQUIRE(!absent.enabled);
 
 	const auto vanilla = nlohmann::json::parse(R"json({
 		"charmAuraTriggerFix": {
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
 		}
 	})json");
 	const auto policy = ParseConfig(vanilla);
-	assert(!policy.enabled);
+	TEST_REQUIRE(!policy.enabled);
 
 	ExpectInvalid([] { ParseConfig(nlohmann::json::array()); });
 	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
@@ -62,11 +62,11 @@ int main(int argc, char** argv) {
 
 	if (argc == 2) {
 		std::ifstream stream(argv[1], std::ios::binary);
-		assert(stream.good());
+		TEST_REQUIRE(stream.good());
 		const auto templateConfig = nlohmann::json::parse(
 			stream, nullptr, true, true);
 		const auto templatePolicy = ParseConfig(templateConfig.at("items"));
-		assert(templatePolicy.enabled);
+		TEST_REQUIRE(templatePolicy.enabled);
 	}
 
 	return 0;

@@ -1,6 +1,6 @@
 #include "larzuk-sockets-policy.h"
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -45,58 +45,58 @@ int main(int argc, char** argv) {
     static_assert(ResolveSockets({1, 4}, 6, 7) == 4);
 
     const auto missing = ParseConfig(nlohmann::json::object());
-    assert(!missing.enabled);
-    assert(!HasRules(missing.rules));
+    TEST_REQUIRE(!missing.enabled);
+    TEST_REQUIRE(!HasRules(missing.rules));
 
     const auto directVanilla = ParseConfig(nlohmann::json::parse(
         R"json({"larzukSockets":{"enabled":true,"normal":{"magic":null}}})json"
     ));
-    assert(directVanilla.enabled);
-    assert(!HasRules(directVanilla.rules));
+    TEST_REQUIRE(directVanilla.enabled);
+    TEST_REQUIRE(!HasRules(directVanilla.rules));
 
-    assert(Throws([] {
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(R"json({"larzukSockets":true})json"));
     }));
-    assert(Throws([] {
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"larzukSockets":{"normal":{"magic":null}}})json"
         ));
     }));
-    assert(Throws([] {
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"larzukSockets":{"enabled":false,"diagnostics":false}})json"
         ));
     }));
-    assert(Throws([] {
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"larzukSockets":{"normal":{"magic":{"minSockets":0,"maxSockets":2}}}})json"
         ));
     }));
-    assert(Throws([] {
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"larzukSockets":{"normal":{"magic":{"minSockets":1,"maxSockets":2,"roll":"fixed"}}}})json"
         ));
     }));
 
-    assert(argc == 2);
+    TEST_REQUIRE(argc == 2);
     std::ifstream shippedConfig(argv[1]);
-    assert(shippedConfig.is_open());
+    TEST_REQUIRE(shippedConfig.is_open());
     const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
     const auto shipped = ParseConfig(root.at("quests"));
-    assert(!shipped.enabled);
-    assert(HasRules(shipped.rules));
+    TEST_REQUIRE(!shipped.enabled);
+    TEST_REQUIRE(HasRules(shipped.rules));
     for (std::size_t difficulty = 0; difficulty < DifficultyCount; ++difficulty) {
         const auto* magic = FindRule(shipped.rules, static_cast<std::uint8_t>(difficulty), 4);
-        assert(magic && magic->has_value());
-        assert((*magic)->minSockets == 1 && (*magic)->maxSockets == 2);
+        TEST_REQUIRE(magic && magic->has_value());
+        TEST_REQUIRE((*magic)->minSockets == 1 && (*magic)->maxSockets == 2);
         for (const auto quality : {6, 5, 7, 8}) {
             const auto* rule = FindRule(
                 shipped.rules,
                 static_cast<std::uint8_t>(difficulty),
                 quality
             );
-            assert(rule && rule->has_value());
-            assert((*rule)->minSockets == 1 && (*rule)->maxSockets == 1);
+            TEST_REQUIRE(rule && rule->has_value());
+            TEST_REQUIRE((*rule)->minSockets == 1 && (*rule)->maxSockets == 1);
         }
     }
     return 0;

@@ -1,6 +1,6 @@
 #include "extended-item-stats-policy.h"
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <exception>
 #include <fstream>
 
@@ -14,14 +14,25 @@ void ExpectInvalid(Callback&& callback) {
 	} catch (const std::exception&) {
 		rejected = true;
 	}
-	assert(rejected);
+	TEST_REQUIRE(rejected);
 }
 
 int main(int argc, char** argv) {
-	assert(ParseConfig(nlohmann::json::object()).enabled);
-	assert(ParseConfig(nlohmann::json::parse(
-		R"json({"extendedItemStats":{"enabled":true}})json")).enabled);
-	assert(!ParseConfig(nlohmann::json::parse(
+	const auto absent = ParseConfig(nlohmann::json::object());
+	TEST_REQUIRE(absent.enabled);
+	TEST_REQUIRE(!absent.oversizedItemDataTransport);
+	TEST_REQUIRE(!absent.showScrollBar);
+	const auto defaultTransport = ParseConfig(nlohmann::json::parse(
+		R"json({"extendedItemStats":{"enabled":true}})json"));
+	TEST_REQUIRE(defaultTransport.enabled);
+	TEST_REQUIRE(!defaultTransport.oversizedItemDataTransport);
+	TEST_REQUIRE(!defaultTransport.showScrollBar);
+	const auto enabledTransport = ParseConfig(nlohmann::json::parse(
+		R"json({"extendedItemStats":{"enabled":true,"oversizedItemDataTransport":true,"showScrollBar":true}})json"));
+	TEST_REQUIRE(enabledTransport.enabled);
+	TEST_REQUIRE(enabledTransport.oversizedItemDataTransport);
+	TEST_REQUIRE(enabledTransport.showScrollBar);
+	TEST_REQUIRE(!ParseConfig(nlohmann::json::parse(
 		R"json({"extendedItemStats":{"enabled":false}})json")).enabled);
 
 	ExpectInvalid([] { ParseConfig(nlohmann::json::array()); });
@@ -32,12 +43,19 @@ int main(int argc, char** argv) {
 	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
 		R"json({"extendedItemStats":{"enabled":1}})json")); });
 	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
+		R"json({"extendedItemStats":{"enabled":true,"oversizedItemDataTransport":1}})json")); });
+	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
+		R"json({"extendedItemStats":{"enabled":true,"showScrollBar":1}})json")); });
+	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
 		R"json({"extendedItemStats":{"enabled":true,"extra":false}})json")); });
 
-	assert(argc == 2);
+	TEST_REQUIRE(argc == 2);
 	std::ifstream stream(argv[1], std::ios::binary);
-	assert(stream.good());
+	TEST_REQUIRE(stream.good());
 	const auto root = nlohmann::json::parse(stream, nullptr, true, true);
-	assert(ParseConfig(root.at("items")).enabled);
+	const auto publicConfig = ParseConfig(root.at("items"));
+	TEST_REQUIRE(publicConfig.enabled);
+	TEST_REQUIRE(!publicConfig.oversizedItemDataTransport);
+	TEST_REQUIRE(!publicConfig.showScrollBar);
 	return 0;
 }

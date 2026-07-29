@@ -1,17 +1,13 @@
 #include "extended-item-stats-tooltip.h"
+#include "../../../tests/test-check.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <cmath>
 #include <string>
 
 using namespace ruffneck::extended_item_stats;
 
 namespace {
-
-void Require(bool condition) {
-    if (!condition) std::abort();
-}
 
 float MeasureRows(std::string_view text, void* context) noexcept {
     const auto lineHeight = *static_cast<const float*>(context);
@@ -46,13 +42,13 @@ std::string LongBottomToTopTooltip(
 } // namespace
 
 int main() {
-    Require(VanillaTooltipLineCapacity(1080, 200) == 38);
-    Require(VanillaTooltipLineCapacity(1440, 200) == 39);
-    Require(VanillaTooltipLineCapacity(2160, 200) == 39);
-    Require(VanillaTooltipLineCapacity(2160, 20) == 20);
-    Require(VanillaTooltipLineCapacity(0, 200) == 0);
-    Require(CountVisibleTooltipTextUnits("abc\n123") == 7);
-    Require(CountVisibleTooltipTextUnits(
+    TEST_REQUIRE(VanillaTooltipLineCapacity(1080, 200) == 38);
+    TEST_REQUIRE(VanillaTooltipLineCapacity(1440, 200) == 39);
+    TEST_REQUIRE(VanillaTooltipLineCapacity(2160, 200) == 39);
+    TEST_REQUIRE(VanillaTooltipLineCapacity(2160, 20) == 20);
+    TEST_REQUIRE(VanillaTooltipLineCapacity(0, 200) == 0);
+    TEST_REQUIRE(CountVisibleTooltipTextUnits("abc\n123") == 7);
+    TEST_REQUIRE(CountVisibleTooltipTextUnits(
         "\xEE\x81\xBE" "3Blue") == 4);
 
     const std::string truncatedStats =
@@ -64,30 +60,30 @@ int main() {
     const auto expandedTooltip = ExpandTooltipSections(
         truncatedTooltip,
         {{truncatedStats, expandedStats}});
-    Require(expandedTooltip ==
+    TEST_REQUIRE(expandedTooltip ==
         "footer\n" + expandedStats + "Can be inserted into socketed items\nitem name");
-    Require(ExpandTooltipSections(truncatedTooltip, {}) == truncatedTooltip);
-    Require(ExpandTooltipSections(
+    TEST_REQUIRE(ExpandTooltipSections(truncatedTooltip, {}) == truncatedTooltip);
+    TEST_REQUIRE(ExpandTooltipSections(
         truncatedTooltip,
         {{"missing", "missing\nreplacement"}}) == truncatedTooltip);
 
     const std::vector<std::string> knownTruncatedSections{
         "native truncated",
     };
-    Require(IsKnownTruncatedTooltipPass(
+    TEST_REQUIRE(IsKnownTruncatedTooltipPass(
         "footer\nnative truncated\nitem name", knownTruncatedSections));
-    Require(!IsKnownTruncatedTooltipPass(
+    TEST_REQUIRE(!IsKnownTruncatedTooltipPass(
         "footer\nrerolled stats\nitem name", knownTruncatedSections));
-    Require(ReconcileTooltipGenerationText(
+    TEST_REQUIRE(ReconcileTooltipGenerationText(
         "footer\nnative truncated\nitem name",
         "footer\nnative truncated\nfull stat block\nitem name",
         true) ==
         "footer\nnative truncated\nfull stat block\nitem name");
-    Require(ReconcileTooltipGenerationText(
+    TEST_REQUIRE(ReconcileTooltipGenerationText(
         "new", "old tooltip that is much longer", false) == "new");
-    Require(ReconcileTooltipGenerationText(
+    TEST_REQUIRE(ReconcileTooltipGenerationText(
         "new affix 02", "old affix 01", false) == "new affix 02");
-    Require(ReconcileTooltipGenerationText(
+    TEST_REQUIRE(ReconcileTooltipGenerationText(
         "new complete stat block", "old", false) == "new complete stat block");
 
     const std::string longFirstStat(540, 'A');
@@ -100,7 +96,7 @@ int main() {
         interleavedTruncated + "\n" + longExtraStats;
     const std::string interleavedTooltip =
         "item name\n" + longFirstStat + nativeSentence + longRemainingStats;
-    Require(ExpandTooltipSections(
+    TEST_REQUIRE(ExpandTooltipSections(
         interleavedTooltip,
         {{interleavedTruncated, interleavedExpanded}}) ==
         "item name\n" + longFirstStat + nativeSentence
@@ -109,7 +105,7 @@ int main() {
     const std::string clippedTooltip =
         "color" + interleavedTruncated.substr(0, interleavedTruncated.size() - 3)
         + nativeSentence + "item name\n";
-    Require(ExpandTooltipSections(
+    TEST_REQUIRE(ExpandTooltipSections(
         clippedTooltip,
         {{interleavedTruncated, interleavedExpanded}}) ==
         "color" + interleavedExpanded + nativeSentence + "item name\n");
@@ -121,9 +117,9 @@ int main() {
         {.firstVisibleLine = 0, .availableHeightPixels = 64.0F, .originalHeightPixels = 32.0F},
         MeasureRows,
         const_cast<float*>(&lineHeight));
-    Require(!unchanged.overflow);
-    Require(!unchanged.refused);
-    Require(unchanged.text == vanilla);
+    TEST_REQUIRE(!unchanged.overflow);
+    TEST_REQUIRE(!unchanged.refused);
+    TEST_REQUIRE(unchanged.text == vanilla);
 
     const auto ordinary = BottomToTopTooltip(13);
     TooltipWindowOptions extremeOnly{};
@@ -135,9 +131,9 @@ int main() {
         MeasureRows,
         const_cast<float*>(&lineHeight),
         extremeOnly);
-    Require(!ordinaryUnchanged.overflow);
-    Require(!ordinaryUnchanged.refused);
-    Require(ordinaryUnchanged.text == ordinary);
+    TEST_REQUIRE(!ordinaryUnchanged.overflow);
+    TEST_REQUIRE(!ordinaryUnchanged.refused);
+    TEST_REQUIRE(ordinaryUnchanged.text == ordinary);
 
     const std::string coloredBottomToTop =
         "\xC3\xBF" "c3Affix three\n"
@@ -152,11 +148,11 @@ int main() {
             return static_cast<float>(std::count(text.begin(), text.end(), '\n') + 1);
         },
         nullptr);
-    Require(coloredWindow.overflow);
-    Require(!coloredWindow.refused);
-    Require(coloredWindow.text.starts_with(
+    TEST_REQUIRE(coloredWindow.overflow);
+    TEST_REQUIRE(!coloredWindow.refused);
+    TEST_REQUIRE(coloredWindow.text.starts_with(
         "[Lines 1-2 of 4]\n\xC3\xBF" "c3Affix one\n"));
-    Require(coloredWindow.text.ends_with("\xC3\xBF" "c0Item title"));
+    TEST_REQUIRE(coloredWindow.text.ends_with("\xC3\xBF" "c0Item title"));
 
     const std::string d2rColoredBottomToTop =
         "\xEE\x81\xBE" "3Affix three\n"
@@ -173,11 +169,11 @@ int main() {
         },
         nullptr,
         {.showPosition = false});
-    Require(d2rColoredWindow.overflow);
-    Require(!d2rColoredWindow.refused);
-    Require(d2rColoredWindow.text.starts_with(
+    TEST_REQUIRE(d2rColoredWindow.overflow);
+    TEST_REQUIRE(!d2rColoredWindow.refused);
+    TEST_REQUIRE(d2rColoredWindow.text.starts_with(
         "\xEE\x81\xBE" "3Affix one\n"));
-    Require(d2rColoredWindow.text.ends_with(
+    TEST_REQUIRE(d2rColoredWindow.text.ends_with(
         "\xEE\x81\xBE" "3Jewel"));
 
     const auto huge = BottomToTopTooltip(1019);
@@ -187,37 +183,37 @@ int main() {
             .originalHeightPixels = 1019.0F * lineHeight},
         MeasureRows,
         const_cast<float*>(&lineHeight));
-    Require(top.overflow);
-    Require(!top.refused);
-    Require(top.totalLineCount == 1019);
-    Require(top.visibleLineCount == 9);
-    Require(top.firstVisibleLine == 0);
-    Require(top.text.starts_with("[Lines 1-9 of 1019]\nstat-8\n"));
-    Require(top.text.ends_with("stat-0"));
-    Require(MeasureRows(top.text, const_cast<float*>(&lineHeight)) == 160.0F);
+    TEST_REQUIRE(top.overflow);
+    TEST_REQUIRE(!top.refused);
+    TEST_REQUIRE(top.totalLineCount == 1019);
+    TEST_REQUIRE(top.visibleLineCount == 9);
+    TEST_REQUIRE(top.firstVisibleLine == 0);
+    TEST_REQUIRE(top.text.starts_with("[Lines 1-9 of 1019]\nstat-8\n"));
+    TEST_REQUIRE(top.text.ends_with("stat-0"));
+    TEST_REQUIRE(MeasureRows(top.text, const_cast<float*>(&lineHeight)) == 160.0F);
 
     const auto next = ScrollTooltipByLines(
         top.firstVisibleLine, top.totalLineCount, top.visibleLineCount, 3);
-    Require(next == 3);
+    TEST_REQUIRE(next == 3);
     const auto scrolled = BuildFittedTooltipWindow(
         huge,
         {.firstVisibleLine = next, .availableHeightPixels = 160.0F,
             .originalHeightPixels = 1019.0F * lineHeight},
         MeasureRows,
         const_cast<float*>(&lineHeight));
-    Require(scrolled.text.starts_with("[Lines 4-12 of 1019]\nstat-11\n"));
-    Require(scrolled.text.ends_with("stat-3"));
+    TEST_REQUIRE(scrolled.text.starts_with("[Lines 4-12 of 1019]\nstat-11\n"));
+    TEST_REQUIRE(scrolled.text.ends_with("stat-3"));
 
     const auto lastPage = ScrollTooltipByLines(0, 1019, 9, 100000);
-    Require(lastPage == 1010);
+    TEST_REQUIRE(lastPage == 1010);
     const auto bottom = BuildFittedTooltipWindow(
         huge,
         {.firstVisibleLine = lastPage, .availableHeightPixels = 160.0F,
             .originalHeightPixels = 1019.0F * lineHeight},
         MeasureRows,
         const_cast<float*>(&lineHeight));
-    Require(bottom.text.starts_with("[Lines 1011-1019 of 1019]\nstat-1018\n"));
-    Require(bottom.text.ends_with("stat-1010"));
+    TEST_REQUIRE(bottom.text.starts_with("[Lines 1011-1019 of 1019]\nstat-1018\n"));
+    TEST_REQUIRE(bottom.text.ends_with("stat-1010"));
 
     TooltipWindowOptions layoutBounded{};
     layoutBounded.maxVisibleTextUnits = 1024;
@@ -232,9 +228,9 @@ int main() {
         MeasureRows,
         const_cast<float*>(&lineHeight),
         layoutBounded);
-    Require(shortPage.overflow);
-    Require(!shortPage.refused);
-    Require(shortPage.visibleLineCount == 39);
+    TEST_REQUIRE(shortPage.overflow);
+    TEST_REQUIRE(!shortPage.refused);
+    TEST_REQUIRE(shortPage.visibleLineCount == 39);
 
     // Long affixes dynamically lower the row count so every page stays below
     // D2R's 64-KiB native layout allocation ceiling.
@@ -246,10 +242,10 @@ int main() {
         MeasureRows,
         const_cast<float*>(&lineHeight),
         {.maxVisibleTextUnits = 0, .showPosition = false});
-    Require(vanillaHeightLongPage.overflow);
-    Require(!vanillaHeightLongPage.refused);
-    Require(vanillaHeightLongPage.visibleLineCount == 39);
-    Require(CountVisibleTooltipTextUnits(vanillaHeightLongPage.text) > 1024);
+    TEST_REQUIRE(vanillaHeightLongPage.overflow);
+    TEST_REQUIRE(!vanillaHeightLongPage.refused);
+    TEST_REQUIRE(vanillaHeightLongPage.visibleLineCount == 39);
+    TEST_REQUIRE(CountVisibleTooltipTextUnits(vanillaHeightLongPage.text) > 1024);
 
     const auto longPage = BuildFittedTooltipWindow(
         fortyLongLines,
@@ -258,10 +254,10 @@ int main() {
         MeasureRows,
         const_cast<float*>(&lineHeight),
         layoutBounded);
-    Require(longPage.overflow);
-    Require(!longPage.refused);
-    Require(longPage.visibleLineCount == 8);
-    Require(longPage.text.size() <= 1024);
+    TEST_REQUIRE(longPage.overflow);
+    TEST_REQUIRE(!longPage.refused);
+    TEST_REQUIRE(longPage.visibleLineCount == 8);
+    TEST_REQUIRE(longPage.text.size() <= 1024);
 
     for (std::size_t offset = 0; offset < 40; ++offset) {
         const auto page = BuildFittedTooltipWindow(
@@ -272,10 +268,10 @@ int main() {
             MeasureRows,
             const_cast<float*>(&lineHeight),
             layoutBounded);
-        Require(page.overflow);
-        Require(!page.refused);
-        Require(page.visibleLineCount >= 1);
-        Require(page.text.size() <= 1024);
+        TEST_REQUIRE(page.overflow);
+        TEST_REQUIRE(!page.refused);
+        TEST_REQUIRE(page.visibleLineCount >= 1);
+        TEST_REQUIRE(page.text.size() <= 1024);
     }
 
     // The workload budget also protects a tooltip that fits vertically but
@@ -288,10 +284,10 @@ int main() {
         MeasureRows,
         const_cast<float*>(&lineHeight),
         layoutBounded);
-    Require(widePage.overflow);
-    Require(!widePage.refused);
-    Require(widePage.visibleLineCount == 5);
-    Require(widePage.text.size() <= 1024);
+    TEST_REQUIRE(widePage.overflow);
+    TEST_REQUIRE(!widePage.refused);
+    TEST_REQUIRE(widePage.visibleLineCount == 5);
+    TEST_REQUIRE(widePage.text.size() <= 1024);
 
     TooltipWindowOptions singleLineBounded{};
     singleLineBounded.maxVisibleTextUnits = 32;
@@ -303,10 +299,10 @@ int main() {
         MeasureRows,
         const_cast<float*>(&lineHeight),
         singleLineBounded);
-    Require(oversizedSingleLine.overflow);
-    Require(!oversizedSingleLine.refused);
-    Require(oversizedSingleLine.visibleLineCount == 1);
-    Require(oversizedSingleLine.text == std::string(29, 'X') + "...");
+    TEST_REQUIRE(oversizedSingleLine.overflow);
+    TEST_REQUIRE(!oversizedSingleLine.refused);
+    TEST_REQUIRE(oversizedSingleLine.visibleLineCount == 1);
+    TEST_REQUIRE(oversizedSingleLine.text == std::string(29, 'X') + "...");
 
     TooltipWindowOptions bounded{};
     bounded.maxLines = 1000;
@@ -317,46 +313,46 @@ int main() {
         MeasureRows,
         const_cast<float*>(&lineHeight),
         bounded);
-    Require(refused.refused);
-    Require(refused.text == huge);
+    TEST_REQUIRE(refused.refused);
+    TEST_REQUIRE(refused.text == huge);
 
-    Require(ScrollTooltipByLines(5, 100, 10, -3) == 2);
-    Require(ScrollTooltipByLines(5, 100, 10, -1000) == 0);
-    Require(ScrollTooltipByLines(5, 100, 100, 3) == 0);
+    TEST_REQUIRE(ScrollTooltipByLines(5, 100, 10, -3) == 2);
+    TEST_REQUIRE(ScrollTooltipByLines(5, 100, 10, -1000) == 0);
+    TEST_REQUIRE(ScrollTooltipByLines(5, 100, 100, 3) == 0);
 
     TooltipRefreshCoalescer refreshes;
-    Require(refreshes.Request());
-    Require(!refreshes.Request());
+    TEST_REQUIRE(refreshes.Request());
+    TEST_REQUIRE(!refreshes.Request());
     auto decision = refreshes.Decide(1000, 33);
-    Require(decision.refreshNow);
-    Require(decision.delayMilliseconds == 0);
+    TEST_REQUIRE(decision.refreshNow);
+    TEST_REQUIRE(decision.delayMilliseconds == 0);
     refreshes.MarkRefreshed(1000);
-    Require(!refreshes.Pending());
+    TEST_REQUIRE(!refreshes.Pending());
 
-    Require(refreshes.Request());
+    TEST_REQUIRE(refreshes.Request());
     decision = refreshes.Decide(1008, 33);
-    Require(!decision.refreshNow);
-    Require(decision.delayMilliseconds == 25);
+    TEST_REQUIRE(!decision.refreshNow);
+    TEST_REQUIRE(decision.delayMilliseconds == 25);
     for (auto request = 0; request < 500; ++request) {
-        Require(!refreshes.Request());
+        TEST_REQUIRE(!refreshes.Request());
     }
     decision = refreshes.Decide(1032, 33);
-    Require(!decision.refreshNow);
-    Require(decision.delayMilliseconds == 1);
+    TEST_REQUIRE(!decision.refreshNow);
+    TEST_REQUIRE(decision.delayMilliseconds == 1);
     decision = refreshes.Decide(1033, 33);
-    Require(decision.refreshNow);
+    TEST_REQUIRE(decision.refreshNow);
     refreshes.MarkRefreshed(1033);
 
-    Require(refreshes.Request());
+    TEST_REQUIRE(refreshes.Request());
     refreshes.Cancel();
-    Require(!refreshes.Pending());
+    TEST_REQUIRE(!refreshes.Pending());
     decision = refreshes.Decide(5000, 33);
-    Require(!decision.refreshNow);
-    Require(decision.delayMilliseconds == 0);
+    TEST_REQUIRE(!decision.refreshNow);
+    TEST_REQUIRE(decision.delayMilliseconds == 0);
 
     refreshes.Reset();
-    Require(refreshes.Request());
+    TEST_REQUIRE(refreshes.Request());
     decision = refreshes.Decide(1, 33);
-    Require(decision.refreshNow);
+    TEST_REQUIRE(decision.refreshNow);
     return 0;
 }

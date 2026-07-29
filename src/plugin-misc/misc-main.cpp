@@ -123,7 +123,7 @@ static constexpr D2RL::PluginInfo PluginInfo {
 	.apiVersion = D2RL_PLUGIN_API_VERSION,
 	.id         = "eezstreet-plugin-misc",
 	.name       = "eezstreet Misc Plugin",
-	.version    = "2.0.1",
+	.version    = PSh_PluginPackVersion,
 	.author     = "eezstreet",
 	.description = "Miscellaneous changes.",
 	.flags      = D2RL::PluginFlags::NativeHooks,
@@ -235,14 +235,21 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 
 	const auto commit = hookTransaction.Commit(context);
 	if (!commit.success) {
+		if (commit.rollbackFailures != 0) {
+			D2RL::LogErrorF(context,
+				"plugin-misc: deferred hook commit failed with %zu rollback errors; the inactive DLL remains loaded as a safety barrier.",
+				commit.rollbackFailures);
+			return true;
+		}
 		context->LogError(
-			"plugin-misc: deferred hook commit was incomplete; the DLL remains loaded to keep any installed callbacks valid.");
-		return true;
+			"plugin-misc: deferred hook commit failed; direct writes were restored and guarded detours were deactivated.");
+		return false;
 	}
 
 	return true;
 }
 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
+	PSh_HookTransactionDeactivate();
 	CleanupPluginMiscState();
 }

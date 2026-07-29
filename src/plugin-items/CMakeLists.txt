@@ -3,12 +3,14 @@ include(FetchContent)
 FetchContent_Declare(
 	imgui
 	GIT_REPOSITORY https://github.com/ocornut/imgui.git
-	GIT_TAG v1.91.5
+	# v1.91.5
+	GIT_TAG f401021d5a5d56fe2304056c391e78f81c8d4b8f
 )
 FetchContent_Declare(
 	minhook
 	GIT_REPOSITORY https://github.com/TsudaKageyu/minhook.git
-	GIT_TAG v1.3.4
+	# v1.3.4
+	GIT_TAG c3fcafdc10146beb5919319d0683e44e3c30d537
 )
 FetchContent_MakeAvailable(imgui minhook)
 

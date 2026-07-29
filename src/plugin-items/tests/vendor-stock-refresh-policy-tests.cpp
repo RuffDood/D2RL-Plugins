@@ -1,6 +1,6 @@
 #include "vendor-stock-refresh-policy.h"
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -21,11 +21,11 @@ bool Throws(Callback&& callback) {
 int main(int argc, char** argv) {
     using namespace RuffnecKk::VendorStockRefresh;
 
-    assert(RefreshActionForPanel(false) == NormalRefreshAction);
-    assert(RefreshActionForPanel(true) == VanillaGambleRefreshAction);
-    assert(ShouldShowNormalRefresh(true, false));
-    assert(!ShouldShowNormalRefresh(true, true));
-    assert(!ShouldShowNormalRefresh(false, false));
+    TEST_REQUIRE(RefreshActionForPanel(false) == NormalRefreshAction);
+    TEST_REQUIRE(RefreshActionForPanel(true) == VanillaGambleRefreshAction);
+    TEST_REQUIRE(ShouldShowNormalRefresh(true, false));
+    TEST_REQUIRE(!ShouldShowNormalRefresh(true, true));
+    TEST_REQUIRE(!ShouldShowNormalRefresh(false, false));
 
     constexpr WidgetRect vanillaGold{421, 1305, 313, 58};
     constexpr WidgetRect vanillaRefresh{877, 1277, 112, 112};
@@ -52,31 +52,31 @@ int main(int argc, char** argv) {
     static_assert(!CenterBelow(WidgetRect{}, vanillaRefresh).valid);
     static_assert(!CenterBelow(vanillaGold, WidgetRect{}).valid);
 
-    assert(ShouldArmNormalRefresh(true, true, NormalVendorMode, true, true));
-    assert(!ShouldArmNormalRefresh(false, true, NormalVendorMode, true, true));
-    assert(!ShouldArmNormalRefresh(true, false, NormalVendorMode, true, true));
-    assert(!ShouldArmNormalRefresh(true, true, GambleVendorMode, true, true));
-    assert(!ShouldArmNormalRefresh(true, true, NormalVendorMode, false, true));
-    assert(!ShouldArmNormalRefresh(true, true, NormalVendorMode, true, false));
+    TEST_REQUIRE(ShouldArmNormalRefresh(true, true, NormalVendorMode, true, true));
+    TEST_REQUIRE(!ShouldArmNormalRefresh(false, true, NormalVendorMode, true, true));
+    TEST_REQUIRE(!ShouldArmNormalRefresh(true, false, NormalVendorMode, true, true));
+    TEST_REQUIRE(!ShouldArmNormalRefresh(true, true, GambleVendorMode, true, true));
+    TEST_REQUIRE(!ShouldArmNormalRefresh(true, true, NormalVendorMode, false, true));
+    TEST_REQUIRE(!ShouldArmNormalRefresh(true, true, NormalVendorMode, true, false));
 
     const auto missing = ParseConfig(nlohmann::json::object());
-    assert(!missing.enabled);
+    TEST_REQUIRE(!missing.enabled);
     const auto enabled = ParseConfig(nlohmann::json::parse(
         R"json({"vendorStockRefresh":{"enabled":true}})json"));
-    assert(enabled.enabled);
-    assert(Throws([] {
+    TEST_REQUIRE(enabled.enabled);
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"vendorStockRefresh":{"enabled":true,"unknown":1}})json"));
     }));
-    assert(Throws([] {
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"vendorStockRefresh":{"enabled":1}})json"));
     }));
 
-    assert(argc == 2);
+    TEST_REQUIRE(argc == 2);
     std::ifstream shippedConfig(argv[1]);
-    assert(shippedConfig.is_open());
+    TEST_REQUIRE(shippedConfig.is_open());
     const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
     const auto shipped = ParseConfig(root.at("items"));
-    assert(!shipped.enabled);
+    TEST_REQUIRE(!shipped.enabled);
 }

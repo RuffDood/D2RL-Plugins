@@ -101,10 +101,6 @@ using GetStatsDescriptionFn = void(__fastcall*)(
 using EnsureStringCapacityFn = void(__fastcall*)(void*, std::size_t) noexcept;
 using ResolveHoveredUnitFn = void*(__fastcall*)(void*) noexcept;
 using ResolveHoveredWidgetFn = void*(__fastcall*)(void*, std::uint64_t) noexcept;
-using TooltipTransformFn = void*(__cdecl*)(void*, void*) noexcept;
-using TooltipOwnerFn = bool(__cdecl*)() noexcept;
-using ReadableMouseInputFn = bool(__cdecl*)(
-    WPARAM, const MSLLHOOKSTRUCT*) noexcept;
 
 const D2RL::PluginContext* Context{};
 std::uint8_t* Base{};
@@ -138,7 +134,8 @@ std::atomic<std::uint32_t> StatsDescriptionProbeLogs{};
 std::atomic<std::uint32_t> TooltipProbeLogs{};
 std::atomic<bool> TooltipColorMapLogged{};
 bool TooltipHookInstalled{};
-bool TooltipDelegated{};
+bool TransportEnabled{};
+bool ScrollBarEnabled{};
 std::atomic<bool> FeatureEnabled{};
 HWND GameWindow{};
 std::atomic<void*> LastTooltipPanel{};
@@ -148,6 +145,7 @@ HANDLE TooltipInputThread{};
 DWORD TooltipInputThreadId{};
 std::atomic<bool> TooltipInputReady{};
 std::atomic<bool> TooltipInputFailed{};
+std::atomic<bool> TooltipInputStopping{};
 TooltipRefreshCoalescer TooltipRefreshSchedule{};
 std::mutex TooltipRefreshMutex;
 
@@ -359,30 +357,6 @@ void LogTooltipColorMap(std::string_view text, std::size_t rows) noexcept {
         if (separator == std::string_view::npos) break;
         start = separator + 1;
     }
-}
-
-TooltipTransformFn FindTransmogrifyTransform() noexcept {
-    const auto module = GetModuleHandleW(L"Transmogrify.dll");
-    return module ? reinterpret_cast<TooltipTransformFn>(
-        GetProcAddress(module, "TransmogrifyTransformTooltip")) : nullptr;
-}
-
-TooltipOwnerFn FindTransmogrifyOwner() noexcept {
-    const auto module = GetModuleHandleW(L"Transmogrify.dll");
-    return module ? reinterpret_cast<TooltipOwnerFn>(
-        GetProcAddress(module, "TransmogrifyOwnsTooltipPipeline")) : nullptr;
-}
-
-TooltipTransformFn FindReadableItemsTransform() noexcept {
-    const auto module = GetModuleHandleW(L"ReadableItems.dll");
-    return module ? reinterpret_cast<TooltipTransformFn>(
-        GetProcAddress(module, "ReadableItemsTransformTooltip")) : nullptr;
-}
-
-ReadableMouseInputFn FindReadableItemsMouseInput() noexcept {
-    const auto module = GetModuleHandleW(L"ReadableItems.dll");
-    return module ? reinterpret_cast<ReadableMouseInputFn>(
-        GetProcAddress(module, "ReadableItemsHandleMouseInput")) : nullptr;
 }
 
 struct CapturedTooltipText {
@@ -1047,12 +1021,6 @@ void* __fastcall HookBuildItemTooltip(
     ++TooltipHookCalls;
     PendingStatExpansions.clear();
     auto* result = OriginalBuildItemTooltip(output, a2, a3, item, a5, a6, a7, a8, a9);
-    if (const auto transmogrify = FindTransmogrifyTransform()) {
-        result = transmogrify(result, item);
-    }
-    if (const auto readable = FindReadableItemsTransform()) {
-        result = readable(result, item);
-    }
     return TransformScrollableTooltip(result, item, a2);
 }
 
@@ -1279,12 +1247,12 @@ LRESULT CALLBACK TooltipMouseHook(
     int code,
     WPARAM message,
     LPARAM parameter) noexcept {
+    if (TooltipInputStopping.load(std::memory_order_acquire)
+        || !FeatureEnabled.load(std::memory_order_acquire)) {
+        return CallNextHookEx(nullptr, code, message, parameter);
+    }
     if (code == HC_ACTION && CurrentProcessOwnsForegroundWindow()) {
         const auto* input = reinterpret_cast<const MSLLHOOKSTRUCT*>(parameter);
-        if (const auto readable = FindReadableItemsMouseInput();
-            readable && readable(message, input)) {
-            return 1;
-        }
         const auto active = TooltipIsActive();
         const auto hasRegion = ruffneck::extended_item_stats::tooltip_overlay::
             HasInteractionRegion();
@@ -1331,6 +1299,10 @@ LRESULT CALLBACK TooltipKeyboardHook(
     int code,
     WPARAM message,
     LPARAM parameter) noexcept {
+    if (TooltipInputStopping.load(std::memory_order_acquire)
+        || !FeatureEnabled.load(std::memory_order_acquire)) {
+        return CallNextHookEx(nullptr, code, message, parameter);
+    }
     if (code == HC_ACTION && (message == WM_KEYDOWN || message == WM_SYSKEYDOWN)
         && CurrentProcessOwnsForegroundWindow() && TooltipIsActive()) {
         const auto* input = reinterpret_cast<const KBDLLHOOKSTRUCT*>(parameter);
@@ -1380,23 +1352,25 @@ HWND FindGameWindow() noexcept {
 bool InstallTooltipInput() noexcept {
     TooltipInputReady = false;
     TooltipInputFailed = false;
+    TooltipInputStopping.store(false, std::memory_order_release);
     {
         std::lock_guard lock(TooltipRefreshMutex);
         TooltipRefreshSchedule.Reset();
     }
+    HMODULE workerModule{};
+    if (!GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+            reinterpret_cast<LPCWSTR>(&InstallTooltipInput),
+            &workerModule)) {
+        return false;
+    }
     TooltipInputThread = CreateThread(
         nullptr,
         0,
-        [](void*) noexcept -> DWORD {
+        [](void* parameter) noexcept -> DWORD {
+            const auto module = static_cast<HMODULE>(parameter);
             MSG message{};
             PeekMessageW(&message, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
-
-            HMODULE module{};
-            GetModuleHandleExW(
-                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
-                    | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                reinterpret_cast<LPCWSTR>(&TooltipMouseHook),
-                &module);
             const auto mouseHook = SetWindowsHookExW(
                 WH_MOUSE_LL, TooltipMouseHook, module, 0);
             const auto keyboardHook = SetWindowsHookExW(
@@ -1410,7 +1384,7 @@ bool InstallTooltipInput() noexcept {
                 if (mouseHook) UnhookWindowsHookEx(mouseHook);
                 TooltipInputFailed = true;
                 TooltipInputReady = true;
-                return 1;
+                FreeLibraryAndExitThread(module, 1);
             }
 
             TooltipInputReady = true;
@@ -1432,35 +1406,49 @@ bool InstallTooltipInput() noexcept {
             KillTimer(nullptr, controllerTimer);
             UnhookWindowsHookEx(keyboardHook);
             UnhookWindowsHookEx(mouseHook);
-            return 0;
+            FreeLibraryAndExitThread(module, 0);
         },
-        nullptr,
+        workerModule,
         0,
         &TooltipInputThreadId);
-    if (!TooltipInputThread) return false;
+    if (!TooltipInputThread) {
+        FreeLibrary(workerModule);
+        return false;
+    }
 
     for (unsigned attempt = 0; attempt < 200 && !TooltipInputReady.load(); ++attempt) {
         Sleep(10);
     }
     if (!TooltipInputReady.load() || TooltipInputFailed.load()) {
+        TooltipInputStopping.store(true, std::memory_order_release);
         if (TooltipInputThreadId != 0) {
             PostThreadMessageW(TooltipInputThreadId, WM_QUIT, 0, 0);
         }
-        WaitForSingleObject(TooltipInputThread, 2000);
-        CloseHandle(TooltipInputThread);
-        TooltipInputThread = nullptr;
-        TooltipInputThreadId = 0;
+        const auto wait = WaitForSingleObject(TooltipInputThread, 2000);
+        if (wait == WAIT_OBJECT_0) {
+            CloseHandle(TooltipInputThread);
+            TooltipInputThread = nullptr;
+            TooltipInputThreadId = 0;
+        }
         return false;
     }
     return true;
 }
 
-void RemoveTooltipInput() noexcept {
-    if (!TooltipInputThread) return;
+bool RemoveTooltipInput() noexcept {
+    TooltipInputStopping.store(true, std::memory_order_release);
+    if (!TooltipInputThread) return true;
     if (TooltipInputThreadId != 0) {
         PostThreadMessageW(TooltipInputThreadId, WM_QUIT, 0, 0);
     }
-    WaitForSingleObject(TooltipInputThread, 2000);
+    const auto wait = WaitForSingleObject(TooltipInputThread, 2000);
+    if (wait != WAIT_OBJECT_0) {
+        if (Context) {
+            Context->LogError(
+                "ExtendedItemStats: tooltip input worker did not stop; its module reference is retained for safety.");
+        }
+        return false;
+    }
     CloseHandle(TooltipInputThread);
     TooltipInputThread = nullptr;
     TooltipInputThreadId = 0;
@@ -1471,9 +1459,10 @@ void RemoveTooltipInput() noexcept {
         std::lock_guard lock(TooltipRefreshMutex);
         TooltipRefreshSchedule.Reset();
     }
+    return true;
 }
 
-bool InstallHooks() noexcept {
+bool InstallHooks(bool installTransport) noexcept {
     constexpr std::array<std::uint8_t, 32> dispatch9CExpected{
         0x40,0x53,0x48,0x81,0xEC,0x50,0x01,0x00,0x00,0x48,0x8B,0x05,0xF8,0xCF,0x89,0x02,
         0x48,0x33,0xC4,0x48,0x89,0x84,0x24,0x40,0x01,0x00,0x00,0x48,0x8B,0xD9,0x33,0xD2};
@@ -1503,25 +1492,28 @@ bool InstallHooks() noexcept {
         0x48,0x8D,0xAC,0x24,0xC0,0xFB,0xFF,0xFF,
         0x48,0x81,0xEC,0x40,0x05,0x00,0x00,0x48};
 
-    const auto transportInstalled = PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.serializeItem"),
-        SerializeItemRva, serializeExpected.data(), serializeExpected.size(),
-        HookSerializeItem, &OriginalSerializeItem)
-        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.queueServerPacket"),
-            QueueServerPacketRva, queueExpected.data(), queueExpected.size(),
-            HookQueueServerPacket, &OriginalQueueServerPacket)
-        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.readItemMetadata"),
-            ReadItemMetadataRva, metadataExpected.data(), metadataExpected.size(),
-            HookReadItemMetadata, &OriginalReadItemMetadata)
-        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.decodeItem"),
-            DecodeItemRva, decodeExpected.data(), decodeExpected.size(),
-            HookDecodeItem, &OriginalDecodeItem)
-        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.dispatch9C"),
-            DispatchItemAction9CRva, dispatch9CExpected.data(), dispatch9CExpected.size(),
-            HookDispatchItemAction9C, &OriginalDispatchItemAction9C)
-        && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.dispatch9D"),
-            DispatchItemAction9DRva, dispatch9DExpected.data(), dispatch9DExpected.size(),
-            HookDispatchItemAction9D, &OriginalDispatchItemAction9D);
-    if (!transportInstalled || !Settings.scrollableTooltips) return transportInstalled;
+    if (installTransport) {
+        const auto transportInstalled = PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.serializeItem"),
+            SerializeItemRva, serializeExpected.data(), serializeExpected.size(),
+            HookSerializeItem, &OriginalSerializeItem)
+            && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.queueServerPacket"),
+                QueueServerPacketRva, queueExpected.data(), queueExpected.size(),
+                HookQueueServerPacket, &OriginalQueueServerPacket)
+            && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.readItemMetadata"),
+                ReadItemMetadataRva, metadataExpected.data(), metadataExpected.size(),
+                HookReadItemMetadata, &OriginalReadItemMetadata)
+            && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.decodeItem"),
+                DecodeItemRva, decodeExpected.data(), decodeExpected.size(),
+                HookDecodeItem, &OriginalDecodeItem)
+            && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.dispatch9C"),
+                DispatchItemAction9CRva, dispatch9CExpected.data(), dispatch9CExpected.size(),
+                HookDispatchItemAction9C, &OriginalDispatchItemAction9C)
+            && PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.dispatch9D"),
+                DispatchItemAction9DRva, dispatch9DExpected.data(), dispatch9DExpected.size(),
+                HookDispatchItemAction9D, &OriginalDispatchItemAction9D);
+        if (!transportInstalled) return false;
+    }
+    if (!Settings.scrollableTooltips) return true;
 
     const auto hoverTrackingInstalled = PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.resolveHoveredUnit"),
         ResolveHoveredUnitRva,
@@ -1545,11 +1537,6 @@ bool InstallHooks() noexcept {
         &OriginalGetStatsDescription);
     if (!statCaptureInstalled) return false;
 
-    if (const auto owner = FindTransmogrifyOwner(); owner && owner()) {
-        TooltipDelegated = true;
-        return true;
-    }
-
     constexpr std::array<std::uint8_t, 32> tooltipExpected{
         0x40,0x55,0x53,0x56,0x57,0x41,0x54,0x41,
         0x55,0x41,0x56,0x41,0x57,0x48,0x8D,0xAC,
@@ -1571,14 +1558,19 @@ auto Status(D2R::Game::Client*, const D2RL::ConsoleCommandContext* command, void
     std::snprintf(
         message,
         sizeof(message),
-        "ExtendedItemStats 0.3.17: fixed max item bytes=%u; max in-flight=%u; timeout=%u ms; tooltip=%s/%u vanilla lines; overlay=%s; tooltip owner=%s; hook calls=%llu; expanded stat blocks=%llu; windowed=%llu; scrolls=%llu; oversized=%llu; fragmented=%llu; frames sent=%llu; frames received=%llu; reassembled=%llu; rejected=%llu.",
+        "ExtendedItemStats 0.3.17: item transport=%s; max item bytes=%u; max in-flight=%u; timeout=%u ms; tooltip=%s/%u vanilla lines; scroll bar=%s; tooltip owner=%s; hook calls=%llu; expanded stat blocks=%llu; windowed=%llu; scrolls=%llu; oversized=%llu; fragmented=%llu; frames sent=%llu; frames received=%llu; reassembled=%llu; rejected=%llu.",
+        TransportEnabled ? "enabled" : "disabled",
         Settings.maxItemBytes,
         Settings.maxInFlightTransfers,
         Settings.reassemblyTimeoutMs,
         Settings.scrollableTooltips ? "enabled" : "disabled",
         NativeTooltipVisibleLines(),
-        ruffneck::extended_item_stats::tooltip_overlay::IsReady() ? "ready" : "pending",
-        TooltipHookInstalled ? "ExtendedItemStats" : (TooltipDelegated ? "Transmogrify" : "none"),
+        !ScrollBarEnabled
+            ? "disabled"
+            : (ruffneck::extended_item_stats::tooltip_overlay::IsReady()
+                ? "ready"
+                : "pending"),
+        TooltipHookInstalled ? "plugin-items" : "none",
         static_cast<unsigned long long>(TooltipHookCalls.load()),
         static_cast<unsigned long long>(StatBlocksExpanded.load()),
         static_cast<unsigned long long>(TooltipsWindowed.load()),
@@ -1639,15 +1631,19 @@ bool RuffnecKk::ExtendedItemStats::Load(
         context->LogError("ExtendedItemStats: only D2R build 92777 is supported.");
         return false;
     }
-    try {
-        ItemReassembler = std::make_unique<Reassembler>(ActiveTransportOptions());
-    } catch (const std::exception& exception) {
-        const auto message = std::string("ExtendedItemStats: transport initialization failed (")
-            + exception.what() + ").";
-        context->LogError(message.c_str());
-        return false;
+    TransportEnabled = config.oversizedItemDataTransport;
+    ScrollBarEnabled = config.showScrollBar;
+    if (TransportEnabled) {
+        try {
+            ItemReassembler = std::make_unique<Reassembler>(ActiveTransportOptions());
+        } catch (const std::exception& exception) {
+            const auto message = std::string("ExtendedItemStats: transport initialization failed (")
+                + exception.what() + ").";
+            context->LogError(message.c_str());
+            return false;
+        }
     }
-    if (!InstallHooks()) {
+    if (!InstallHooks(TransportEnabled)) {
         context->LogError("ExtendedItemStats: native signature or hook installation failed; plugin refused.");
         return false;
     }
@@ -1656,7 +1652,7 @@ bool RuffnecKk::ExtendedItemStats::Load(
         context->LogWarn(
             "ExtendedItemStats: tooltip input listener could not start; scrolling input is unavailable.");
     }
-    if (Settings.scrollableTooltips) {
+    if (Settings.scrollableTooltips && ScrollBarEnabled) {
         ruffneck::extended_item_stats::tooltip_overlay::SetCallbacks(
             ProvideTooltipOverlaySnapshot,
             ScrollActiveTooltipToRatio,
@@ -1675,13 +1671,15 @@ bool RuffnecKk::ExtendedItemStats::Load(
         }
     }
 	if (!PSh_RegisterConsoleCommand(context,
-            "extended-item-stats", Status, "Show extended item transport status.")) {
+            "extended-item-stats", Status, "Show Extended Item Stats status.")) {
         context->LogWarn("ExtendedItemStats: status command could not be registered.");
     }
-    const auto message = std::string("ExtendedItemStats 0.3.17 active; fixed max item bytes=")
-        + std::to_string(Settings.maxItemBytes)
+    const auto message = std::string("ExtendedItemStats 0.3.17 active; item transport=")
+        + (TransportEnabled ? "enabled" : "disabled")
+        + "; scroll bar="
+        + (ScrollBarEnabled ? "enabled" : "disabled")
         + "; tooltip owner="
-        + (TooltipHookInstalled ? "ExtendedItemStats" : (TooltipDelegated ? "Transmogrify" : "none"))
+        + (TooltipHookInstalled ? "plugin-items" : "none")
         + "; config=items.extendedItemStats.";
     context->LogInfo(message.c_str());
     return true;
@@ -1689,8 +1687,16 @@ bool RuffnecKk::ExtendedItemStats::Load(
 
 void RuffnecKk::ExtendedItemStats::Unload() noexcept {
     FeatureEnabled.store(false, std::memory_order_release);
-    ruffneck::extended_item_stats::tooltip_overlay::Remove();
-    RemoveTooltipInput();
+    const auto overlayStopped =
+        ruffneck::extended_item_stats::tooltip_overlay::Remove();
+    const auto inputStopped = RemoveTooltipInput();
+    if (!overlayStopped || !inputStopped) {
+        if (Context) {
+            Context->LogError(
+                "ExtendedItemStats: asynchronous workers did not stop cleanly; state and module references are retained for safety.");
+        }
+        return;
+    }
     {
         std::lock_guard lock(ReassemblerMutex);
         ItemReassembler.reset();
@@ -1704,7 +1710,15 @@ void RuffnecKk::ExtendedItemStats::Unload() noexcept {
         SuppressedTooltipUnit = nullptr;
     }
     TooltipHookInstalled = false;
-    TooltipDelegated = false;
+    TransportEnabled = false;
+    ScrollBarEnabled = false;
+    OriginalSerializeItem = nullptr;
+    OriginalQueueServerPacket = nullptr;
+    OriginalDispatchItemAction9C = nullptr;
+    OriginalDispatchItemAction9D = nullptr;
+    OriginalReadItemMetadata = nullptr;
+    OriginalDecodeItem = nullptr;
+    OriginalBuildItemTooltip = nullptr;
     OriginalGetStatsDescription = nullptr;
     PendingStatExpansions.clear();
     StatsDescriptionScratch.clear();

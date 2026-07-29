@@ -37,8 +37,10 @@ Extended Item Stats are enabled by default. Every other newly added configurable
 effect remains disabled, and its remaining values match vanilla where a vanilla value exists.
 The Larzuk table contains the 15 visible vanilla socket rules but its independent
 switch is disabled, so it installs no hook. Extended Item Stats supplies bounded
-4096-byte item transport and only changes tooltip presentation when an oversized
-payload actually requires it; its public switch can disable the entire feature.
+scrollable full-stat tooltips by default. Its bounded 4096-byte item transport
+and graphical scroll bar are independent opt-in settings, so the shipped path
+does not alter item packets or install graphics hooks. Its public switch can
+disable the entire feature.
 
 ## Internal hook safety
 
@@ -68,17 +70,19 @@ falls back to a different global configuration.
 D2RLoader does not undo a successful executable-memory write when a plugin later
 returns a load failure. The five DLLs therefore preflight all required signatures
 first and defer their hook, patch, and console-command requests into one startup
-transaction. A deterministic preflight failure applies nothing. A commit refusal
-stops later required operations and deliberately keeps the DLL loaded, preventing
-already-installed callbacks from pointing into an unloaded module.
+transaction. A deterministic preflight failure applies nothing. Required
+operations run before optional commands. A commit refusal deactivates guarded
+detours and restores direct writes in reverse order; the DLL is rejected after a
+complete rollback and remains loaded but inactive only if a restoration fails.
 
-The final D2R `3.2.92777` validation built all five Release DLLs and passed 25/25
+The current D2R `3.2.92777` validation builds all five DLLs in Debug and Release
+and passes 25/25
 CTest tests. Isolated cold starts were completed from both supported locations:
 all five DLLs mod-local with a mod-local JSON, and all five DLLs global with the
 global fallback JSON. Each run reported
-`scanned=5 active=5 disabled=0 rejected=0 failed=0`; the global run committed
-24/24 item operations, 0/0 level operations, 6/6 misc operations, 0/0 quest
-operations, and 2/2 skill operations. A deliberately malformed mod-local JSON
+`scanned=5 active=5 disabled=0 rejected=0 failed=0`. With the safe public
+Extended Item Stats defaults, plugin-items commits 18/18 operations instead of
+installing the six packet hooks. A deliberately malformed mod-local JSON
 made all five DLLs fail closed while the sampled vanilla resistance-cap bytes
 remained unchanged. Every runtime test restored the 36 temporarily neutralized
 files byte-for-byte and left no game process running.

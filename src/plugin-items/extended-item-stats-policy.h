@@ -9,6 +9,8 @@ namespace RuffnecKk::ExtendedItemStats {
 
 struct Config {
 	bool enabled{true};
+	bool oversizedItemDataTransport{false};
+	bool showScrollBar{false};
 };
 
 inline Config ParseConfig(const nlohmann::json& itemsConfig) {
@@ -23,7 +25,9 @@ inline Config ParseConfig(const nlohmann::json& itemsConfig) {
 	}
 	for (const auto& [key, value] : entry->items()) {
 		(void)value;
-		if (key != "enabled") {
+		if (key != "enabled"
+			&& key != "oversizedItemDataTransport"
+			&& key != "showScrollBar") {
 			throw std::invalid_argument(
 				"items.extendedItemStats has unknown setting: " + key);
 		}
@@ -32,7 +36,22 @@ inline Config ParseConfig(const nlohmann::json& itemsConfig) {
 		throw std::invalid_argument(
 			"items.extendedItemStats.enabled must be a boolean");
 	}
-	return {.enabled = entry->at("enabled").get<bool>()};
+	if (entry->contains("oversizedItemDataTransport")
+		&& !entry->at("oversizedItemDataTransport").is_boolean()) {
+		throw std::invalid_argument(
+			"items.extendedItemStats.oversizedItemDataTransport must be a boolean");
+	}
+	if (entry->contains("showScrollBar")
+		&& !entry->at("showScrollBar").is_boolean()) {
+		throw std::invalid_argument(
+			"items.extendedItemStats.showScrollBar must be a boolean");
+	}
+	return {
+		.enabled = entry->at("enabled").get<bool>(),
+		.oversizedItemDataTransport =
+			entry->value("oversizedItemDataTransport", false),
+		.showScrollBar = entry->value("showScrollBar", false),
+	};
 }
 
 } // namespace RuffnecKk::ExtendedItemStats

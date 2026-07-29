@@ -1,7 +1,7 @@
 #include "cube-quick-move-policy.h"
 
 #include <array>
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -33,22 +33,22 @@ int main(int argc, char** argv) {
     static_assert(!ShouldRecomputeBottomRight(true, 1, 3, 0, 2));
 
     const auto missing = ParseConfig(nlohmann::json::object());
-    assert(!missing.enabled);
+    TEST_REQUIRE(!missing.enabled);
     const auto enabled = ParseConfig(nlohmann::json::parse(
         R"json({"cubeQuickMoveBottomRight":{"enabled":true}})json"
     ));
-    assert(enabled.enabled);
-    assert(Throws([] {
+    TEST_REQUIRE(enabled.enabled);
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"cubeQuickMoveBottomRight":true})json"
         ));
     }));
-    assert(Throws([] {
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"cubeQuickMoveBottomRight":{"enabled":1}})json"
         ));
     }));
-    assert(Throws([] {
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"cubeQuickMoveBottomRight":{"enabled":true,"mode":"all"}})json"
         ));
@@ -57,20 +57,20 @@ int main(int argc, char** argv) {
     std::array<std::uintptr_t, 12> cells{};
     std::int32_t x{-1};
     std::int32_t y{-1};
-    assert(TryFindBottomRight(cells.data(), 3, 4, 2, 2, &x, &y));
-    assert(x == 1 && y == 2);
+    TEST_REQUIRE(TryFindBottomRight(cells.data(), 3, 4, 2, 2, &x, &y));
+    TEST_REQUIRE(x == 1 && y == 2);
     cells[2 + 3 * 3] = 1;
-    assert(TryFindBottomRight(cells.data(), 3, 4, 2, 2, &x, &y));
-    assert(x == 1 && y == 1);
+    TEST_REQUIRE(TryFindBottomRight(cells.data(), 3, 4, 2, 2, &x, &y));
+    TEST_REQUIRE(x == 1 && y == 1);
     cells.fill(1);
-    assert(!TryFindBottomRight(cells.data(), 3, 4, 2, 2, &x, &y));
-    assert(!TryFindBottomRight(nullptr, 3, 4, 2, 2, &x, &y));
+    TEST_REQUIRE(!TryFindBottomRight(cells.data(), 3, 4, 2, 2, &x, &y));
+    TEST_REQUIRE(!TryFindBottomRight(nullptr, 3, 4, 2, 2, &x, &y));
 
-    assert(argc == 2);
+    TEST_REQUIRE(argc == 2);
     std::ifstream shippedConfig(argv[1]);
-    assert(shippedConfig.is_open());
+    TEST_REQUIRE(shippedConfig.is_open());
     const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
     const auto shipped = ParseConfig(root.at("misc"));
-    assert(!shipped.enabled);
+    TEST_REQUIRE(!shipped.enabled);
     return 0;
 }

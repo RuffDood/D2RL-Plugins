@@ -1,6 +1,6 @@
 #include "ground-item-label-limit-policy.h"
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -21,68 +21,68 @@ bool Throws(Callback&& callback) {
 int main(int argc, char** argv) {
 	using namespace RuffnecKk::GroundItemLabelLimit;
 
-	assert(!IsSupportedLimit(32));
-	assert(IsSupportedLimit(64));
-	assert(IsSupportedLimit(128));
-	assert(!IsSupportedLimit(256));
-	assert(LabelArrayByteOffset(32) == 0x2880);
-	assert(LabelArrayByteOffset(64) == 0x5100);
-	assert(LabelArrayByteOffset(128) == 0xA200);
+	TEST_REQUIRE(!IsSupportedLimit(32));
+	TEST_REQUIRE(IsSupportedLimit(64));
+	TEST_REQUIRE(IsSupportedLimit(128));
+	TEST_REQUIRE(!IsSupportedLimit(256));
+	TEST_REQUIRE(LabelArrayByteOffset(32) == 0x2880);
+	TEST_REQUIRE(LabelArrayByteOffset(64) == 0x5100);
+	TEST_REQUIRE(LabelArrayByteOffset(128) == 0xA200);
 
 	const auto missing = ParseConfig(nlohmann::json::object());
-	assert(!missing.enabled);
-	assert(missing.limit == DefaultExpandedLimit);
-	assert(EffectiveLimit(missing) == VanillaLimit);
+	TEST_REQUIRE(!missing.enabled);
+	TEST_REQUIRE(missing.limit == DefaultExpandedLimit);
+	TEST_REQUIRE(EffectiveLimit(missing) == VanillaLimit);
 
 	const auto disabled = ParseConfig(nlohmann::json::parse(
 		R"json({"groundItemLabels":{"enabled":false,"limit":64}})json"
 	));
-	assert(!disabled.enabled);
-	assert(EffectiveLimit(disabled) == VanillaLimit);
+	TEST_REQUIRE(!disabled.enabled);
+	TEST_REQUIRE(EffectiveLimit(disabled) == VanillaLimit);
 
 	const auto enabled64 = ParseConfig(nlohmann::json::parse(
 		R"json({"groundItemLabels":{"enabled":true,"limit":64}})json"
 	));
-	assert(enabled64.enabled);
-	assert(EffectiveLimit(enabled64) == 64);
+	TEST_REQUIRE(enabled64.enabled);
+	TEST_REQUIRE(EffectiveLimit(enabled64) == 64);
 
 	const auto enabled128 = ParseConfig(nlohmann::json::parse(
 		R"json({"groundItemLabels":{"enabled":true,"limit":128}})json"
 	));
-	assert(enabled128.enabled);
-	assert(EffectiveLimit(enabled128) == 128);
+	TEST_REQUIRE(enabled128.enabled);
+	TEST_REQUIRE(EffectiveLimit(enabled128) == 128);
 
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(R"json({"groundItemLabels":true})json"));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"groundItemLabels":{"enabled":1,"limit":64}})json"
 		));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"groundItemLabels":{"enabled":true,"limit":32}})json"
 		));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"groundItemLabels":{"enabled":true,"limit":256}})json"
 		));
 	}));
-	assert(Throws([] {
+	TEST_REQUIRE(Throws([] {
 		ParseConfig(nlohmann::json::parse(
 			R"json({"groundItemLabels":{"enabled":true,"limit":64,"extra":false}})json"
 		));
 	}));
 
-	assert(argc == 2);
+	TEST_REQUIRE(argc == 2);
 	std::ifstream shippedConfig(argv[1]);
-	assert(shippedConfig.is_open());
+	TEST_REQUIRE(shippedConfig.is_open());
 	const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
 	const auto shipped = ParseConfig(root.at("items"));
-	assert(!shipped.enabled);
-	assert(shipped.limit == DefaultExpandedLimit);
-	assert(EffectiveLimit(shipped) == VanillaLimit);
+	TEST_REQUIRE(!shipped.enabled);
+	TEST_REQUIRE(shipped.limit == DefaultExpandedLimit);
+	TEST_REQUIRE(EffectiveLimit(shipped) == VanillaLimit);
 	return 0;
 }

@@ -74,6 +74,7 @@ HANDLE InputThread{};
 DWORD InputThreadId{};
 std::atomic_bool InputThreadReady{};
 std::atomic_bool InputThreadFailed{};
+std::atomic_bool InputStopping{};
 std::atomic_bool UiDispatchReady{};
 std::atomic_bool HotkeyPressed{};
 std::atomic_bool HotkeyCaptured{};
@@ -412,6 +413,7 @@ bool HandleInputTransition(
     bool isUp,
     bool injected
 ) noexcept {
+    if (InputStopping.load(std::memory_order_acquire)) return false;
     if (isUp) {
         HotkeyPressed.store(false, std::memory_order_release);
         const auto captured = HotkeyCaptured.exchange(
@@ -504,17 +506,10 @@ LRESULT CALLBACK MouseHook(
     return CallNextHookEx(nullptr, code, message, parameter);
 }
 
-DWORD WINAPI InputThreadProc(void*) noexcept {
+DWORD WINAPI InputThreadProc(void* parameter) noexcept {
+    const auto module = static_cast<HMODULE>(parameter);
     MSG message{};
     PeekMessageW(&message, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
-
-    HMODULE module{};
-    GetModuleHandleExW(
-        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
-            | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-        reinterpret_cast<LPCWSTR>(&InputThreadProc),
-        &module
-    );
     DispatchRequestMessage = RegisterWindowMessageW(
         L"RuffnecKk.TransmuteHotkey.Dispatch"
     );
@@ -530,7 +525,7 @@ DWORD WINAPI InputThreadProc(void*) noexcept {
         if (inputHook) UnhookWindowsHookEx(inputHook);
         InputThreadFailed.store(true, std::memory_order_release);
         InputThreadReady.store(true, std::memory_order_release);
-        return 1;
+        FreeLibraryAndExitThread(module, 1);
     }
 
     EnsureUiMessageHook(module);
@@ -546,21 +541,32 @@ DWORD WINAPI InputThreadProc(void*) noexcept {
     KillTimer(nullptr, uiHookTimer);
     ResetUiMessageHook();
     UnhookWindowsHookEx(inputHook);
-    return 0;
+    FreeLibraryAndExitThread(module, 0);
 }
 
 bool StartInput() noexcept {
     InputThreadReady.store(false, std::memory_order_relaxed);
     InputThreadFailed.store(false, std::memory_order_relaxed);
+    InputStopping.store(false, std::memory_order_release);
+    HMODULE workerModule{};
+    if (!GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+            reinterpret_cast<LPCWSTR>(&InputThreadProc),
+            &workerModule)) {
+        return false;
+    }
     InputThread = CreateThread(
         nullptr,
         0,
         InputThreadProc,
-        nullptr,
+        workerModule,
         0,
         &InputThreadId
     );
-    if (!InputThread) return false;
+    if (!InputThread) {
+        FreeLibrary(workerModule);
+        return false;
+    }
     for (unsigned attempt = 0;
          attempt < 200 && !InputThreadReady.load(std::memory_order_acquire);
          ++attempt) {
@@ -570,15 +576,24 @@ bool StartInput() noexcept {
         && !InputThreadFailed.load(std::memory_order_acquire);
 }
 
-void StopInput() noexcept {
+bool StopInput() noexcept {
+    InputStopping.store(true, std::memory_order_release);
     if (InputThreadId != 0) PostThreadMessageW(InputThreadId, WM_QUIT, 0, 0);
     if (InputThread) {
-        WaitForSingleObject(InputThread, 3000);
+        const auto wait = WaitForSingleObject(InputThread, 3000);
+        if (wait != WAIT_OBJECT_0) {
+            if (Context) {
+                Context->LogError(
+                    "plugin-misc: Transmute Hotkey input worker did not stop; its module reference is retained for safety.");
+            }
+            return false;
+        }
         CloseHandle(InputThread);
     }
     InputThread = nullptr;
     InputThreadId = 0;
     DispatchRequestMessage = 0;
+    return true;
 }
 
 auto Status(
@@ -705,7 +720,7 @@ bool Load(
         return false;
     }
     if (!StartInput()) {
-        StopInput();
+        (void)StopInput();
         context->LogError(
             "plugin-misc: Transmute Hotkey bounded input hook failed.");
         return false;
@@ -726,7 +741,7 @@ bool Load(
 }
 
 void Unload() noexcept {
-    StopInput();
+    if (!StopInput()) return;
     RequestedAt.store(0, std::memory_order_release);
     IntegratedCubePanel.store(nullptr, std::memory_order_release);
     StandaloneCubePanel.store(nullptr, std::memory_order_release);

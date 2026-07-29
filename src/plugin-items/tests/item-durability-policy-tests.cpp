@@ -1,6 +1,6 @@
 #include "item-durability-policy.h"
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <exception>
 #include <fstream>
 
@@ -14,7 +14,7 @@ void ExpectInvalid(Callback&& callback) {
 	} catch (const std::exception&) {
 		rejected = true;
 	}
-	assert(rejected);
+	TEST_REQUIRE(rejected);
 }
 
 int main(int argc, char** argv) {
@@ -22,28 +22,28 @@ int main(int argc, char** argv) {
 	static_assert(IsBowOrCrossbowItemTypeCode(PackItemTypeCode('x', 'b', 'o', 'w')));
 	static_assert(!IsBowOrCrossbowItemTypeCode(PackItemTypeCode('a', 'b', 'o', 'w')));
 
-	assert(!PreventsLoss(0, 0));
-	assert(PreventsLoss(50, 49));
-	assert(!PreventsLoss(50, 50));
-	assert(PreventsLoss(100, 99));
-	assert(EffectiveChanceBasisPoints(4, 0) == 400);
-	assert(EffectiveChanceBasisPoints(4, 50) == 200);
-	assert(EffectiveChanceBasisPoints(10, 75) == 250);
-	assert(EffectiveChanceBasisPoints(10, 100) == 0);
+	TEST_REQUIRE(!PreventsLoss(0, 0));
+	TEST_REQUIRE(PreventsLoss(50, 49));
+	TEST_REQUIRE(!PreventsLoss(50, 50));
+	TEST_REQUIRE(PreventsLoss(100, 99));
+	TEST_REQUIRE(EffectiveChanceBasisPoints(4, 0) == 400);
+	TEST_REQUIRE(EffectiveChanceBasisPoints(4, 50) == 200);
+	TEST_REQUIRE(EffectiveChanceBasisPoints(10, 75) == 250);
+	TEST_REQUIRE(EffectiveChanceBasisPoints(10, 100) == 0);
 
-	assert(TargetEtherealMaxDurability(20, 25) == 6);
-	assert(TargetEtherealMaxDurability(20, 50) == 11);
-	assert(TargetEtherealMaxDurability(20, 75) == 16);
-	assert(ApplyVanillaEtherealHalving(
+	TEST_REQUIRE(TargetEtherealMaxDurability(20, 25) == 6);
+	TEST_REQUIRE(TargetEtherealMaxDurability(20, 50) == 11);
+	TEST_REQUIRE(TargetEtherealMaxDurability(20, 75) == 16);
+	TEST_REQUIRE(ApplyVanillaEtherealHalving(
 		EncodeForVanillaEtherealHalving(20, 50)) == 11);
-	assert(TargetEtherealMaxDurability(30, 100) == 30);
-	assert(TargetEtherealMaxDurability(20, 200) == 40);
-	assert(TargetEtherealMaxDurability(500, 200) == 255);
-	assert(ApplyVanillaEtherealHalving(EncodeEtherealMaximumTarget(255)) == 255);
+	TEST_REQUIRE(TargetEtherealMaxDurability(30, 100) == 30);
+	TEST_REQUIRE(TargetEtherealMaxDurability(20, 200) == 40);
+	TEST_REQUIRE(TargetEtherealMaxDurability(500, 200) == 255);
+	TEST_REQUIRE(ApplyVanillaEtherealHalving(EncodeEtherealMaximumTarget(255)) == 255);
 
 	const auto absent = ParseConfig(nlohmann::json::object());
-	assert(!absent.enabled);
-	assert(absent.etherealMaximumPercent == 50);
+	TEST_REQUIRE(!absent.enabled);
+	TEST_REQUIRE(absent.etherealMaximumPercent == 50);
 
 	const auto vanilla = nlohmann::json::parse(R"json({
 		"itemDurability": {
@@ -56,12 +56,12 @@ int main(int argc, char** argv) {
 		}
 	})json");
 	const auto policy = ParseConfig(vanilla);
-	assert(!policy.enabled);
-	assert(policy.normalResistancePercent == 0);
-	assert(policy.etherealResistancePercent == 0);
-	assert(policy.etherealMaximumPercent == 50);
-	assert(!policy.forceMaximumDurability);
-	assert(!policy.bowsAndCrossbowsHaveDurability);
+	TEST_REQUIRE(!policy.enabled);
+	TEST_REQUIRE(policy.normalResistancePercent == 0);
+	TEST_REQUIRE(policy.etherealResistancePercent == 0);
+	TEST_REQUIRE(policy.etherealMaximumPercent == 50);
+	TEST_REQUIRE(!policy.forceMaximumDurability);
+	TEST_REQUIRE(!policy.bowsAndCrossbowsHaveDurability);
 
 	ExpectInvalid([] { ParseConfig(nlohmann::json::array()); });
 	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
@@ -96,16 +96,16 @@ int main(int argc, char** argv) {
 
 	if (argc == 2) {
 		std::ifstream stream(argv[1], std::ios::binary);
-		assert(stream.good());
+		TEST_REQUIRE(stream.good());
 		const auto templateConfig = nlohmann::json::parse(
 			stream, nullptr, true, true);
 		const auto templatePolicy = ParseConfig(templateConfig.at("items"));
-		assert(!templatePolicy.enabled);
-		assert(templatePolicy.normalResistancePercent == 0);
-		assert(templatePolicy.etherealResistancePercent == 0);
-		assert(templatePolicy.etherealMaximumPercent == 50);
-		assert(!templatePolicy.forceMaximumDurability);
-		assert(!templatePolicy.bowsAndCrossbowsHaveDurability);
+		TEST_REQUIRE(!templatePolicy.enabled);
+		TEST_REQUIRE(templatePolicy.normalResistancePercent == 0);
+		TEST_REQUIRE(templatePolicy.etherealResistancePercent == 0);
+		TEST_REQUIRE(templatePolicy.etherealMaximumPercent == 50);
+		TEST_REQUIRE(!templatePolicy.forceMaximumDurability);
+		TEST_REQUIRE(!templatePolicy.bowsAndCrossbowsHaveDurability);
 	}
 
 	return 0;

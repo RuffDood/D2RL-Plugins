@@ -1,6 +1,6 @@
 #include "prevent-merc-death-in-town-policy.h"
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -21,37 +21,37 @@ bool Throws(Callback&& callback) {
 int main(int argc, char** argv) {
     using namespace RuffnecKk::PreventMercDeathInTown;
 
-    assert(IsHirelingClass(271));
-    assert(IsHirelingClass(338));
-    assert(IsHirelingClass(359));
-    assert(IsHirelingClass(560));
-    assert(IsHirelingClass(561));
-    assert(!IsHirelingClass(0));
-    assert(!IsHirelingClass(270));
-    assert(IsProjectedLethal(256, -256));
-    assert(IsProjectedLethal(1, -2));
-    assert(!IsProjectedLethal(256, -255));
-    assert(!IsProjectedLethal(0, 0));
-    assert(!IsProjectedLethal(1, 1));
+    TEST_REQUIRE(IsHirelingClass(271));
+    TEST_REQUIRE(IsHirelingClass(338));
+    TEST_REQUIRE(IsHirelingClass(359));
+    TEST_REQUIRE(IsHirelingClass(560));
+    TEST_REQUIRE(IsHirelingClass(561));
+    TEST_REQUIRE(!IsHirelingClass(0));
+    TEST_REQUIRE(!IsHirelingClass(270));
+    TEST_REQUIRE(IsProjectedLethal(256, -256));
+    TEST_REQUIRE(IsProjectedLethal(1, -2));
+    TEST_REQUIRE(!IsProjectedLethal(256, -255));
+    TEST_REQUIRE(!IsProjectedLethal(0, 0));
+    TEST_REQUIRE(!IsProjectedLethal(1, 1));
 
     const auto missing = ParseConfig(nlohmann::json::object());
-    assert(!missing.enabled);
+    TEST_REQUIRE(!missing.enabled);
     const auto enabled = ParseConfig(nlohmann::json::parse(
         R"json({"preventMercDeathInTown":{"enabled":true}})json"));
-    assert(enabled.enabled);
-    assert(Throws([] {
+    TEST_REQUIRE(enabled.enabled);
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"preventMercDeathInTown":{"enabled":true,"unknown":1}})json"));
     }));
-    assert(Throws([] {
+    TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"preventMercDeathInTown":{"enabled":1}})json"));
     }));
 
-    assert(argc == 2);
+    TEST_REQUIRE(argc == 2);
     std::ifstream shippedConfig(argv[1]);
-    assert(shippedConfig.is_open());
+    TEST_REQUIRE(shippedConfig.is_open());
     const auto root = nlohmann::json::parse(shippedConfig, nullptr, true, true);
     const auto shipped = ParseConfig(root.at("misc"));
-    assert(!shipped.enabled);
+    TEST_REQUIRE(!shipped.enabled);
 }

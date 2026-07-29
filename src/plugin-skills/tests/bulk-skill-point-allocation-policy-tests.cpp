@@ -2,7 +2,7 @@
 
 #include <json.hpp>
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -16,7 +16,7 @@ void ExpectInvalid(Callback&& callback) {
 	} catch (const std::exception&) {
 		rejected = true;
 	}
-	assert(rejected);
+	TEST_REQUIRE(rejected);
 }
 
 int main(int argc, char** argv) {
@@ -30,9 +30,9 @@ int main(int argc, char** argv) {
 	static_assert(NativeSkillPacketExtra(AllocationMode::ShiftAll, 1) == 0xFFFF);
 
 	const auto absent = ParseConfig(nlohmann::json::object());
-	assert(!absent.enabled);
-	assert(absent.skillPointsPerCtrlClick == 5);
-	assert(!absent.confirmShiftAllocation);
+	TEST_REQUIRE(!absent.enabled);
+	TEST_REQUIRE(absent.skillPointsPerCtrlClick == 5);
+	TEST_REQUIRE(!absent.confirmShiftAllocation);
 
 	const auto enabled = ParseConfig(nlohmann::json::parse(R"json({
 		"bulkSkillPointAllocation": {
@@ -43,11 +43,11 @@ int main(int argc, char** argv) {
 			"shiftConfirmationFallback": "Custom fallback"
 		}
 	})json"));
-	assert(enabled.enabled);
-	assert(enabled.skillPointsPerCtrlClick == 25);
-	assert(enabled.confirmShiftAllocation);
-	assert(enabled.shiftConfirmationKey == "customKey");
-	assert(enabled.shiftConfirmationFallback == "Custom fallback");
+	TEST_REQUIRE(enabled.enabled);
+	TEST_REQUIRE(enabled.skillPointsPerCtrlClick == 25);
+	TEST_REQUIRE(enabled.confirmShiftAllocation);
+	TEST_REQUIRE(enabled.shiftConfirmationKey == "customKey");
+	TEST_REQUIRE(enabled.shiftConfirmationFallback == "Custom fallback");
 
 	ExpectInvalid([] { ParseConfig(nlohmann::json::array()); });
 	ExpectInvalid([] { ParseConfig(nlohmann::json::parse(
@@ -63,13 +63,13 @@ int main(int argc, char** argv) {
 
 	if (argc == 2) {
 		std::ifstream stream(argv[1], std::ios::binary);
-		assert(stream.good());
+		TEST_REQUIRE(stream.good());
 		const auto templateConfig = nlohmann::json::parse(
 			stream, nullptr, true, true);
 		const auto policy = ParseConfig(templateConfig.at("skills"));
-		assert(!policy.enabled);
-		assert(policy.skillPointsPerCtrlClick == 5);
-		assert(!policy.confirmShiftAllocation);
+		TEST_REQUIRE(!policy.enabled);
+		TEST_REQUIRE(policy.skillPointsPerCtrlClick == 5);
+		TEST_REQUIRE(!policy.confirmShiftAllocation);
 	}
 
 	return 0;

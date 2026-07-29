@@ -1,6 +1,6 @@
 #include <plugin-shared-json.h>
 
-#include <cassert>
+#include "../../../tests/test-check.h"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -11,9 +11,9 @@ namespace {
 void WriteFile(const std::filesystem::path& path, std::string_view contents)
 {
 	std::ofstream file(path, std::ios::binary);
-	assert(file.is_open());
+	TEST_REQUIRE(file.is_open());
 	file << contents;
-	assert(file.good());
+	TEST_REQUIRE(file.good());
 }
 
 template <typename Callback>
@@ -44,31 +44,31 @@ int main()
 	const auto globalConfig = globalDirectory / "D2RPlugins.json";
 
 	const auto absent = PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig);
-	assert(!absent);
+	TEST_REQUIRE(!absent);
 
 	WriteFile(globalConfig, R"json({
 		// JSON comments remain supported.
 		"items": { "extendedItemStats": { "enabled": true } }
 	})json");
 	const auto global = PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig);
-	assert(global);
-	assert(PSh_Json_GetSection(global, "items").at("extendedItemStats").at("enabled") == true);
+	TEST_REQUIRE(global);
+	TEST_REQUIRE(PSh_Json_GetSection(global, "items").at("extendedItemStats").at("enabled") == true);
 
 	WriteFile(modConfig, R"json({ "items": { "extendedItemStats": { "enabled": false } } })json");
 	const auto local = PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig);
-	assert(local);
-	assert(PSh_Json_GetSection(local, "items").at("extendedItemStats").at("enabled") == false);
+	TEST_REQUIRE(local);
+	TEST_REQUIRE(PSh_Json_GetSection(local, "items").at("extendedItemStats").at("enabled") == false);
 
 	WriteFile(modConfig, "{ invalid json");
-	assert(Throws([&] { (void)PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig); }));
+	TEST_REQUIRE(Throws([&] { (void)PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig); }));
 
 	std::filesystem::remove(modConfig);
 	WriteFile(globalConfig, "[]");
-	assert(Throws([&] { (void)PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig); }));
+	TEST_REQUIRE(Throws([&] { (void)PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig); }));
 
 	WriteFile(globalConfig, R"json({ "items": false })json");
 	const auto wrongSection = PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig);
-	assert(Throws([&] { (void)PSh_Json_GetSection(wrongSection, "items"); }));
+	TEST_REQUIRE(Throws([&] { (void)PSh_Json_GetSection(wrongSection, "items"); }));
 
 	std::filesystem::remove_all(root);
 	return 0;

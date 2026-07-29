@@ -79,8 +79,6 @@ using CheckItemFlagFn = std::int32_t(__fastcall*)(
 	void*, std::uint32_t, std::int32_t, const char*) noexcept;
 using ItemRecordTransformFn = std::uint8_t*(__cdecl*)(
 	std::uint8_t*, std::uint8_t, std::int32_t) noexcept;
-using RegisterItemRecordTransformFn = bool(__cdecl*)(ItemRecordTransformFn) noexcept;
-
 const D2RL::PluginContext* Context{};
 std::uintptr_t Base{};
 Policy Settings{};
@@ -93,7 +91,6 @@ RandomFn RollRandom{};
 CheckItemFlagFn CheckItemFlag{};
 std::atomic<ItemRecordTransformFn> ExternalItemRecordTransform{};
 bool ItemRecordHookInstalled{};
-bool ItemRecordDelegated{};
 
 std::atomic<std::uint64_t> PreventedNormal{};
 std::atomic<std::uint64_t> PreventedEthereal{};
@@ -207,12 +204,6 @@ std::uint8_t* __fastcall HookGetItemsTxtRecord(
 		record = transform(record, context, classId);
 	}
 	return record;
-}
-
-RegisterItemRecordTransformFn FindTransmogrifyItemRecordBroker() noexcept {
-	const auto module = GetModuleHandleW(L"Transmogrify.dll");
-	return module ? reinterpret_cast<RegisterItemRecordTransformFn>(GetProcAddress(
-		module, "TransmogrifyRegisterItemRecordTransform")) : nullptr;
 }
 
 void __fastcall HookUpdateDurability(void* game, void* unit, void* item) noexcept {
@@ -373,10 +364,7 @@ bool InstallChanges() noexcept {
 	}
 
 	if (Settings.bowsAndCrossbowsHaveDurability) {
-		if (const auto broker = FindTransmogrifyItemRecordBroker();
-			broker && broker(TransformRangedItemRecord)) {
-			ItemRecordDelegated = true;
-		} else if (!Preflight(
+		if (!Preflight(
 				GetItemsTxtRecordRva,
 				ExpectedGetItemsTxtRecord.data(),
 				ExpectedGetItemsTxtRecord.size(),
@@ -390,9 +378,8 @@ bool InstallChanges() noexcept {
 			Context->LogError(
 				"plugin-items: Item Durability ranged item-record broker failed.");
 			return false;
-		} else {
-			ItemRecordHookInstalled = true;
 		}
+		ItemRecordHookInstalled = true;
 	}
 
 	return true;
@@ -410,7 +397,6 @@ bool Load(
 	ResetTelemetry();
 	ExternalItemRecordTransform.store(nullptr, std::memory_order_release);
 	ItemRecordHookInstalled = false;
-	ItemRecordDelegated = false;
 	try {
 		Settings = ParseConfig(itemsConfig);
 	} catch (const std::exception& exception) {
@@ -457,8 +443,7 @@ bool Load(
 		Settings.forceMaximumDurability ? 255u : Settings.etherealMaximumPercent,
 		Settings.forceMaximumDurability ? " points" : "%",
 		Settings.bowsAndCrossbowsHaveDurability ? "enabled" : "disabled",
-		ItemRecordHookInstalled ? "owner" :
-			(ItemRecordDelegated ? "delegated" : "inactive"));
+		ItemRecordHookInstalled ? "owner" : "inactive");
 	context->LogInfo(message);
 	return true;
 }
@@ -470,6 +455,17 @@ PluginItemsRegisterItemRecordTransform(ItemRecordTransformFn transform) noexcept
 	return ExternalItemRecordTransform.compare_exchange_strong(
 		expected, transform, std::memory_order_acq_rel)
 		|| expected == transform;
+}
+
+extern "C" __declspec(dllexport) void __cdecl
+PluginItemsUnregisterItemRecordTransform(ItemRecordTransformFn transform) noexcept {
+	if (!transform) return;
+	auto expected = transform;
+	ExternalItemRecordTransform.compare_exchange_strong(
+		expected,
+		nullptr,
+		std::memory_order_acq_rel,
+		std::memory_order_acquire);
 }
 
 void Unload() noexcept {

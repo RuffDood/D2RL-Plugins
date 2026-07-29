@@ -34,6 +34,7 @@ using ResizeBuffersFn = HRESULT(STDMETHODCALLTYPE*)(
     IDXGISwapChain3*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
 
 HMODULE Module{};
+HMODULE LifetimeModule{};
 void* PresentAddress{};
 void* ExecuteAddress{};
 void* ResizeAddress{};
@@ -53,13 +54,17 @@ HWND Window{};
 DXGI_FORMAT BackBufferFormat{DXGI_FORMAT_R8G8B8A8_UNORM};
 HANDLE StopEvent{};
 HANDLE Worker{};
-std::atomic<bool> Hosted{};
+std::atomic<bool> Removing{};
+std::atomic<std::uint32_t> ActiveCallbacks{};
 
-using HostedRenderCallback = void(__cdecl*)(
-    void*, float, float, HWND) noexcept;
-using RegisterHostedRenderFn = bool(__cdecl*)(HostedRenderCallback) noexcept;
-using ReadableItemsRenderFn = void(__cdecl*)(
-    void*, float, float, HWND) noexcept;
+struct CallbackLease {
+    CallbackLease() noexcept {
+        ActiveCallbacks.fetch_add(1, std::memory_order_acq_rel);
+    }
+    ~CallbackLease() {
+        ActiveCallbacks.fetch_sub(1, std::memory_order_acq_rel);
+    }
+};
 
 struct RendererStorage {
     ComPtr<ID3D12CommandQueue> commandQueue;
@@ -90,20 +95,6 @@ std::atomic<LONG> TrackTopScreen{};
 std::atomic<LONG> TrackBottomScreen{};
 std::atomic<LONG> ThumbHeightPixels{};
 std::atomic<bool> InputDragging{};
-
-void RenderReadableItems(
-    ImDrawList* drawList,
-    float displayWidth,
-    float displayHeight,
-    HWND renderWindow
-) noexcept {
-    const auto module = GetModuleHandleW(L"ReadableItems.dll");
-    const auto render = module
-        ? reinterpret_cast<ReadableItemsRenderFn>(
-            GetProcAddress(module, "ReadableItemsRenderOverlay"))
-        : nullptr;
-    if (render) render(drawList, displayWidth, displayHeight, renderWindow);
-}
 
 void ClearHitRect() noexcept {
     HitLeft = 0;
@@ -673,27 +664,14 @@ void RenderScrollbar(
         1.5F);
 }
 
-void __cdecl HostedRender(
-    void* drawList,
-    float displayWidth,
-    float displayHeight,
-    HWND renderWindow) noexcept {
-    Ready.store(true, std::memory_order_release);
-    RenderScrollbar(
-        static_cast<ImDrawList*>(drawList),
-        ImVec2(displayWidth, displayHeight),
-        renderWindow);
-    RenderReadableItems(
-        static_cast<ImDrawList*>(drawList),
-        displayWidth,
-        displayHeight,
-        renderWindow);
-}
-
 HRESULT STDMETHODCALLTYPE HookPresent(
     IDXGISwapChain3* swapChain,
     UINT syncInterval,
     UINT flags) noexcept {
+    CallbackLease callback;
+    if (Removing.load(std::memory_order_acquire)) {
+        return OriginalPresent(swapChain, syncInterval, flags);
+    }
     std::scoped_lock lock(RenderMutex);
     if (!CommandQueue) return OriginalPresent(swapChain, syncInterval, flags);
     if (!RendererInitialized && !InitializeRenderer(swapChain)) {
@@ -724,8 +702,6 @@ HRESULT STDMETHODCALLTYPE HookPresent(
     ImGui_ImplDX12_NewFrame();
     ImGui::NewFrame();
     RenderScrollbar(ImGui::GetForegroundDrawList(), io.DisplaySize, Window);
-    RenderReadableItems(
-        ImGui::GetForegroundDrawList(), io.DisplaySize.x, io.DisplaySize.y, Window);
     ImGui::Render();
 
     if (FAILED(frame.allocator->Reset())
@@ -758,6 +734,11 @@ void STDMETHODCALLTYPE HookExecuteCommandLists(
     ID3D12CommandQueue* queue,
     UINT count,
     ID3D12CommandList* const* lists) noexcept {
+    CallbackLease callback;
+    if (Removing.load(std::memory_order_acquire)) {
+        OriginalExecuteCommandLists(queue, count, lists);
+        return;
+    }
     if (!CommandQueue && queue
         && queue->GetDesc().Type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
         CommandQueue = queue;
@@ -772,6 +753,11 @@ HRESULT STDMETHODCALLTYPE HookResizeBuffers(
     UINT height,
     DXGI_FORMAT format,
     UINT flags) noexcept {
+    CallbackLease callback;
+    if (Removing.load(std::memory_order_acquire)) {
+        return OriginalResizeBuffers(
+            swapChain, bufferCount, width, height, format, flags);
+    }
     ResetRenderer();
     return OriginalResizeBuffers(
         swapChain, bufferCount, width, height, format, flags);
@@ -865,9 +851,12 @@ bool FindMethodAddresses() noexcept {
 bool CreateOwnHook(void* address, void* detour, void** original) noexcept {
     if (!address || !detour || !original) return false;
     const auto created = MH_CreateHook(address, detour, original);
-    if (created != MH_OK && created != MH_ERROR_ALREADY_CREATED) return false;
+    if (created != MH_OK) return false;
     const auto enabled = MH_EnableHook(address);
-    return enabled == MH_OK || enabled == MH_ERROR_ENABLED;
+    if (enabled == MH_OK) return true;
+    MH_RemoveHook(address);
+    *original = nullptr;
+    return false;
 }
 
 bool InstallOwnHooks() noexcept {
@@ -881,6 +870,7 @@ bool InstallOwnHooks() noexcept {
             ExecuteAddress,
             reinterpret_cast<void*>(HookExecuteCommandLists),
             reinterpret_cast<void**>(&OriginalExecuteCommandLists))) {
+        MH_Uninitialize();
         return false;
     }
     if (!CreateOwnHook(
@@ -888,6 +878,9 @@ bool InstallOwnHooks() noexcept {
             reinterpret_cast<void*>(HookPresent),
             reinterpret_cast<void**>(&OriginalPresent))) {
         MH_DisableHook(ExecuteAddress);
+        MH_RemoveHook(ExecuteAddress);
+        OriginalExecuteCommandLists = nullptr;
+        MH_Uninitialize();
         return false;
     }
     if (!CreateOwnHook(
@@ -896,35 +889,20 @@ bool InstallOwnHooks() noexcept {
             reinterpret_cast<void**>(&OriginalResizeBuffers))) {
         MH_DisableHook(PresentAddress);
         MH_DisableHook(ExecuteAddress);
+        MH_RemoveHook(PresentAddress);
+        MH_RemoveHook(ExecuteAddress);
+        OriginalPresent = nullptr;
+        OriginalExecuteCommandLists = nullptr;
+        MH_Uninitialize();
         return false;
     }
     HooksInstalled = true;
     return true;
 }
 
-bool RegisterWithRenderHost() noexcept {
-    const auto host = GetModuleHandleW(L"FloatingDamage.dll");
-    if (!host) return false;
-    const auto registerOverlay = reinterpret_cast<RegisterHostedRenderFn>(
-        GetProcAddress(host, "FloatingDamageRegisterExternalOverlay"));
-    if (!registerOverlay || !registerOverlay(HostedRender)) return false;
-    Hosted.store(true, std::memory_order_release);
-    return true;
-}
-
 DWORD WINAPI OverlayWorker(void*) noexcept {
-    constexpr DWORD HostDiscoveryIntervalMs = 50;
-    constexpr DWORD HostDiscoveryAttempts = 60;
-    for (DWORD attempt = 0; attempt < HostDiscoveryAttempts; ++attempt) {
-        if (WaitForSingleObject(StopEvent, HostDiscoveryIntervalMs)
-            != WAIT_TIMEOUT) {
-            return 0;
-        }
-        if (RegisterWithRenderHost()) return 0;
-    }
-
     while (WaitForSingleObject(StopEvent, 250) == WAIT_TIMEOUT) {
-        if (RegisterWithRenderHost() || InstallOwnHooks()) return 0;
+        if (InstallOwnHooks()) return 0;
     }
     return 0;
 }
@@ -942,24 +920,45 @@ void SetCallbacks(
 }
 
 bool Install(HMODULE module) noexcept {
-    if (HooksInstalled || Hosted.load(std::memory_order_acquire) || Worker) {
+    if (HooksInstalled || Worker) {
         return true;
     }
-    Module = module;
-    if (!Module) return false;
+    if (!module) return false;
+    HMODULE retainedModule{};
+    if (!GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+            reinterpret_cast<LPCWSTR>(&Install),
+            &retainedModule)) {
+        return false;
+    }
+    Module = retainedModule;
+    LifetimeModule = retainedModule;
+    Removing.store(false, std::memory_order_release);
     StopEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
-    if (!StopEvent) return false;
+    if (!StopEvent) {
+        Module = nullptr;
+        LifetimeModule = nullptr;
+        FreeLibrary(retainedModule);
+        return false;
+    }
     Worker = CreateThread(nullptr, 0, OverlayWorker, nullptr, 0, nullptr);
     if (Worker) return true;
     CloseHandle(StopEvent);
     StopEvent = nullptr;
+    Module = nullptr;
+    LifetimeModule = nullptr;
+    FreeLibrary(retainedModule);
     return false;
 }
 
-void Remove() noexcept {
+bool Remove() noexcept {
+    Removing.store(true, std::memory_order_release);
     if (StopEvent) SetEvent(StopEvent);
     if (Worker) {
-        WaitForSingleObject(Worker, 3000);
+        const auto wait = WaitForSingleObject(Worker, 3000);
+        if (wait != WAIT_OBJECT_0) {
+            return false;
+        }
         CloseHandle(Worker);
         Worker = nullptr;
     }
@@ -967,21 +966,43 @@ void Remove() noexcept {
         CloseHandle(StopEvent);
         StopEvent = nullptr;
     }
-    if (Hosted.exchange(false, std::memory_order_acq_rel)) {
-        const auto host = GetModuleHandleW(L"FloatingDamage.dll");
-        const auto registerOverlay = host
-            ? reinterpret_cast<RegisterHostedRenderFn>(
-                GetProcAddress(host, "FloatingDamageRegisterExternalOverlay"))
-            : nullptr;
-        if (registerOverlay) registerOverlay(nullptr);
-    }
     if (HooksInstalled) {
         MH_DisableHook(ResizeAddress);
         MH_DisableHook(PresentAddress);
         MH_DisableHook(ExecuteAddress);
     }
+    for (unsigned attempt = 0;
+         attempt < 300 && ActiveCallbacks.load(std::memory_order_acquire) != 0;
+         ++attempt) {
+        Sleep(10);
+    }
+    if (ActiveCallbacks.load(std::memory_order_acquire) != 0) {
+        return false;
+    }
+    if (HooksInstalled) {
+        const auto resizeRemoved = MH_RemoveHook(ResizeAddress) == MH_OK;
+        const auto presentRemoved = MH_RemoveHook(PresentAddress) == MH_OK;
+        const auto executeRemoved = MH_RemoveHook(ExecuteAddress) == MH_OK;
+        const auto removed = resizeRemoved && presentRemoved && executeRemoved;
+        const auto uninitialized = MH_Uninitialize() == MH_OK;
+        if (!removed || !uninitialized) {
+            return false;
+        }
+        ResizeAddress = nullptr;
+        PresentAddress = nullptr;
+        ExecuteAddress = nullptr;
+        OriginalResizeBuffers = nullptr;
+        OriginalPresent = nullptr;
+        OriginalExecuteCommandLists = nullptr;
+    }
     ResetRenderer();
     HooksInstalled = false;
+    const auto retainedModule = LifetimeModule;
+    LifetimeModule = nullptr;
+    Module = nullptr;
+    Removing.store(false, std::memory_order_release);
+    if (retainedModule) FreeLibrary(retainedModule);
+    return true;
 }
 
 bool IsReady() noexcept {

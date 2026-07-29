@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,7 @@
 #define PLUGINID_SKILLS 0xEE000005
 
 inline constexpr uint32_t PSh_SupportedD2RBuild = 92777;
+inline constexpr char PSh_PluginPackVersion[] = "2.1.0";
 
 inline bool PSh_ValidatePluginTarget(const D2RL::PluginContext* context) noexcept
 {
@@ -538,19 +540,39 @@ struct PSh_HookTransactionCommitResult {
 	bool success{};
 	size_t completedOperations{};
 	size_t totalOperations{};
+	size_t rolledBackOperations{};
+	size_t rollbackFailures{};
 };
 
 using PSh_HookTransactionCleanupFn = void(*)() noexcept;
 
 bool PSh_HookTransactionBegin() noexcept;
 void PSh_HookTransactionAbort() noexcept;
+void PSh_HookTransactionDeactivate() noexcept;
 bool PSh_HookTransactionIsCollecting() noexcept;
+bool PSh_HookTransactionIsOperational() noexcept;
 bool PSh_HookTransactionEnqueue(
 	const char* label,
 	bool required,
-	std::function<bool()> action) noexcept;
+	std::function<bool()> action,
+	std::function<bool()> rollback = {}) noexcept;
 PSh_HookTransactionCommitResult PSh_HookTransactionCommit(
 	const D2RL::PluginContext* context) noexcept;
+
+bool PSh_RestoreExecutableBytes(
+	const D2RL::PluginContext* context,
+	uint64_t rva,
+	const void* applied,
+	const void* original,
+	uint32_t size) noexcept;
+
+bool PSh_InstallGuardedInlineHook(
+	const D2RL::PluginContext* context,
+	uint64_t rva,
+	const void* expected,
+	uint32_t expectedSize,
+	void* target,
+	void** original) noexcept;
 
 class PSh_HookTransactionScope {
 public:
@@ -579,7 +601,11 @@ public:
 		const D2RL::PluginContext* context) noexcept
 	{
 		finalized_ = true;
-		return PSh_HookTransactionCommit(context);
+		auto result = PSh_HookTransactionCommit(context);
+		if (!result.success && cleanup_) {
+			cleanup_();
+		}
+		return result;
 	}
 
 private:
@@ -628,6 +654,11 @@ inline bool PSh_ManifestPatchBytes(
 	try {
 		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
 		auto bytesCopy = PSh_CopyHookBytes(bytes, size);
+		if (expectedCopy.size() < bytesCopy.size()) {
+			return false;
+		}
+		auto originalCopy = std::vector<uint8_t>(
+			expectedCopy.begin(), expectedCopy.begin() + bytesCopy.size());
 		return PSh_HookTransactionEnqueue(manifestId, true,
 			[context, rva, expectedCopy = std::move(expectedCopy),
 				bytesCopy = std::move(bytesCopy)]() noexcept {
@@ -637,6 +668,15 @@ inline bool PSh_ManifestPatchBytes(
 					static_cast<uint32_t>(expectedCopy.size()),
 					bytesCopy.data(),
 					static_cast<uint32_t>(bytesCopy.size()));
+			},
+			[context, rva, appliedCopy = PSh_CopyHookBytes(bytes, size),
+				originalCopy = std::move(originalCopy)]() noexcept {
+				return PSh_RestoreExecutableBytes(
+					context,
+					rva,
+					appliedCopy.data(),
+					originalCopy.data(),
+					static_cast<uint32_t>(originalCopy.size()));
 			});
 	}
 	catch (...) {
@@ -661,6 +701,12 @@ inline bool PSh_ManifestPatchNop(
 	}
 	try {
 		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
+		if (expectedCopy.size() < size) {
+			return false;
+		}
+		auto originalCopy = std::vector<uint8_t>(
+			expectedCopy.begin(), expectedCopy.begin() + size);
+		auto appliedCopy = std::vector<uint8_t>(size, 0x90);
 		return PSh_HookTransactionEnqueue(manifestId, true,
 			[context, rva, size, expectedCopy = std::move(expectedCopy)]() noexcept {
 				return context->PatchNop(
@@ -668,6 +714,15 @@ inline bool PSh_ManifestPatchNop(
 					expectedCopy.empty() ? nullptr : expectedCopy.data(),
 					static_cast<uint32_t>(expectedCopy.size()),
 					size);
+			},
+			[context, rva, appliedCopy = std::move(appliedCopy),
+				originalCopy = std::move(originalCopy)]() noexcept {
+				return PSh_RestoreExecutableBytes(
+					context,
+					rva,
+					appliedCopy.data(),
+					originalCopy.data(),
+					static_cast<uint32_t>(originalCopy.size()));
 			});
 	}
 	catch (...) {
@@ -691,6 +746,10 @@ inline bool PSh_ManifestPatchWriteU8(
 	}
 	try {
 		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
+		if (expectedCopy.empty()) {
+			return false;
+		}
+		const auto originalValue = expectedCopy.front();
 		return PSh_HookTransactionEnqueue(manifestId, true,
 			[context, rva, value, expectedCopy = std::move(expectedCopy)]() noexcept {
 				return context->PatchWriteU8(
@@ -698,6 +757,14 @@ inline bool PSh_ManifestPatchWriteU8(
 					expectedCopy.empty() ? nullptr : expectedCopy.data(),
 					static_cast<uint32_t>(expectedCopy.size()),
 					value);
+			},
+			[context, rva, value, originalValue]() noexcept {
+				return PSh_RestoreExecutableBytes(
+					context,
+					rva,
+					&value,
+					&originalValue,
+					1);
 			});
 	}
 	catch (...) {
@@ -724,16 +791,38 @@ inline bool PSh_ManifestPatchRel32(
 	}
 	try {
 		auto expectedCopy = PSh_CopyHookBytes(expected, expectedSize);
+		if (expectedCopy.size() < size) {
+			return false;
+		}
+		auto originalCopy = std::vector<uint8_t>(
+			expectedCopy.begin(), expectedCopy.begin() + size);
+		auto appliedCopy = std::make_shared<std::vector<uint8_t>>();
 		return PSh_HookTransactionEnqueue(manifestId, true,
 			[context, rva, targetRva, size, kind,
-				expectedCopy = std::move(expectedCopy)]() noexcept {
-				return context->PatchRel32(
+				expectedCopy = std::move(expectedCopy), appliedCopy]() noexcept {
+				if (!context->PatchRel32(
 					rva,
 					expectedCopy.empty() ? nullptr : expectedCopy.data(),
 					static_cast<uint32_t>(expectedCopy.size()),
 					targetRva,
 					size,
-					kind);
+					kind)) {
+					return false;
+				}
+				const auto* appliedBegin = reinterpret_cast<const uint8_t*>(
+					context->exeBase + rva);
+				appliedCopy->assign(appliedBegin, appliedBegin + size);
+				return true;
+			},
+			[context, rva, appliedCopy,
+				originalCopy = std::move(originalCopy)]() noexcept {
+				return appliedCopy->size() == originalCopy.size()
+					&& PSh_RestoreExecutableBytes(
+						context,
+						rva,
+						appliedCopy->data(),
+						originalCopy.data(),
+						static_cast<uint32_t>(originalCopy.size()));
 			});
 	}
 	catch (...) {
@@ -783,12 +872,20 @@ inline bool PSh_ManifestInstallInlineHook(
 		return PSh_HookTransactionEnqueue(manifestId, true,
 			[context, rva, target, original,
 				expectedCopy = std::move(expectedCopy)]() noexcept {
-				return context->InstallInlineHook(
+				void* originalAddress{};
+				if (!PSh_InstallGuardedInlineHook(
+					context,
 					rva,
 					expectedCopy.empty() ? nullptr : expectedCopy.data(),
 					static_cast<uint32_t>(expectedCopy.size()),
-					target,
-					original);
+					reinterpret_cast<void*>(target),
+					&originalAddress)) {
+					return false;
+				}
+				if (original != nullptr) {
+					*original = reinterpret_cast<Function>(originalAddress);
+				}
+				return true;
 			});
 	}
 	catch (...) {
