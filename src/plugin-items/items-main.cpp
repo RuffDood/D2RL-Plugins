@@ -2,6 +2,7 @@
 #include "enhanced-damage-min-max-fix.h"
 #include "gamble-screen-limit.h"
 #include "ground-item-label-limit.h"
+#include "item-durability.h"
 #include "items-ethereal.h"
 #include "items-private.h"
 #include "repair-costs-cap.h"
@@ -611,6 +612,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (!ItemsEthereal_Install(context, itemsConfig)) {
 		return false;
 	}
+	if (!RuffnecKk::ItemDurability::Load(context, itemsConfig)) {
+		return false;
+	}
 	if (!RuffnecKk::EnhancedDamageMinMaxFix::Load(context, itemsConfig)) {
 		return false;
 	}
@@ -739,6 +743,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 D2RL_PLUGIN_EXPORT auto D2RLoaderUnloadPlugin() noexcept {
 	RuffnecKk::RepairCostsCap::Unload();
 	RuffnecKk::EnhancedDamageMinMaxFix::Unload();
+	RuffnecKk::ItemDurability::Unload();
 	ItemsEthereal_Reset();
 	RuffnecKk::GroundItemLabelLimit::Unload();
 	RuffnecKk::GambleScreenLimit::Unload();

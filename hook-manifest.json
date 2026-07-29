@@ -383,6 +383,36 @@
       "source": "src/plugin-items/items-ethereal.cpp"
     },
     {
+      "id": "items.itemDurability.loss",
+      "owner": "plugin-items",
+      "feature": "items.itemDurability",
+      "kind": "inline-hook",
+      "rva": "0x441B10",
+      "length": 28,
+      "expectedBytes": "48 89 6C 24 10 56 57 41 54 41 56 41 57 48 83 EC 30 4C 8B F2 48 8B E9 BA 32 00 00 00",
+      "source": "src/plugin-items/item-durability.cpp"
+    },
+    {
+      "id": "items.itemDurability.etherealMaximum",
+      "owner": "plugin-items",
+      "feature": "items.itemDurability",
+      "kind": "inline-hook",
+      "rva": "0x2F48C0",
+      "length": 55,
+      "expectedBytes": "48 89 5C 24 10 48 89 6C 24 18 48 89 74 24 20 57 48 83 EC 20 41 0F B7 E8 8B DA 48 8B F9 48 85 C9 75 2A 88 4C 24 30 48 8D 4C 24 30 E8 00 D2 FF FF 84 C0 74 01 CC 33 C0",
+      "source": "src/plugin-items/item-durability.cpp"
+    },
+    {
+      "id": "items.itemDurability.rangedRecords",
+      "owner": "plugin-items",
+      "feature": "items.itemDurability",
+      "kind": "inline-hook",
+      "rva": "0x314110",
+      "length": 19,
+      "expectedBytes": "40 57 48 83 EC 30 8B FA E8 73 C9 FE FF 3B B8 A8 15 00 00",
+      "source": "src/plugin-items/item-durability.cpp"
+    },
+    {
       "id": "items.repairCostsCap.transactionCost",
       "owner": "plugin-items",
       "feature": "items.repairCostsCap",

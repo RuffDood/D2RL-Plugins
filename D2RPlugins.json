@@ -3,7 +3,19 @@
     "items": {
         // Spawn magic/rare items pre-identified.
         "magicItemsSpawnIdentified": false,
-        "rareItemsSpawnIdentified": false,
+		"rareItemsSpawnIdentified": false,
+
+		// Control durability loss, ethereal maximum durability, and optional
+		// bow/crossbow durability. These shipped values preserve vanilla behavior.
+		"itemDurability": {
+			"enabled": false,
+			"normalResistancePercent": 0,
+			"etherealResistancePercent": 0,
+			"etherealMaximumPercent": 50,
+			"forceMaximumDurability": false,
+			"bowsAndCrossbowsHaveDurability": false,
+			"diagnostics": false
+		},
 
 		// Cap NPC repair prices and optionally apply permanent durability wear.
 		// maximumGold is shared by individual repairs and the Repair All total;

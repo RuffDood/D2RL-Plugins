@@ -61,4 +61,15 @@ if(BUILD_TESTING)
 		NAME enhanced-damage-min-max-fix-policy
 		COMMAND enhanced-damage-min-max-fix-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
 	)
+
+	add_executable(item-durability-policy-tests
+		tests/item-durability-policy-tests.cpp
+	)
+	target_link_libraries(item-durability-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		item-durability-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME item-durability-policy
+		COMMAND item-durability-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()
