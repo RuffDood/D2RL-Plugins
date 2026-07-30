@@ -42,7 +42,7 @@ CMake validates the manifest during configuration and before every build. A dupl
 
 The shipped JSON enables four selected configurable features by default: Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube. Other newly added configurable features remain disabled. Extended Item Stats is an always-active `plugin-items.dll` patch with complete scrollable stat lists, oversized-item transport, and a visible graphical scroll bar; it has no public configuration key.
 
-See [RUFFNECKK-INTEGRATION.md](RUFFNECKK-INTEGRATION.md) for the complete
+See [COMMUNITY-INTEGRATION.md](COMMUNITY-INTEGRATION.md) for the complete
 feature inventory, internal safety design, validation results, and recommended
 player test batches.
 
@@ -64,6 +64,18 @@ If the mod-local JSON is missing, the pack uses the global JSON beside
 `D2RLoader.exe`. If a configuration file exists but is malformed or contains an
 invalid high-risk value, the affected DLL refuses to load and writes the exact
 reason to its log instead of silently applying a different configuration.
+
+### Migrating the RuffnecKk ethereal memory patch
+
+Remove RuffnecKk's legacy `ethereal-item-rules.json` memory patch when upgrading
+to this PluginPack. Its ethereal generation rate and set-item behavior are now
+owned by `plugin-items.dll` under `items.etherealItemRules`. The integrated
+`chancePercent` accepts a normal decimal percentage from 0 through 100 instead
+of a hexadecimal byte value, while `allowSetItems`, `allowIndestructibleItems`,
+and `excludedItemTypes` expose the remaining rules in the same JSON block.
+
+Do not enable the legacy memory patch and the integrated feature together: they
+target the same executable write sites and would create duplicate ownership.
 
 ```jsonc
 {

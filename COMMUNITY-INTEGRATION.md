@@ -1,4 +1,14 @@
-# RuffnecKk integration notes
+# Community PluginPack integration notes
+
+This contribution follows the community PluginPack direction: compatible
+features are integrated into the existing D2RL-Plugins architecture instead of
+being distributed as overlapping runtime DLLs that independently redefine
+shared game structures or patch the same executable sites.
+
+The contributed implementations were developed by RuffnecKk, but the resulting
+runtime remains eezstreet's existing PluginPack. The five existing DLLs, plugin
+IDs, names, author metadata, and single `D2RPlugins.json` are retained. RuffnecKk
+attribution is limited to the contributed feature modules and their logs.
 
 This branch integrates 16 RuffnecKk features into
 the five existing eezstreet PluginPack DLLs. It does not add a sixth runtime
@@ -40,9 +50,63 @@ switch is disabled, so it installs no hook. Extended Item Stats is an always-act
 patch with bounded scrollable full-stat tooltips, bounded 4096-byte item transport,
 and a visible graphical scroll bar. It has no public configuration key.
 
+## Migration from the RuffnecKk ethereal memory patch
+
+Modders currently using RuffnecKk's `ethereal-item-rules.json` memory patch
+should remove it when upgrading to this PluginPack. Its behavior is now built
+directly into `plugin-items.dll` under `items.etherealItemRules`.
+
+The integrated configuration replaces hexadecimal byte values with a decimal
+`chancePercent` from 0 through 100. It also exposes `allowSetItems`,
+`allowIndestructibleItems`, and `excludedItemTypes` in the same player-facing
+block. The legacy memory patch and the integrated feature must not be enabled
+together because they target the same executable write sites and would create
+duplicate ownership with an ambiguous effective configuration.
+
+## Corrections to existing PluginPack behavior
+
+The integration audit also found and corrected two player-facing issues in
+existing PluginPack options. These corrections are separate from the 16
+contributed features.
+
+The existing physical resistance, elemental resistance, and absorb cap settings
+were parsed and stored, but their executable patches were not installed during
+`plugin-items.dll` startup. They now install guarded, manifest-owned writes when
+enabled. A live-process validation confirmed non-vanilla test values of 51, 96,
+and 41 at the intended sites. The shipped configuration still leaves all three
+options disabled with their original vanilla values of 50, 95, and 40.
+
+`items.vendorOverhaul.rareItemChance` was documented as a 1-in-N denominator,
+but the previous implementation compared a 0-through-1023 roll directly against
+N. With `rareItemChance: 1024`, every eligible vendor slot therefore became Rare
+when `randomRareItems` was enabled. The policy now implements the documented
+denominator: 1024 means 1-in-1024 and 1 means every eligible item. Dedicated
+tests cover the disabled state, zero protection, 1, 1024, and successive RNG
+boundaries.
+
+## Hardening of existing PluginPack paths
+
+All five DLLs now reject unsupported D2R builds consistently. A malformed or
+unreadable mod-local JSON is no longer treated as missing and silently replaced
+by a global configuration. Invalid section types, modes, probabilities, caps,
+player counts, quest rewards, and stat IDs are rejected with the exact path and
+reason.
+
+Existing hook and patch return values are checked instead of allowing a DLL to
+report success after a refused write. Existing features participate in the same
+signature preflight and transactional startup as the contributed features.
+Seven duplicate quest-reward write aliases were consolidated so each executable
+site is written once, and `D2UnitStrc+0x04` is correctly modeled as the unit
+class/TXT record ID instead of being mislabeled as `unitFlags`.
+
+The all-features validation also exposed an unsigned-distance error when a near
+relay was allocated below `D2R.exe`. Relay calls now encode a range-checked
+signed `E8 rel32` displacement and submit through the transactional patch path.
+The corrected path completed the five-plugin cold-start matrix.
+
 ## Internal hook safety
 
-`hook-manifest.json` contains 135 uniquely owned write sites. Configuration and
+`hook-manifest.json` contains 136 uniquely owned write sites. Configuration and
 every build fail if two owners overlap. Shared call paths use one owner and
 call-through consumers:
 
@@ -83,7 +147,7 @@ made all five DLLs fail closed while the sampled vanilla resistance-cap bytes
 remained unchanged. Every runtime test restored the 36 temporarily neutralized
 files byte-for-byte and left no game process running.
 
-## Final checkpoint — July 30, 2026
+## Final checkpoint - July 30, 2026
 
 The final player-default build validates `136/136` executable writes with a
 unique manifest owner and no overlapping spans. Debug and Release each build
