@@ -163,6 +163,44 @@ std::size_t VisibleTextUnits(std::string_view text) noexcept {
     return units;
 }
 
+std::size_t VisibleLineColumns(std::string_view text) noexcept {
+    std::size_t maximum{};
+    std::size_t current{};
+    for (std::size_t index{}; index < text.size();) {
+        if (text[index] == '\n') {
+            maximum = std::max(maximum, current);
+            current = 0;
+            ++index;
+            continue;
+        }
+        if (index + 3 < text.size()
+            && static_cast<unsigned char>(text[index]) == 0xC3
+            && static_cast<unsigned char>(text[index + 1]) == 0xBF
+            && text[index + 2] == 'c') {
+            index += 4;
+            continue;
+        }
+        if (index + 2 < text.size()
+            && static_cast<unsigned char>(text[index]) == 0xFF
+            && text[index + 1] == 'c') {
+            index += 3;
+            continue;
+        }
+        if (index + 3 < text.size()
+            && static_cast<unsigned char>(text[index]) == 0xEE
+            && static_cast<unsigned char>(text[index + 1]) == 0x81
+            && static_cast<unsigned char>(text[index + 2]) == 0xBE) {
+            index += 4;
+            continue;
+        }
+
+        const auto byte = static_cast<unsigned char>(text[index]);
+        if ((byte & 0xC0U) != 0x80U) ++current;
+        ++index;
+    }
+    return std::max(maximum, current);
+}
+
 bool FitsTextLayoutBudget(
     std::string_view text,
     std::size_t maximumUnits) noexcept {
@@ -245,6 +283,22 @@ std::uint32_t VanillaTooltipLineCapacity(
 
 std::size_t CountVisibleTooltipTextUnits(std::string_view text) noexcept {
     return VisibleTextUnits(text);
+}
+
+std::size_t MaximumVisibleTooltipLineColumns(std::string_view text) noexcept {
+    return VisibleLineColumns(text);
+}
+
+std::int32_t WheelDeltaAccumulator::Consume(std::int32_t delta) noexcept {
+    constexpr std::int32_t WheelDelta = 120;
+    const auto combined = static_cast<std::int64_t>(remainder_) + delta;
+    const auto notches = combined / WheelDelta;
+    remainder_ = static_cast<std::int32_t>(combined % WheelDelta);
+    return static_cast<std::int32_t>(notches);
+}
+
+void WheelDeltaAccumulator::Reset() noexcept {
+    remainder_ = 0;
 }
 
 std::string ExpandTooltipSections(

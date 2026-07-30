@@ -32,17 +32,19 @@ using ruffneck::extended_item_stats::AcceptResult;
 using ruffneck::extended_item_stats::DefaultFrameBytes;
 using ruffneck::extended_item_stats::FragmentItem;
 using ruffneck::extended_item_stats::BuildFittedTooltipWindow;
-using ruffneck::extended_item_stats::CountVisibleTooltipTextUnits;
 using ruffneck::extended_item_stats::ExpandTooltipSections;
 using ruffneck::extended_item_stats::IsKnownTruncatedTooltipPass;
+using ruffneck::extended_item_stats::MaximumVisibleTooltipLineColumns;
 using ruffneck::extended_item_stats::ReconcileTooltipGenerationText;
 using ruffneck::extended_item_stats::Reassembler;
 using ruffneck::extended_item_stats::ScrollTooltipByLines;
 using ruffneck::extended_item_stats::TooltipRefreshCoalescer;
 using ruffneck::extended_item_stats::TooltipSectionExpansion;
 using ruffneck::extended_item_stats::VanillaTooltipLineCapacity;
+using ruffneck::extended_item_stats::WheelDeltaAccumulator;
 using ruffneck::extended_item_stats::TooltipWindowOptions;
 using ruffneck::extended_item_stats::TransportOptions;
+using RuffnecKk::ExtendedItemStats::ShouldSuppressSecondaryNativeTooltip;
 
 constexpr std::uint32_t SupportedBuild = 92777;
 constexpr std::uintptr_t DispatchItemAction9CRva = 0x12E2C0;
@@ -56,6 +58,12 @@ constexpr std::uintptr_t GetStatsDescriptionRva = 0x2DC4B0;
 constexpr std::uintptr_t ResolveHoveredUnitRva = 0x2A7810;
 constexpr std::uintptr_t ResolveHoveredWidgetRva = 0x2A89C0;
 constexpr std::uintptr_t EnsureStringCapacityRva = 0x076210;
+constexpr std::uintptr_t QueueTextLayoutRva = 0x880160;
+constexpr std::uintptr_t MeasureTextLayoutRva = 0x909560;
+constexpr std::uintptr_t UiScaleRva = 0x8460F0;
+constexpr std::uintptr_t NativeWidthRva = 0x07F510;
+constexpr std::uintptr_t NativeHeightRva = 0x07F4A0;
+constexpr std::uintptr_t ClampTextLayoutRva = 0x8DA750;
 constexpr std::size_t SaveItemBufferBytes = 0x4000;
 constexpr std::size_t Packet9CHeaderBytes = 8;
 constexpr std::size_t Packet9DHeaderBytes = 13;
@@ -68,6 +76,14 @@ constexpr std::size_t NativeTextLayoutElementBytes = 0x3C;
 constexpr std::size_t NativeTextLayoutAllocationBudgetBytes = 60 * 1024;
 constexpr std::size_t MaximumVisibleTooltipTextUnits =
     NativeTextLayoutAllocationBudgetBytes / NativeTextLayoutElementBytes;
+constexpr std::size_t NativeTextLayoutRecordBytes = 0x2E8;
+
+struct NativeRect {
+    std::int32_t left{};
+    std::int32_t top{};
+    std::int32_t right{};
+    std::int32_t bottom{};
+};
 
 struct FixedPolicy {
     std::uint32_t maxItemBytes{0x1000};
@@ -101,6 +117,14 @@ using GetStatsDescriptionFn = void(__fastcall*)(
 using EnsureStringCapacityFn = void(__fastcall*)(void*, std::size_t) noexcept;
 using ResolveHoveredUnitFn = void*(__fastcall*)(void*) noexcept;
 using ResolveHoveredWidgetFn = void*(__fastcall*)(void*, std::uint64_t) noexcept;
+using QueueTextLayoutFn = void(__fastcall*)(
+    void*, const char*, const NativeRect*, const void*, const char*) noexcept;
+using MeasureTextLayoutFn = void(__fastcall*)(
+    const char*, const void*, std::int32_t*, float,
+    const std::int32_t*) noexcept;
+using UiScaleFn = float(__fastcall*)() noexcept;
+using NativeExtentFn = std::int32_t(__fastcall*)() noexcept;
+using ClampTextLayoutFn = void(__fastcall*)(void*, const NativeRect*) noexcept;
 
 const D2RL::PluginContext* Context{};
 std::uint8_t* Base{};
@@ -116,6 +140,12 @@ GetStatsDescriptionFn OriginalGetStatsDescription{};
 EnsureStringCapacityFn EnsureStringCapacity{};
 ResolveHoveredUnitFn OriginalResolveHoveredUnit{};
 ResolveHoveredWidgetFn OriginalResolveHoveredWidget{};
+QueueTextLayoutFn OriginalQueueTextLayout{};
+MeasureTextLayoutFn MeasureTextLayout{};
+UiScaleFn UiScale{};
+NativeExtentFn NativeWidth{};
+NativeExtentFn NativeHeight{};
+ClampTextLayoutFn ClampTextLayout{};
 std::unique_ptr<Reassembler> ItemReassembler;
 std::mutex ReassemblerMutex;
 std::atomic<std::uint32_t> NextTransferId{1};
@@ -171,6 +201,8 @@ struct TooltipState {
     bool renderTextInOverlay{};
     std::string visibleText;
     std::string completeText;
+    std::string nativeVisibleText;
+    std::int32_t nativeFixedWidth{};
     std::vector<std::string> knownTruncatedStatBlocks;
 };
 
@@ -180,6 +212,7 @@ void* SuppressedTooltipUnit{};
 std::mutex TooltipMutex;
 WORD PreviousControllerButtons{};
 SHORT PreviousRightStickY{};
+WheelDeltaAccumulator MouseWheelDeltas{};
 thread_local std::vector<TooltipSectionExpansion> PendingStatExpansions;
 thread_local std::vector<char> StatsDescriptionScratch;
 
@@ -263,35 +296,6 @@ float MeasureTooltipRows(std::string_view text, void*) noexcept {
 
 std::size_t CountTooltipRows(std::string_view text) noexcept {
     return static_cast<std::size_t>(MeasureTooltipRows(text, nullptr));
-}
-
-std::size_t MaximumTooltipColumns(std::string_view text) noexcept {
-    std::size_t maximum{};
-    std::size_t current{};
-    for (std::size_t index = 0; index < text.size();) {
-        const auto value = static_cast<unsigned char>(text[index]);
-        if (text[index] == '\n') {
-            maximum = std::max(maximum, current);
-            current = 0;
-            ++index;
-            continue;
-        }
-        if (value == 0xC3 && index + 3 < text.size()
-            && static_cast<unsigned char>(text[index + 1]) == 0xBF
-            && text[index + 2] == 'c') {
-            index += 4;
-            continue;
-        }
-        if (value == 0xEE && index + 3 < text.size()
-            && static_cast<unsigned char>(text[index + 1]) == 0x81
-            && static_cast<unsigned char>(text[index + 2]) == 0xBE) {
-            index += 4;
-            continue;
-        }
-        if ((value & 0xC0) != 0x80) ++current;
-        ++index;
-    }
-    return std::max(maximum, current);
 }
 
 void LogTooltipProbe(
@@ -452,6 +456,7 @@ void* TransformScrollableTooltip(void* result, void* item, void* unit = nullptr)
             if (contentGenerationChanged) {
                 ActiveTooltip.firstVisibleLine = 0;
                 ActiveTooltip.anchorCaptured = false;
+                ActiveTooltip.nativeFixedWidth = 0;
             }
             if (selectedText != ActiveTooltip.completeText) {
                 ActiveTooltip.completeText.assign(selectedText);
@@ -473,15 +478,15 @@ void* TransformScrollableTooltip(void* result, void* item, void* unit = nullptr)
         }
         const auto rows = CountTooltipRows(original);
         LogTooltipColorMap(original, rows);
-        const auto maximumColumns = MaximumTooltipColumns(original);
+        const auto maximumColumns = MaximumVisibleTooltipLineColumns(original);
 
         TooltipWindowOptions options{
             .maxInputBytes = Settings.tooltipMaxTextBytes,
             .maxLines = Settings.tooltipMaxLines,
-            // Vertical pagination is governed only by the native viewport.
-            // Pages that exceed the native glyph-allocation budget are drawn
-            // by the overlay without reducing their vanilla line capacity.
-            .maxVisibleTextUnits = 0,
+            // Keep every page inside D2R's proven native text-layout budget.
+            // This deliberately lowers the row count for unusually wide
+            // affixes so every page stays on the same native renderer.
+            .maxVisibleTextUnits = MaximumVisibleTooltipTextUnits,
             .minimumScrollableLines = 0,
             .lineOrder = ruffneck::extended_item_stats::TooltipLineOrder::BottomToTop,
             .showPosition = false,
@@ -497,9 +502,7 @@ void* TransformScrollableTooltip(void* result, void* item, void* unit = nullptr)
             MeasureTooltipRows,
             nullptr,
             options);
-        const auto renderTextInOverlay = !window.refused
-            && CountVisibleTooltipTextUnits(window.text)
-                > MaximumVisibleTooltipTextUnits;
+        constexpr bool renderTextInOverlay = false;
 
         {
             std::lock_guard lock(TooltipMutex);
@@ -543,11 +546,14 @@ void* TransformScrollableTooltip(void* result, void* item, void* unit = nullptr)
             return result;
         }
 
-        constexpr std::string_view SafeNativeOverlayPlaceholder{
-            "\xEE\x81\xBE" "0 "};
-        const auto transformed = renderTextInOverlay
-            ? std::string(SafeNativeOverlayPlaceholder)
-            : (window.overflow ? window.text : original);
+        const auto transformed = window.overflow ? window.text : original;
+        {
+            std::lock_guard lock(TooltipMutex);
+            if (ActiveTooltipPhase == TooltipActivationPhase::Armed
+                && ActiveTooltip.item == item) {
+                ActiveTooltip.nativeVisibleText = transformed;
+            }
+        }
         if (transformed == vanilla) {
             LogTooltipProbe(
                 "unchanged",
@@ -846,9 +852,11 @@ void* __fastcall HookResolveHoveredUnit(void* panel) noexcept {
             && resolved != ActiveTooltip.unit) {
             // Only retain the previous unit over empty UI space. A genuinely
             // resolved second item must take ownership immediately.
-            if (!resolved && cursorKnown
-                && ruffneck::extended_item_stats::tooltip_overlay::
-                    InteractionHitTestScreenPoint(cursor)) {
+            if (!resolved && (ruffneck::extended_item_stats::tooltip_overlay::
+                    IsDragging()
+                || (cursorKnown
+                    && ruffneck::extended_item_stats::tooltip_overlay::
+                        InteractionHitTestScreenPoint(cursor)))) {
                 resolved = ActiveTooltip.unit;
             } else {
                 // A null resolver result proves that the old hover has
@@ -883,8 +891,15 @@ void* __fastcall HookResolveHoveredUnit(void* panel) noexcept {
                 }
             } else {
                 LastHoveredUnit = resolved;
-                ActiveTooltip.panel = panel;
-                ActiveTooltip.unit = resolved;
+                // Once a tooltip has been published, its panel remains the
+                // sole native owner. Other open item panels (notably the
+                // Personal stash beside Inventory) are still polled by D2R;
+                // letting those foreign polls replace the owner leaves their
+                // cached +0x558 text eligible for a second draw.
+                if (!ActiveTooltip.item || ActiveTooltip.panel == panel) {
+                    ActiveTooltip.panel = panel;
+                    ActiveTooltip.unit = resolved;
+                }
             }
         }
     }
@@ -905,9 +920,11 @@ void* __fastcall HookResolveHoveredWidget(
         std::lock_guard lock(TooltipMutex);
         if (ActiveTooltipPhase == TooltipActivationPhase::Armed
             && ActiveTooltip.item && ActiveTooltip.widget
-            && ActiveTooltip.panel == panel && cursorKnown
-            && ruffneck::extended_item_stats::tooltip_overlay::
-                InteractionHitTestScreenPoint(cursor)) {
+            && ActiveTooltip.panel == panel
+            && (ruffneck::extended_item_stats::tooltip_overlay::IsDragging()
+                || (cursorKnown
+                    && ruffneck::extended_item_stats::tooltip_overlay::
+                        InteractionHitTestScreenPoint(cursor)))) {
             // Keep the exact native tooltip widget while the pointer travels
             // through the tooltip-to-scrollbar interaction region. Unit
             // ownership is resolved independently and clears stale items.
@@ -1008,6 +1025,172 @@ void __fastcall HookGetStatsDescription(
     }
 }
 
+std::int32_t MeasureNativeTextWidth(
+    std::string_view text,
+    const void* style) noexcept {
+    if (!MeasureTextLayout || !UiScale || !style || text.empty()
+        || text.size() > MaximumVisibleTooltipTextUnits * 4) {
+        return 0;
+    }
+    try {
+        std::string terminated(text);
+        std::int32_t measured[2]{};
+        constexpr std::int32_t limits[2]{
+            std::numeric_limits<std::int32_t>::max(),
+            std::numeric_limits<std::int32_t>::max(),
+        };
+        MeasureTextLayout(
+            terminated.c_str(), style, measured, UiScale(), limits);
+        return std::max(measured[0], 0);
+    } catch (...) {
+        return 0;
+    }
+}
+
+std::int32_t MeasureWidestNativeTooltipLine(
+    std::string_view text,
+    const void* style) noexcept {
+    std::int32_t widest{};
+    for (std::size_t begin{}; begin <= text.size();) {
+        const auto separator = text.find('\n', begin);
+        const auto end = separator == std::string_view::npos
+            ? text.size()
+            : separator;
+        widest = std::max(
+            widest,
+            MeasureNativeTextWidth(text.substr(begin, end - begin), style));
+        if (separator == std::string_view::npos) break;
+        begin = separator + 1;
+    }
+    return widest;
+}
+
+void __fastcall HookQueueTextLayout(
+    void* component,
+    const char* text,
+    const NativeRect* requestedRect,
+    const void* style,
+    const char* secondaryText) noexcept {
+    std::string visibleText;
+    std::string completeText;
+    void* item{};
+    std::int32_t cachedFixedWidth{};
+    bool suppressSecondaryNativeTooltip{};
+    if (text && IsAccessible(text, 1)) {
+        const auto length = strnlen_s(text, Settings.tooltipMaxTextBytes);
+        if (length < Settings.tooltipMaxTextBytes) {
+            std::lock_guard lock(TooltipMutex);
+            const auto overflowActive =
+                ActiveTooltipPhase == TooltipActivationPhase::Armed
+                && ActiveTooltip.overflow
+                && !ActiveTooltip.renderTextInOverlay
+                && length == ActiveTooltip.nativeVisibleText.size()
+                && std::memcmp(
+                    text, ActiveTooltip.nativeVisibleText.data(), length) == 0;
+            if (overflowActive) {
+                const char* ownerText{};
+                auto* panel = static_cast<std::uint8_t*>(ActiveTooltip.panel);
+                if (panel && IsAccessible(panel + 0x558, sizeof(ownerText))) {
+                    ownerText = *reinterpret_cast<char* const*>(panel + 0x558);
+                }
+                suppressSecondaryNativeTooltip =
+                    ShouldSuppressSecondaryNativeTooltip(
+                        true,
+                        true,
+                        ownerText,
+                        text);
+                if (!suppressSecondaryNativeTooltip) {
+                    visibleText = ActiveTooltip.nativeVisibleText;
+                    completeText = ActiveTooltip.completeText;
+                    item = ActiveTooltip.item;
+                    cachedFixedWidth = ActiveTooltip.nativeFixedWidth;
+                }
+            }
+        }
+    }
+
+    // UI_ITEM_TOOLTIP_Render passes panel+0x558 directly into the native text
+    // renderer. Matching content from a different pointer is therefore the
+    // stale second panel, not another line of the active tooltip.
+    if (suppressSecondaryNativeTooltip) return;
+
+    std::size_t recordCountBefore{};
+    if (item && component
+        && IsAccessible(static_cast<std::uint8_t*>(component) + 0x168, 24)) {
+        recordCountBefore = *reinterpret_cast<const std::size_t*>(
+            static_cast<const std::uint8_t*>(component) + 0x170);
+    }
+    OriginalQueueTextLayout(
+        component, text, requestedRect, style, secondaryText);
+    if (!item || visibleText.empty() || completeText.empty() || !component
+        || !style || !ClampTextLayout || !NativeWidth || !NativeHeight
+        || !IsAccessible(static_cast<std::uint8_t*>(component) + 0x168, 24)) {
+        return;
+    }
+
+    auto* componentBytes = static_cast<std::uint8_t*>(component);
+    auto* records = *reinterpret_cast<std::uint8_t**>(componentBytes + 0x168);
+    const auto recordCount = *reinterpret_cast<const std::size_t*>(
+        componentBytes + 0x170);
+    if (!records || recordCount != recordCountBefore + 1
+        || recordCount > std::numeric_limits<std::size_t>::max()
+            / NativeTextLayoutRecordBytes) {
+        return;
+    }
+    auto* record = records + (recordCount - 1) * NativeTextLayoutRecordBytes;
+    if (!IsAccessible(record, NativeTextLayoutRecordBytes, true)) return;
+
+    auto& primaryWidth = *reinterpret_cast<std::int32_t*>(record + 0x68);
+    auto& secondaryWidth = *reinterpret_cast<std::int32_t*>(record + 0x78);
+    const auto currentWidth = std::max(primaryWidth, secondaryWidth);
+    auto targetWidth = cachedFixedWidth;
+    if (targetWidth <= 0) {
+        const auto pageWidth = MeasureNativeTextWidth(visibleText, style);
+        const auto completeWidth = MeasureWidestNativeTooltipLine(
+            completeText, style);
+        targetWidth = currentWidth;
+        if (pageWidth > 0 && completeWidth > pageWidth) {
+            targetWidth += completeWidth - pageWidth;
+        }
+        std::lock_guard lock(TooltipMutex);
+        if (ActiveTooltipPhase == TooltipActivationPhase::Armed
+            && ActiveTooltip.item == item
+            && ActiveTooltip.completeText == completeText) {
+            ActiveTooltip.nativeFixedWidth = targetWidth;
+        }
+    }
+    if (targetWidth <= currentWidth) return;
+
+    const auto nativeWidth = NativeWidth();
+    const auto nativeHeight = NativeHeight();
+    if (nativeWidth <= 0 || nativeHeight <= 0
+        || !IsAccessible(componentBytes + 0xA40, sizeof(std::int32_t))) {
+        return;
+    }
+    const auto scale = UiScale ? UiScale() : 1.0F;
+    const auto margin = std::max(
+        0,
+        static_cast<std::int32_t>(scale
+            * *reinterpret_cast<const std::int32_t*>(componentBytes + 0xA40)));
+    NativeRect bounds{
+        margin,
+        margin,
+        std::max(1, nativeWidth - margin * 2),
+        std::max(1, nativeHeight - margin * 2),
+    };
+    targetWidth = std::min(targetWidth, bounds.right);
+    if (targetWidth <= currentWidth) return;
+
+    auto& primaryLeft = *reinterpret_cast<std::int32_t*>(record + 0x60);
+    auto& secondaryLeft = *reinterpret_cast<std::int32_t*>(record + 0x70);
+    const auto center = primaryLeft + currentWidth / 2;
+    primaryWidth = targetWidth;
+    secondaryWidth = targetWidth;
+    primaryLeft = center - targetWidth / 2;
+    secondaryLeft = primaryLeft;
+    ClampTextLayout(record, &bounds);
+}
+
 void* __fastcall HookBuildItemTooltip(
     void* output,
     void* a2,
@@ -1041,6 +1224,9 @@ void RefreshTooltipNow() noexcept {
     GameWindow = FindGameWindow();
     if (!GameWindow) return;
 
+    // This is the exact native invalidation path proven by the standalone
+    // 0.3.17 oracle. D2R rebuilds an item tooltip only after real cursor
+    // activity; WM_MOUSEMOVE alone can leave the previous native page alive.
     INPUT moves[2]{};
     moves[0].type = INPUT_MOUSE;
     moves[0].mi.dx = 1;
@@ -1263,11 +1449,14 @@ LRESULT CALLBACK TooltipMouseHook(
             && ruffneck::extended_item_stats::tooltip_overlay::
                 HandleMouseInput(message, *input);
 
+        bool wheelHandled{};
         if (active && message == WM_MOUSEWHEEL) {
-            const auto notches = static_cast<SHORT>(HIWORD(input->mouseData)) / WHEEL_DELTA;
+            const auto notches = MouseWheelDeltas.Consume(
+                static_cast<SHORT>(HIWORD(input->mouseData)));
             if (notches != 0) {
-                ScrollActiveTooltip(
-                    -static_cast<std::int64_t>(notches) * Settings.mouseWheelLines);
+                wheelHandled = ScrollActiveTooltip(
+                    -static_cast<std::int64_t>(notches)
+                        * Settings.mouseWheelLines);
             }
         }
         if (hasRegion
@@ -1276,7 +1465,7 @@ LRESULT CALLBACK TooltipMouseHook(
             && !ruffneck::extended_item_stats::tooltip_overlay::
                 InteractionHitTestScreenPoint(input->pt)) {
             ClearActiveTooltip(true);
-        } else if (hasRegion
+        } else if (active
             && (message == WM_LBUTTONDOWN || message == WM_RBUTTONDOWN
                 || message == WM_MBUTTONDOWN)
             && !overScrollbar) {
@@ -1290,7 +1479,8 @@ LRESULT CALLBACK TooltipMouseHook(
                 InteractionHitTestScreenPoint(input->pt)) {
             ClearActiveTooltip(true);
         }
-        if (handled) return 1;
+        if (handled || wheelHandled) return 1;
+        if (!active) MouseWheelDeltas.Reset();
     }
     return CallNextHookEx(nullptr, code, message, parameter);
 }
@@ -1491,6 +1681,11 @@ bool InstallHooks(bool installTransport) noexcept {
         0x41,0x54,0x41,0x55,0x41,0x56,0x41,0x57,
         0x48,0x8D,0xAC,0x24,0xC0,0xFB,0xFF,0xFF,
         0x48,0x81,0xEC,0x40,0x05,0x00,0x00,0x48};
+    constexpr std::array<std::uint8_t, 32> queueTextLayoutExpected{
+        0x48,0x89,0x5C,0x24,0x08,0x48,0x89,0x6C,
+        0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x48,
+        0x89,0x7C,0x24,0x20,0x41,0x56,0x48,0x83,
+        0xEC,0x40,0x4C,0x8D,0xB1,0x68,0x01,0x00};
 
     if (installTransport) {
         const auto transportInstalled = PSh_ManifestInstallInlineHook(Context, PSH_MANIFEST_SITE("items.extendedItemStats.serializeItem"),
@@ -1548,7 +1743,16 @@ bool InstallHooks(bool installTransport) noexcept {
         static_cast<std::uint32_t>(tooltipExpected.size()),
         HookBuildItemTooltip,
         &OriginalBuildItemTooltip);
-    return TooltipHookInstalled;
+    if (!TooltipHookInstalled) return false;
+
+    return PSh_ManifestInstallInlineHook(
+        Context,
+        PSH_MANIFEST_SITE("items.extendedItemStats.queueTextLayout"),
+        QueueTextLayoutRva,
+        queueTextLayoutExpected.data(),
+        static_cast<std::uint32_t>(queueTextLayoutExpected.size()),
+        HookQueueTextLayout,
+        &OriginalQueueTextLayout);
 }
 
 auto Status(D2R::Game::Client*, const D2RL::ConsoleCommandContext* command, void*) noexcept
@@ -1599,27 +1803,9 @@ ExtendedItemStatsTransformTooltip(void* result, void* item) noexcept {
 }
 
 bool RuffnecKk::ExtendedItemStats::Load(
-    const D2RL::PluginContext* context,
-    const nlohmann::json& itemsConfig) noexcept {
+    const D2RL::PluginContext* context) noexcept {
     if (!context) return false;
     Context = context;
-    Config config{};
-    try {
-        config = ParseConfig(itemsConfig);
-    } catch (const std::exception& exception) {
-        const auto message = std::string(
-            "plugin-items: invalid items.extendedItemStats (")
-            + exception.what() + ").";
-        context->LogError(message.c_str());
-        return false;
-    }
-    if (!config.enabled) {
-        FeatureEnabled.store(false, std::memory_order_release);
-        context->LogInfo(
-            "plugin-items: Extended Item Stats 0.3.17 by RuffnecKk disabled; "
-            "config=items.extendedItemStats.");
-        return true;
-    }
     Base = reinterpret_cast<std::uint8_t*>(context->exeBase);
     if (!Base) {
         context->LogError("ExtendedItemStats: D2R executable base is unavailable.");
@@ -1627,21 +1813,26 @@ bool RuffnecKk::ExtendedItemStats::Load(
     }
     EnsureStringCapacity = reinterpret_cast<EnsureStringCapacityFn>(
         Base + EnsureStringCapacityRva);
+    MeasureTextLayout = reinterpret_cast<MeasureTextLayoutFn>(
+        Base + MeasureTextLayoutRva);
+    UiScale = reinterpret_cast<UiScaleFn>(Base + UiScaleRva);
+    NativeWidth = reinterpret_cast<NativeExtentFn>(Base + NativeWidthRva);
+    NativeHeight = reinterpret_cast<NativeExtentFn>(Base + NativeHeightRva);
+    ClampTextLayout = reinterpret_cast<ClampTextLayoutFn>(
+        Base + ClampTextLayoutRva);
     if (context->modDataVersionBuild != 0 && context->modDataVersionBuild != SupportedBuild) {
         context->LogError("ExtendedItemStats: only D2R build 92777 is supported.");
         return false;
     }
-    TransportEnabled = config.oversizedItemDataTransport;
-    ScrollBarEnabled = config.showScrollBar;
-    if (TransportEnabled) {
-        try {
-            ItemReassembler = std::make_unique<Reassembler>(ActiveTransportOptions());
-        } catch (const std::exception& exception) {
-            const auto message = std::string("ExtendedItemStats: transport initialization failed (")
-                + exception.what() + ").";
-            context->LogError(message.c_str());
-            return false;
-        }
+    TransportEnabled = ItemTransportEnabled;
+    ScrollBarEnabled = ScrollBarEnabledByDefault;
+    try {
+        ItemReassembler = std::make_unique<Reassembler>(ActiveTransportOptions());
+    } catch (const std::exception& exception) {
+        const auto message = std::string("ExtendedItemStats: transport initialization failed (")
+            + exception.what() + ").";
+        context->LogError(message.c_str());
+        return false;
     }
     if (!InstallHooks(TransportEnabled)) {
         context->LogError("ExtendedItemStats: native signature or hook installation failed; plugin refused.");
@@ -1680,7 +1871,7 @@ bool RuffnecKk::ExtendedItemStats::Load(
         + (ScrollBarEnabled ? "enabled" : "disabled")
         + "; tooltip owner="
         + (TooltipHookInstalled ? "plugin-items" : "none")
-        + "; config=items.extendedItemStats.";
+        + "; built-in patch.";
     context->LogInfo(message.c_str());
     return true;
 }
@@ -1719,6 +1910,7 @@ void RuffnecKk::ExtendedItemStats::Unload() noexcept {
     OriginalReadItemMetadata = nullptr;
     OriginalDecodeItem = nullptr;
     OriginalBuildItemTooltip = nullptr;
+    OriginalQueueTextLayout = nullptr;
     OriginalGetStatsDescription = nullptr;
     PendingStatExpansions.clear();
     StatsDescriptionScratch.clear();
@@ -1727,6 +1919,11 @@ void RuffnecKk::ExtendedItemStats::Unload() noexcept {
     LastHoveredWidget = nullptr;
     OriginalResolveHoveredUnit = nullptr;
     OriginalResolveHoveredWidget = nullptr;
+    MeasureTextLayout = nullptr;
+    UiScale = nullptr;
+    NativeWidth = nullptr;
+    NativeHeight = nullptr;
+    ClampTextLayout = nullptr;
     Base = nullptr;
     Context = nullptr;
 }

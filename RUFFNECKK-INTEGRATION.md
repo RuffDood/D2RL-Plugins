@@ -1,6 +1,6 @@
 # RuffnecKk integration notes
 
-This branch integrates 16 independently configurable RuffnecKk features into
+This branch integrates 16 RuffnecKk features into
 the five existing eezstreet PluginPack DLLs. It does not add a sixth runtime
 DLL, change the PluginPack installation layout, or replace the single
 `D2RPlugins.json` configuration file.
@@ -15,7 +15,7 @@ DLL, change the PluginPack installation layout, or replace the single
 | `plugin-items.dll` | Charm Aura Trigger Fix | `items.charmAuraTriggerFix` |
 | `plugin-items.dll` | Enhanced Damage Min/Max Fix | `items.enhancedDamageMinMaxFix` |
 | `plugin-items.dll` | unified EthItemRules | `items.etherealItemRules` |
-| `plugin-items.dll` | Extended Item Stats | `items.extendedItemStats` |
+| `plugin-items.dll` | Extended Item Stats | Always active; no JSON key |
 | `plugin-items.dll` | Repair Costs Cap | `items.repairCostsCap` |
 | `plugin-items.dll` | Qty Display Fix | `items.qtyDisplayIssue` |
 | `plugin-misc.dll` | Cube Quick Move Bottom-Right | `misc.cubeQuickMoveBottomRight` |
@@ -32,15 +32,13 @@ feature and one JSON block here.
 ## Default behavior
 
 The shipped `D2RPlugins.json` is the player-facing default. Charm Aura Trigger
-Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, Equipped Item to Cube, and
-Extended Item Stats are enabled by default. Every other newly added configurable
-effect remains disabled, and its remaining values match vanilla where a vanilla value exists.
+Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube are
+enabled by default. Every other newly added configurable effect remains disabled,
+and its remaining values match vanilla where a vanilla value exists.
 The Larzuk table contains the 15 visible vanilla socket rules but its independent
-switch is disabled, so it installs no hook. Extended Item Stats supplies bounded
-scrollable full-stat tooltips by default. Its bounded 4096-byte item transport
-and graphical scroll bar are independent opt-in settings, so the shipped path
-does not alter item packets or install graphics hooks. Its public switch can
-disable the entire feature.
+switch is disabled, so it installs no hook. Extended Item Stats is an always-active
+patch with bounded scrollable full-stat tooltips, bounded 4096-byte item transport,
+and a visible graphical scroll bar. It has no public configuration key.
 
 ## Internal hook safety
 
@@ -80,12 +78,46 @@ and passes 25/25
 CTest tests. Isolated cold starts were completed from both supported locations:
 all five DLLs mod-local with a mod-local JSON, and all five DLLs global with the
 global fallback JSON. Each run reported
-`scanned=5 active=5 disabled=0 rejected=0 failed=0`. With the safe public
-Extended Item Stats defaults, plugin-items commits 18/18 operations instead of
-installing the six packet hooks. A deliberately malformed mod-local JSON
+`scanned=5 active=5 disabled=0 rejected=0 failed=0`. A deliberately malformed mod-local JSON
 made all five DLLs fail closed while the sampled vanilla resistance-cap bytes
 remained unchanged. Every runtime test restored the 36 temporarily neutralized
 files byte-for-byte and left no game process running.
+
+## Final checkpoint — July 30, 2026
+
+The final player-default build validates `136/136` executable writes with a
+unique manifest owner and no overlapping spans. Debug and Release each build
+all five DLLs and pass `25/25` CTest tests. An automated configuration audit
+also confirms that every original eezstreet JSON value is preserved,
+`skills.selfHealParams` remains `true`, all 15 contributed defaults match the
+documented policy, and Extended Item Stats exposes no public configuration key.
+
+The exact Release DLLs and player-default JSON were hash-matched to two runtime
+deployments. The isolated global vanilla cold start reported
+`scanned=5 active=5 disabled=0 rejected=0 failed=0`, reached startup `24/24`,
+and emitted no error or assertion. The mod-local cold start reported the same
+five-plugin result and startup completion. SHA-256 values for the reviewed
+artifacts are:
+
+| Artifact | SHA-256 |
+|---|---|
+| `D2RPlugins.json` | `2B55B3661E654B28C4A98A732325EF54E8BAF2A3635FD1B13D541CE914C296B5` |
+| `plugin-items.dll` | `C4FAC30552E7E26788A374FF2FABB3F0A6D0AA847EAD286D0B2DD13AC99DA462` |
+| `plugin-levels.dll` | `2E9146802ECF8F3967A30EBB4A4A4B530AF1383CFA5556DBB161B3EC6ECB5000` |
+| `plugin-misc.dll` | `FFA7338126F27FFE752CB6223828995A3C44249123C678CF1DFADA5655E3E58D` |
+| `plugin-quests.dll` | `FB134ECAB64EC952BC2B9CE11CFB2654A9C29E9B34867350A3529712E544B721` |
+| `plugin-skills.dll` | `23548D8CD916BF83E9CCB74E44A6C651FBA2EC2FD05E58F3572178A7263B57FF` |
+
+Integrated gameplay passed the nominal paths for Extended Item Stats, Gamble
+Screen Limit, Ground Item Labels at 64 and 128, Qty Display Fix, 100% ethereal
+generation with ethereal set items, Enhanced Damage Min/Max Fix, Charm Aura
+Trigger Fix, Cube Quick Move, Equipped Item to Cube, Transmute Hotkey, Vendor
+Stock Refresh, Repair Costs Cap with wear, Prevent Merc Death in Town, and Bulk
+Skill Point Allocation. Extended Item Stats was the only feature to expose a
+gameplay integration regression; its duplicate-tooltip, stable-width,
+scrollbar, wheel, drag-lifetime, and crash defects were corrected and retested.
+Force Larzuk Sockets and Item Durability retain standalone and technical proof
+but were not rerun as exact integrated gameplay witnesses in this final batch.
 
 ## Player test plan
 

@@ -50,6 +50,18 @@ int main() {
     TEST_REQUIRE(CountVisibleTooltipTextUnits("abc\n123") == 7);
     TEST_REQUIRE(CountVisibleTooltipTextUnits(
         "\xEE\x81\xBE" "3Blue") == 4);
+    TEST_REQUIRE(MaximumVisibleTooltipLineColumns(
+        "short\n\xEE\x81\xBE" "3longest affix") == 13);
+    WheelDeltaAccumulator wheel;
+    TEST_REQUIRE(wheel.Consume(30) == 0);
+    TEST_REQUIRE(wheel.Consume(30) == 0);
+    TEST_REQUIRE(wheel.Consume(60) == 1);
+    TEST_REQUIRE(wheel.Consume(-240) == -2);
+    TEST_REQUIRE(wheel.Consume(-90) == 0);
+    TEST_REQUIRE(wheel.Consume(-30) == -1);
+    wheel.Reset();
+    TEST_REQUIRE(wheel.Consume(119) == 0);
+    TEST_REQUIRE(wheel.Consume(1) == 1);
 
     const std::string truncatedStats =
         "stat one\nstat two without a terminator";

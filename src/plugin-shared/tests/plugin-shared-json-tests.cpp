@@ -48,16 +48,16 @@ int main()
 
 	WriteFile(globalConfig, R"json({
 		// JSON comments remain supported.
-		"items": { "extendedItemStats": { "enabled": true } }
+		"items": { "gambleScreenLimit": { "enabled": true } }
 	})json");
 	const auto global = PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig);
 	TEST_REQUIRE(global);
-	TEST_REQUIRE(PSh_Json_GetSection(global, "items").at("extendedItemStats").at("enabled") == true);
+	TEST_REQUIRE(PSh_Json_GetSection(global, "items").at("gambleScreenLimit").at("enabled") == true);
 
-	WriteFile(modConfig, R"json({ "items": { "extendedItemStats": { "enabled": false } } })json");
+	WriteFile(modConfig, R"json({ "items": { "gambleScreenLimit": { "enabled": false } } })json");
 	const auto local = PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig);
 	TEST_REQUIRE(local);
-	TEST_REQUIRE(PSh_Json_GetSection(local, "items").at("extendedItemStats").at("enabled") == false);
+	TEST_REQUIRE(PSh_Json_GetSection(local, "items").at("gambleScreenLimit").at("enabled") == false);
 
 	WriteFile(modConfig, "{ invalid json");
 	TEST_REQUIRE(Throws([&] { (void)PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig); }));

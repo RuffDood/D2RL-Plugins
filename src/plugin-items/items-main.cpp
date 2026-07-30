@@ -779,7 +779,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		context->LogError("plugin-items: could not initialize the deferred hook transaction.");
 		return false;
 	}
-	if (!RuffnecKk::ExtendedItemStats::Load(context, itemsConfig)) {
+	if (!RuffnecKk::ExtendedItemStats::Load(context)) {
 		return false;
 	}
 	if (!RuffnecKk::GambleScreenLimit::Load(context, itemsConfig)) {

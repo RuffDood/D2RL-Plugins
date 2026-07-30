@@ -70,6 +70,17 @@ private:
     std::uint64_t lastRefreshMilliseconds_{};
 };
 
+// Preserves sub-notch deltas emitted by high-resolution mouse wheels instead
+// of discarding every event smaller than Win32's WHEEL_DELTA (120).
+class WheelDeltaAccumulator {
+public:
+    std::int32_t Consume(std::int32_t delta) noexcept;
+    void Reset() noexcept;
+
+private:
+    std::int32_t remainder_{};
+};
+
 using MeasureTooltipFn = float (*)(std::string_view text, void* context) noexcept;
 
 std::uint32_t VanillaTooltipLineCapacity(
@@ -77,6 +88,8 @@ std::uint32_t VanillaTooltipLineCapacity(
     std::uint32_t maximumLines) noexcept;
 
 std::size_t CountVisibleTooltipTextUnits(std::string_view text) noexcept;
+
+std::size_t MaximumVisibleTooltipLineColumns(std::string_view text) noexcept;
 
 std::string ExpandTooltipSections(
     std::string_view original,
