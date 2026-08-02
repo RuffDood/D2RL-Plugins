@@ -183,6 +183,36 @@
       "source": "src/plugin-items/enhanced-damage-min-max-fix.cpp"
     },
     {
+      "id": "items.magicFindFormula.unique",
+      "owner": "plugin-items",
+      "feature": "items.magicFindFormula",
+      "kind": "byte-patch",
+      "rva": "0x4423CD",
+      "length": 2,
+      "expectedBytes": "7F 04",
+      "source": "src/plugin-items/magic-find-formula.cpp"
+    },
+    {
+      "id": "items.magicFindFormula.set",
+      "owner": "plugin-items",
+      "feature": "items.magicFindFormula",
+      "kind": "byte-patch",
+      "rva": "0x44246A",
+      "length": 2,
+      "expectedBytes": "7F 04",
+      "source": "src/plugin-items/magic-find-formula.cpp"
+    },
+    {
+      "id": "items.magicFindFormula.rare",
+      "owner": "plugin-items",
+      "feature": "items.magicFindFormula",
+      "kind": "byte-patch",
+      "rva": "0x4424F7",
+      "length": 2,
+      "expectedBytes": "7F 04",
+      "source": "src/plugin-items/magic-find-formula.cpp"
+    },
+    {
       "id": "items.disableGoldPenalty",
       "owner": "plugin-items",
       "feature": "items.disableGoldPenalty",

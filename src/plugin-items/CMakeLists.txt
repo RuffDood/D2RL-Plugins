@@ -204,4 +204,15 @@ if(BUILD_TESTING)
 		NAME vendor-overhaul-policy
 		COMMAND vendor-overhaul-policy-tests
 	)
+
+	add_executable(magic-find-formula-policy-tests
+		tests/magic-find-formula-policy-tests.cpp
+	)
+	target_link_libraries(magic-find-formula-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		magic-find-formula-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME magic-find-formula-policy
+		COMMAND magic-find-formula-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
 endif()

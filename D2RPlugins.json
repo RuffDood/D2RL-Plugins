@@ -5,6 +5,12 @@
         "magicItemsSpawnIdentified": false,
         "rareItemsSpawnIdentified": false,
 
+        // Use vanilla diminishing returns or linear positive Magic Find for
+        // Unique, Set, and Rare quality rolls. Magic quality is already linear.
+        "magicFindFormula": {
+            "mode": "vanilla"
+        },
+
         // Reduce durability loss, change ethereal maximum durability, or give
         // bows and crossbows durability. Disabled values preserve vanilla behavior.
         "itemDurability": {

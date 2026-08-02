@@ -10,7 +10,7 @@ runtime remains eezstreet's existing PluginPack. The five existing DLLs, plugin
 IDs, names, author metadata, and single `D2RPlugins.json` are retained. RuffnecKk
 attribution is limited to the contributed feature modules and their logs.
 
-This branch integrates 16 RuffnecKk features into
+This branch integrates 17 RuffnecKk features into
 the five existing eezstreet PluginPack DLLs. It does not add a sixth runtime
 DLL, change the PluginPack installation layout, or replace the single
 `D2RPlugins.json` configuration file.
@@ -24,6 +24,7 @@ DLL, change the PluginPack installation layout, or replace the single
 | `plugin-items.dll` | Item Durability | `items.itemDurability` |
 | `plugin-items.dll` | Charm Aura Trigger Fix | `items.charmAuraTriggerFix` |
 | `plugin-items.dll` | Enhanced Damage Min/Max Fix | `items.enhancedDamageMinMaxFix` |
+| `plugin-items.dll` | Magic Find Formula | `items.magicFindFormula` |
 | `plugin-items.dll` | unified EthItemRules | `items.etherealItemRules` |
 | `plugin-items.dll` | Extended Item Stats | Always active; no JSON key |
 | `plugin-items.dll` | Repair Costs Cap | `items.repairCostsCap` |
@@ -44,7 +45,10 @@ feature and one JSON block here.
 The shipped `D2RPlugins.json` is the player-facing default. Charm Aura Trigger
 Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube are
 enabled by default. Every other newly added configurable effect remains disabled,
-and its remaining values match vanilla where a vanilla value exists.
+and its remaining values match vanilla where a vanilla value exists. Magic Find
+Formula therefore ships in `vanilla` mode; `linear` removes only the positive
+Unique, Set, and Rare diminishing-return branches while preserving native Magic
+quality and non-positive MF behavior.
 The Larzuk table contains the 15 visible vanilla socket rules but its independent
 switch is disabled, so it installs no hook. Extended Item Stats is an always-active
 patch with bounded scrollable full-stat tooltips, bounded 4096-byte item transport,

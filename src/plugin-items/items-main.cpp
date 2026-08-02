@@ -7,6 +7,7 @@
 #include "item-durability.h"
 #include "items-ethereal.h"
 #include "items-private.h"
+#include "magic-find-formula.h"
 #include "qty-display-issue.h"
 #include "repair-costs-cap.h"
 #include "vendor-stock-refresh.h"
@@ -690,6 +691,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 
 static void CleanupPluginItemsState() noexcept
 {
+	RuffnecKk::MagicFindFormula::Unload();
 	RuffnecKk::VendorStockRefresh::Unload();
 	RuffnecKk::QtyDisplayIssue::Unload();
 	RuffnecKk::RepairCostsCap::Unload();
@@ -804,6 +806,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 	}
 	if (!RuffnecKk::VendorStockRefresh::Load(context, itemsConfig)) {
+		return false;
+	}
+	if (!RuffnecKk::MagicFindFormula::Load(context, itemsConfig)) {
 		return false;
 	}
 
