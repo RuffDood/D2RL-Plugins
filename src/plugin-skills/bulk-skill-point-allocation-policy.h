@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 
@@ -43,6 +44,18 @@ constexpr std::uint16_t NativeSkillPacketExtra(
 	if (mode == AllocationMode::ShiftAll) return AssignAllSkillPointsExtra;
 	if (requestedPoints <= 1) return 0;
 	return static_cast<std::uint16_t>(std::min(requestedPoints - 1, 0xFFFEU));
+}
+
+inline bool IsUsableLocalizedString(
+	const char* localized,
+	const char* requestedKey,
+	const char* localizedMissingString
+) noexcept {
+	if (!localized || localized[0] == '\0') return false;
+	if (requestedKey && std::strcmp(localized, requestedKey) == 0) return false;
+	if (localizedMissingString
+		&& std::strcmp(localized, localizedMissingString) == 0) return false;
+	return true;
 }
 
 inline Policy ParseConfig(const nlohmann::json& skillsConfig) {

@@ -28,6 +28,20 @@ int main(int argc, char** argv) {
 	static_assert(NativeSkillPacketExtra(AllocationMode::CtrlBatch, 5) == 4);
 	static_assert(NativeSkillPacketExtra(AllocationMode::CtrlBatch, 1'000) == 999);
 	static_assert(NativeSkillPacketExtra(AllocationMode::ShiftAll, 1) == 0xFFFF);
+	TEST_REQUIRE(!IsUsableLocalizedString(nullptr, "shiftConfirmation", "Missing string"));
+	TEST_REQUIRE(!IsUsableLocalizedString("", "shiftConfirmation", "Missing string"));
+	TEST_REQUIRE(!IsUsableLocalizedString(
+		"shiftConfirmation", "shiftConfirmation", "Missing string"));
+	TEST_REQUIRE(!IsUsableLocalizedString(
+		"Missing string", "shiftConfirmation", "Missing string"));
+	TEST_REQUIRE(!IsUsableLocalizedString(
+		"없는 문자열", "shiftConfirmation", "없는 문자열"));
+	TEST_REQUIRE(IsUsableLocalizedString(
+		"Invest all skill points?", "shiftConfirmation", "Missing string"));
+	TEST_REQUIRE(IsUsableLocalizedString(
+		"모든 스킬 포인트를 투자하시겠습니까?",
+		"shiftConfirmation",
+		"없는 문자열"));
 
 	const auto absent = ParseConfig(nlohmann::json::object());
 	TEST_REQUIRE(!absent.enabled);

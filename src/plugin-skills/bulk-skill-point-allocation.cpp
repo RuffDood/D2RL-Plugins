@@ -28,6 +28,7 @@ constexpr std::size_t FakeStatWidgetSize = 0xB90;
 constexpr std::size_t FakeStatIndexOffset = 0xB88;
 constexpr std::size_t MessagePayloadOffset = 0x110;
 constexpr char AssignAllStatPointsConfirmationKey[] = "AssignAllStatPointsConfirmation";
+constexpr char MissingStringKey[] = "strMissingString";
 struct GameStringView {
     const char* data{};
     std::size_t size{};
@@ -101,10 +102,18 @@ const char* __fastcall HookGetLocalizedStringByKey(
             .data = Settings.shiftConfirmationKey.data(),
             .size = Settings.shiftConfirmationKey.size(),
         };
+        const GameStringView missingStringKey{
+            .data = MissingStringKey,
+            .size = sizeof(MissingStringKey) - 1,
+        };
         const auto localized = OriginalGetLocalizedStringByKey(&localizedKey);
-        if (localized
-            && localized[0] != '\0'
-            && std::strcmp(localized, Settings.shiftConfirmationKey.c_str()) != 0) {
+        const auto localizedMissingString =
+            OriginalGetLocalizedStringByKey(&missingStringKey);
+        if (IsUsableLocalizedString(
+                localized,
+                Settings.shiftConfirmationKey.c_str(),
+                localizedMissingString
+            )) {
             return localized;
         }
         return Settings.shiftConfirmationFallback.c_str();
@@ -292,7 +301,7 @@ D2RL::ConsoleCommandResult __cdecl Status(
     std::snprintf(
         message,
         sizeof(message),
-        "Bulk Skill Point Allocation 1.2.4 (plugin-skills): enabled=%s; ctrl skill points=%u; shift confirmation=%s; confirmation=%s; localization key=%s; last modifiers=0x%02X; incoming extra=0x%04X; outgoing extra=0x%04X; single=%llu; ctrl batches=%llu; shift confirmed=%llu; shift superseded=%llu; native bulk packets=%llu.",
+        "Bulk Skill Point Allocation 1.2.5 (plugin-skills): enabled=%s; ctrl skill points=%u; shift confirmation=%s; confirmation=%s; localization key=%s; last modifiers=0x%02X; incoming extra=0x%04X; outgoing extra=0x%04X; single=%llu; ctrl batches=%llu; shift confirmed=%llu; shift superseded=%llu; native bulk packets=%llu.",
         Settings.enabled ? "true" : "false",
         Settings.skillPointsPerCtrlClick,
         Settings.confirmShiftAllocation ? "enabled" : "disabled",
@@ -518,7 +527,7 @@ bool Load(
     std::snprintf(
         activeMessage,
         sizeof(activeMessage),
-        "plugin-skills: Bulk Skill Point Allocation 1.2.4 by RuffnecKk loaded: "
+        "plugin-skills: Bulk Skill Point Allocation 1.2.5 by RuffnecKk loaded: "
         "enabled=%s; ctrl=%u; shift confirmation=%s; UI broker=%s; "
         "config=skills.bulkSkillPointAllocation.",
         Settings.enabled ? "true" : "false",
