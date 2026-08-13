@@ -1,4 +1,5 @@
 ﻿#include <D2RLPlugin/api.h>
+#include "advanced-item-tooltips.h"
 #include "charm-aura-trigger-fix.h"
 #include "enhanced-damage-min-max-fix.h"
 #include "extended-item-stats.h"
@@ -8,6 +9,7 @@
 #include "items-ethereal.h"
 #include "items-private.h"
 #include "magic-find-formula.h"
+#include "potion-auto-pickup.h"
 #include "qty-display-issue.h"
 #include "repair-costs-cap.h"
 #include "vendor-stock-refresh.h"
@@ -691,6 +693,7 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 
 static void CleanupPluginItemsState() noexcept
 {
+	RuffnecKk::PotionAutoPickUp::Unload();
 	RuffnecKk::MagicFindFormula::Unload();
 	RuffnecKk::VendorStockRefresh::Unload();
 	RuffnecKk::QtyDisplayIssue::Unload();
@@ -701,6 +704,7 @@ static void CleanupPluginItemsState() noexcept
 	ItemsEthereal_Reset();
 	RuffnecKk::GroundItemLabelLimit::Unload();
 	RuffnecKk::GambleScreenLimit::Unload();
+	RuffnecKk::AdvancedTooltips::Unload();
 	RuffnecKk::ExtendedItemStats::Unload();
 }
 
@@ -784,6 +788,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 	if (!RuffnecKk::ExtendedItemStats::Load(context)) {
 		return false;
 	}
+	if (!RuffnecKk::AdvancedTooltips::Load(context, itemsConfig)) {
+		return false;
+	}
 	if (!RuffnecKk::GambleScreenLimit::Load(context, itemsConfig)) {
 		return false;
 	}
@@ -809,6 +816,9 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 	}
 	if (!RuffnecKk::MagicFindFormula::Load(context, itemsConfig)) {
+		return false;
+	}
+	if (!RuffnecKk::PotionAutoPickUp::Load(context, itemsConfig)) {
 		return false;
 	}
 
