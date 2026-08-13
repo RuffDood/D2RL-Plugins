@@ -5,6 +5,8 @@
 #include "equipped-item-to-cube.h"
 #include "transmute-hotkey.h"
 #include "prevent-merc-death-in-town.h"
+#include "remote-stash.h"
+#include "floating-damage-feature.h"
 #include <limits>
 
 // ── Addresses (offsets from exe base 0x140000000) ────────────────────────────
@@ -135,6 +137,8 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderGetPluginInfo() noexcept -> const D2RL::PluginI
 
 static void CleanupPluginMiscState() noexcept
 {
+	RuffnecKk::FloatingDamageFeature::Unload();
+	RuffnecKk::RemoteStash::Unload();
 	RuffnecKk::PreventMercDeathInTown::Unload();
 	RuffnecKk::TransmuteHotkey::Unload();
 	RuffnecKk::EquippedItemToCube::Unload();
@@ -206,6 +210,12 @@ D2RL_PLUGIN_EXPORT auto D2RLoaderLoadPlugin(const D2RL::PluginContext* context) 
 		return false;
 	}
 	if (!RuffnecKk::PreventMercDeathInTown::Load(context, misc)) {
+		return false;
+	}
+	if (!RuffnecKk::RemoteStash::Load(context, misc)) {
+		return false;
+	}
+	if (!RuffnecKk::FloatingDamageFeature::Load(context, misc)) {
 		return false;
 	}
 
