@@ -1,4 +1,6 @@
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <D2RLPlugin/api.h>
 #include <plugin-shared.h>
 #include "advanced-item-tooltips.h"

@@ -1391,6 +1391,586 @@
       "length": 32,
       "expectedBytes": "40 53 55 57 48 81 EC 90 00 00 00 48 8B 05 B6 26 58 02 48 33 C4 48 89 44 24 70 48 8B FA 45 33 C0",
       "source": "src/plugin-misc/prevent-merc-death-in-town.cpp"
+    },
+    {
+      "id": "items.advancedTooltips.buildItemTooltipCall2291DC",
+      "owner": "plugin-items",
+      "feature": "items.advancedTooltips",
+      "kind": "call-site",
+      "rva": "0x2291DC",
+      "length": 5,
+      "expectedBytes": "E8 9F 42 09 00",
+      "source": "src/plugin-items/advanced-item-tooltips.cpp"
+    },
+    {
+      "id": "items.advancedTooltips.buildItemTooltipCall2BCEE9",
+      "owner": "plugin-items",
+      "feature": "items.advancedTooltips",
+      "kind": "call-site",
+      "rva": "0x2BCEE9",
+      "length": 5,
+      "expectedBytes": "E8 92 05 00 00",
+      "source": "src/plugin-items/advanced-item-tooltips.cpp"
+    },
+    {
+      "id": "items.advancedTooltips.buildItemTooltipCall2C8C02",
+      "owner": "plugin-items",
+      "feature": "items.advancedTooltips",
+      "kind": "call-site",
+      "rva": "0x2C8C02",
+      "length": 5,
+      "expectedBytes": "E8 79 48 FF FF",
+      "source": "src/plugin-items/advanced-item-tooltips.cpp"
+    },
+    {
+      "id": "items.advancedTooltips.buildItemTooltipCall2CB32E",
+      "owner": "plugin-items",
+      "feature": "items.advancedTooltips",
+      "kind": "call-site",
+      "rva": "0x2CB32E",
+      "length": 5,
+      "expectedBytes": "E8 4D 21 FF FF",
+      "source": "src/plugin-items/advanced-item-tooltips.cpp"
+    },
+    {
+      "id": "items.advancedTooltips.buildItemTooltipCall2CE716",
+      "owner": "plugin-items",
+      "feature": "items.advancedTooltips",
+      "kind": "call-site",
+      "rva": "0x2CE716",
+      "length": 5,
+      "expectedBytes": "E8 65 ED FE FF",
+      "source": "src/plugin-items/advanced-item-tooltips.cpp"
+    },
+    {
+      "id": "items.advancedTooltips.buildItemTooltipCall87E882",
+      "owner": "plugin-items",
+      "feature": "items.advancedTooltips",
+      "kind": "call-site",
+      "rva": "0x87E882",
+      "length": 5,
+      "expectedBytes": "E8 F9 EB A3 FF",
+      "source": "src/plugin-items/advanced-item-tooltips.cpp"
+    },
+    {
+      "id": "items.advancedTooltips.buildItemTooltipCall150C377",
+      "owner": "plugin-items",
+      "feature": "items.advancedTooltips",
+      "kind": "call-site",
+      "rva": "0x150C377",
+      "length": 5,
+      "expectedBytes": "E8 04 11 DB FE",
+      "source": "src/plugin-items/advanced-item-tooltips.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.getFreeBeltSlot",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "inline-hook",
+      "rva": "0x3862D0",
+      "length": 32,
+      "expectedBytes": "40 53 55 56 57 41 54 41 56 41 57 48 81 EC 70 01 00 00 48 8B 05 DF 4F 64 02 48 33 C4 48 89 84 24",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action01",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A798",
+      "length": 8,
+      "expectedBytes": "50 C0 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action02",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7A0",
+      "length": 8,
+      "expectedBytes": "20 CE 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action03",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7A8",
+      "length": 8,
+      "expectedBytes": "40 CE 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action04",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7B0",
+      "length": 8,
+      "expectedBytes": "60 CE 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action05",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7B8",
+      "length": 8,
+      "expectedBytes": "80 CE 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action06",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7C0",
+      "length": 8,
+      "expectedBytes": "80 CF 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action07",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7C8",
+      "length": 8,
+      "expectedBytes": "30 D0 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action08",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7D0",
+      "length": 8,
+      "expectedBytes": "E0 D0 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action09",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7D8",
+      "length": 8,
+      "expectedBytes": "00 D1 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action0A",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7E0",
+      "length": 8,
+      "expectedBytes": "20 D1 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action0B",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7E8",
+      "length": 8,
+      "expectedBytes": "40 D1 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action0C",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7F0",
+      "length": 8,
+      "expectedBytes": "30 D2 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action0D",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A7F8",
+      "length": 8,
+      "expectedBytes": "30 D3 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action0E",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A800",
+      "length": 8,
+      "expectedBytes": "E0 D3 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action0F",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A808",
+      "length": 8,
+      "expectedBytes": "90 D4 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action10",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A810",
+      "length": 8,
+      "expectedBytes": "B0 D4 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action11",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A818",
+      "length": 8,
+      "expectedBytes": "D0 D4 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "items.potionAutoPickUp.action12",
+      "owner": "plugin-items",
+      "feature": "items.potionAutoPickUp",
+      "kind": "byte-patch",
+      "rva": "0x1D2A820",
+      "length": 8,
+      "expectedBytes": "F0 D4 4A 40 01 00 00 00",
+      "source": "src/plugin-items/potion-auto-pickup.cpp"
+    },
+    {
+      "id": "misc.remoteStash.buttonDispatchCall",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x8F1069",
+      "length": 5,
+      "expectedBytes": "E8 22 2D F5 FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.stashTransitionCall",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x0C1F01",
+      "length": 5,
+      "expectedBytes": "E8 7A DC 05 00",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.movementUiCloseCall",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x102590",
+      "length": 5,
+      "expectedBytes": "E8 AB 5C FC FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.sharedGoldDepositCall",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x14F5895",
+      "length": 5,
+      "expectedBytes": "E8 96 FA FF FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.townCheck.clientLifecycle",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x259132",
+      "length": 5,
+      "expectedBytes": "E8 19 76 09 00",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.townCheck.clientCleanup",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x25A11D",
+      "length": 5,
+      "expectedBytes": "E8 2E 66 09 00",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.townCheck.quickMoveInit",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x0FEE36",
+      "length": 5,
+      "expectedBytes": "E8 15 19 1F 00",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.townCheck.quickMovePlacement",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x0FF1D7",
+      "length": 5,
+      "expectedBytes": "E8 74 15 1F 00",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.transferItem.15E382",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x15E382",
+      "length": 5,
+      "expectedBytes": "E8 29 15 00 00",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.transferItem.1F6674",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x1F6674",
+      "length": 5,
+      "expectedBytes": "E8 37 92 F6 FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.transferItem.2A9D68",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x2A9D68",
+      "length": 5,
+      "expectedBytes": "E8 43 5B EB FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.transferItem.2AAB0D",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x2AAB0D",
+      "length": 5,
+      "expectedBytes": "E8 9E 4D EB FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.transferItem.2ABB09",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x2ABB09",
+      "length": 5,
+      "expectedBytes": "E8 A2 3D EB FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.transferItem.2C6055",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x2C6055",
+      "length": 5,
+      "expectedBytes": "E8 56 98 E9 FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.transferItem.2C6265",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x2C6265",
+      "length": 5,
+      "expectedBytes": "E8 46 96 E9 FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.transferItem.2C7479",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "call-site",
+      "rva": "0x2C7479",
+      "length": 5,
+      "expectedBytes": "E8 32 84 E9 FF",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.goldRangeGate",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x4BA617",
+      "length": 15,
+      "expectedBytes": "44 39 7D BF 0F 86 39 0E 00 00 48 85 FF 75 7B",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.configurePlayerInventory",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x22BA70",
+      "length": 32,
+      "expectedBytes": "4C 8B DC 49 89 5B 20 55 56 57 41 55 41 56 48 8D 6C 24 90 48 81 EC 70 01 00 00 48 8B 05 37 F8 79",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.getUiState",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x0CE500",
+      "length": 15,
+      "expectedBytes": "48 63 C1 48 8D 0D 96 C8 95 02 0F B6 04 08 C3",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.closeInterfaceState",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x0C7D30",
+      "length": 64,
+      "expectedBytes": "48 89 5C 24 10 48 89 74 24 18 55 57 41 54 41 56 41 57 48 8D AC 24 E0 FD FF FF 48 81 EC 20 03 00 00 48 8B 05 70 35 90 02 48 33 C4 48 89 85 10 02 00 00 48 63 D9 4C 8D 25 94 82 F3 FF 0F B6 F2 46",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.openInterfaceState",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x0CD7C0",
+      "length": 68,
+      "expectedBytes": "48 89 5C 24 18 55 56 41 54 41 56 41 57 48 8D AC 24 40 FD FF FF 48 81 EC C0 03 00 00 48 8B 05 E5 DA 8F 02 48 33 C4 48 89 85 B0 02 00 00 48 63 D9 4C 8D 25 09 28 F3 FF 44 0F B6 F2 45 0F B6 BC 1C A0 AD A2 02",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.resetMouseInputFinalize",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x08D540",
+      "length": 32,
+      "expectedBytes": "8B 0D BE 61 99 02 33 C0 89 05 06 5F 99 02 89 05 24 5F 99 02 88 05 90 61 99 02 89 05 20 5F 99 02",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.resetMouseInput",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x08D510",
+      "length": 32,
+      "expectedBytes": "33 C0 89 05 3C 5F 99 02 89 05 5A 5F 99 02 88 05 C6 61 99 02 89 05 56 5F 99 02 89 05 54 5F 99 02",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.goldButtonHandler",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x4BA580",
+      "length": 32,
+      "expectedBytes": "40 55 53 56 57 41 57 48 8D 6C 24 C9 48 81 EC 00 01 00 00 48 8B 05 2E 0D 51 02 48 33 C4 48 89 45",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.removeServerUnit",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x43EC10",
+      "length": 16,
+      "expectedBytes": "48 89 5C 24 08 57 48 83 EC 20 48 8B F9 48 8B DA",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.removeItemHandler",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x4AA100",
+      "length": 32,
+      "expectedBytes": "40 55 53 56 57 41 56 48 8D 6C 24 F0 48 81 EC 10 01 00 00 48 8B 05 AE 11 52 02 48 33 C4 48 89 45",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.validateItemPacketState",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x474700",
+      "length": 32,
+      "expectedBytes": "48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 20 48 8B D9 41 0F B6 F0 48 8B 09 48 8B FA E8 AF 72 ED",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.sharedDepositHandler",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x4C5570",
+      "length": 32,
+      "expectedBytes": "40 55 53 56 57 41 55 48 8D 6C 24 C9 48 81 EC F0 00 00 00 48 8B 05 3E 5D 50 02 48 33 C4 48 89 45",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.sharedWithdrawalHandler",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x4C6480",
+      "length": 32,
+      "expectedBytes": "40 55 53 56 57 41 55 48 8D 6C 24 C9 48 81 EC F0 00 00 00 48 8B 05 2E 4E 50 02 48 33 C4 48 89 45",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.remoteStash.insertItemHandler",
+      "owner": "plugin-misc",
+      "feature": "misc.remoteStash",
+      "kind": "inline-hook",
+      "rva": "0x4BFF30",
+      "length": 32,
+      "expectedBytes": "40 55 53 56 57 41 56 48 8D 6C 24 F0 48 81 EC 10 01 00 00 48 8B 05 7E B3 50 02 48 33 C4 48 89 45",
+      "source": "src/plugin-misc/remote-stash.cpp"
+    },
+    {
+      "id": "misc.floatingDamage.updateCamera",
+      "owner": "plugin-misc",
+      "feature": "misc.floatingDamage",
+      "kind": "inline-hook",
+      "rva": "0x0B9B90",
+      "length": 33,
+      "expectedBytes": "48 89 5C 24 18 57 48 83 EC 20 E8 31 17 FD FF 8B C8 E8 DA 08 FE FF 48 8B C8 48 8B D8 E8 AF 13 29 00",
+      "source": "src/plugin-misc/floating-damage-feature.cpp"
+    },
+    {
+      "id": "misc.floatingDamage.hitpointsCommitCall",
+      "owner": "plugin-misc",
+      "feature": "misc.floatingDamage",
+      "kind": "call-site",
+      "rva": "0x44D093",
+      "length": 5,
+      "expectedBytes": "E8 78 AC EA FF",
+      "source": "src/plugin-misc/floating-damage-feature.cpp"
     }
   ]
 }

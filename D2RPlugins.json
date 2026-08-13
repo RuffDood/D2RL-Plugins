@@ -166,6 +166,59 @@
             "chancePercent": 5,
             "allowSetItems": false,
             "allowIndestructibleItems": false
+        },
+
+        // Show maximum sockets and exact item roll ranges.
+        // Disabled by default; when enabled, hold Shift to display ranges.
+        "advancedTooltips": {
+            "enabled": false,
+            "showMaxSockets": true,
+            "showMaxSocketsOnSocketedItems": false,
+            "showBaseDefenseRange": true,
+            "showPropertyRanges": true,
+            "includeSocketedContributionsInRanges": false,
+            "propertyRangeColor": "ChronicleColor",
+            "rangeDisplayMode": "HoldHotkey",
+            "holdToDisplayHotkey": "Shift"
+        },
+
+        // Automatically pick up only the potion codes explicitly listed below.
+        // Lists contain quoted item codes: hp1-hp5, mp1-mp5, rvs, or rvl.
+        // Inactive example: "tiers": ["hp5"]. Columns are integers from 1 to 4.
+        // If no valid belt or inventory space remains, the item stays on the ground.
+        "potionAutoPickUp": {
+            "enabled": false,
+            "pickupDistance": 4,
+            "minimumIntervalActions": 3,
+            "familyPriority": [],
+            "healing": {
+                "enabled": false,
+                "tiers": [],
+                "columns": [],
+                "overflowToInventory": false,
+                "overflowTiers": [],
+                "tierPriority": []
+            },
+            "mana": {
+                "enabled": false,
+                "tiers": [],
+                "columns": [],
+                "overflowToInventory": false,
+                "overflowTiers": [],
+                "tierPriority": []
+            },
+            "rejuvenation": {
+                "enabled": false,
+                "tiers": [],
+                "columns": [],
+                "overflowToInventory": false,
+                "overflowTiers": [],
+                "tierPriority": []
+            },
+            "diagnostics": {
+                "enabled": false,
+                "logScans": false
+            }
         }
     },
 
@@ -248,6 +301,73 @@
         // Prevent ongoing damage from killing your mercenary while in town.
         "preventMercDeathInTown": {
             "enabled": false
+        },
+
+        // Open the native personal, shared, and crafting stash remotely.
+        // "None" leaves the optional hotkey unbound by default.
+        "remoteStash": {
+            "enabled": false,
+            "hotkey": "None"
+        },
+
+        // Show visual-only combat numbers and a rolling DPS counter.
+        "floatingDamage": {
+            "enabled": false,
+            "toggleHotkeyEnabled": true,
+            "toggleHotkey": "SHIFT+Z",
+            "maxNumbersOnScreen": 160,
+            "fontIndex": 0,
+            "colorByDamageType": false,
+            "textSize": 38.0,
+            "criticalHitSize": 48.0,
+            "textOutlineWidth": 1,
+            "shadowLeftRightOffset": 0.0,
+            "shadowUpDownOffset": 0.0,
+            "displayTimeSeconds": 0.85,
+            "criticalDisplayTimeSeconds": 0.95,
+            "fadeOutStart": 0.75,
+            "spawnSize": 0.01,
+            "popBounceSize": 1.75,
+            "popInTimeSeconds": 0.08,
+            "settleTimeSeconds": 0.12,
+            "upwardDriftSpeed": 45.0,
+            "sidewaysSpread": 0.0,
+            "spawnHeightOffset": 0.0,
+            "enableHitCombining": true,
+            "maxCombinedHitSize": 999999,
+            "combineWindowMs": 500,
+            "extendDisplayOnHitSeconds": 0.52,
+            "hitPulseSize": 1.24,
+            "hitPulseTimeSeconds": 0.13,
+            "showTickPopups": true,
+            "tickPopupTimeSeconds": 0.70,
+            "tickPopupSize": 0.60,
+            "tickPopupTravel": 64.0,
+            "tickPopupHeightOffset": -28.0,
+            "spreadNumbersHorizontally": true,
+            "numberOfColumns": 7,
+            "columnSpacing": 40.0,
+            "stackHeightStep": 24.0,
+            "columnReuseTimeSeconds": 0.60,
+            "maxStackHeight": 96.0,
+            "showDpsCounter": true,
+            "horizontalPositionPercent": 2.0,
+            "verticalPositionPercent": 98.0,
+            "dpsSampleTimeSeconds": 5.0,
+            "previewNumberCount": 8,
+            "previewSpread": 32.0,
+            "colors": {
+                "normal": [0.92, 0.92, 0.88, 1.0],
+                "critical": [1.0, 0.84, 0.27, 1.0],
+                "physical": [0.92, 0.92, 0.88, 1.0],
+                "fire": [1.0, 0.45, 0.12, 1.0],
+                "lightning": [1.0, 0.95, 0.35, 1.0],
+                "cold": [0.45, 0.78, 1.0, 1.0],
+                "poison": [0.35, 0.90, 0.30, 1.0],
+                "magic": [0.72, 0.45, 1.0, 1.0],
+                "outline": [0.16, 0.11, 0.03, 1.0],
+                "shadow": [0.16, 0.11, 0.02, 1.0]
+            }
         }
     },
 

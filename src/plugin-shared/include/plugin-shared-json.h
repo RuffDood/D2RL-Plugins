@@ -148,6 +148,25 @@ inline std::optional<nlohmann::json> LoadConfigFromPaths(
 	return attempt.found ? std::move(attempt.value) : std::nullopt;
 }
 
+// Community Pack 1.0.0 owns hotkey capture internally. Strip the retired
+// field before strict feature parsers inspect an older configuration, so it
+// remains harmless without surviving as a configurable policy.
+inline void RemoveLegacyHotkeyCaptureOption(nlohmann::json& value)
+{
+	if (value.is_object()) {
+		value.erase("consume");
+		for (auto& [key, child] : value.items()) {
+			(void)key;
+			RemoveLegacyHotkeyCaptureOption(child);
+		}
+	}
+	else if (value.is_array()) {
+		for (auto& child : value) {
+			RemoveLegacyHotkeyCaptureOption(child);
+		}
+	}
+}
+
 } // namespace PSh_Json_Detail
 
 // Tries <D2R>/mods/<mod>/d2rloader/config/D2RPlugins.json, then
@@ -162,6 +181,9 @@ inline std::optional<nlohmann::json> PSh_Json_LoadConfig(const D2RL::PluginConte
 		paths.modConfig,
 		paths.globalConfig,
 		&loadedPath);
+	if (config) {
+		PSh_Json_Detail::RemoveLegacyHotkeyCaptureOption(*config);
+	}
 	if (context) {
 		std::string message;
 		if (config) {

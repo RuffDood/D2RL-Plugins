@@ -87,6 +87,13 @@ int main()
 	TEST_REQUIRE(local);
 	TEST_REQUIRE(PSh_Json_GetSection(local, "items").at("gambleScreenLimit").at("enabled") == false);
 
+	auto legacyHotkey = nlohmann::json::parse(R"json({
+		"misc": { "transmuteHotkey": { "enabled": true, "consume": false } }
+	})json");
+	PSh_Json_Detail::RemoveLegacyHotkeyCaptureOption(legacyHotkey);
+	TEST_REQUIRE(!legacyHotkey.at("misc").at("transmuteHotkey").contains("consume"));
+	TEST_REQUIRE(legacyHotkey.at("misc").at("transmuteHotkey").at("enabled") == true);
+
 	WriteFile(modConfig, "{ invalid json");
 	TEST_REQUIRE(Throws([&] { (void)PSh_Json_Detail::LoadConfigFromPaths(modConfig, globalConfig); }));
 

@@ -2,7 +2,12 @@ file(GLOB PLUGIN_SOURCES CONFIGURE_DEPENDS *.cpp)
 
 add_library(plugin-misc SHARED ${PLUGIN_SOURCES} plugin.rc)
 
-target_link_libraries(plugin-misc PRIVATE plugin-shared)
+target_link_libraries(plugin-misc PRIVATE
+	plugin-shared
+	pluginpack-imgui
+	minhook
+	dxgi
+)
 
 set_target_properties(plugin-misc PROPERTIES
 	RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
@@ -54,5 +59,16 @@ if(BUILD_TESTING)
 	add_test(
 		NAME prevent-merc-death-in-town-policy
 		COMMAND prevent-merc-death-in-town-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
+
+	add_executable(remote-stash-policy-tests
+		tests/remote-stash-policy-tests.cpp
+	)
+	target_link_libraries(remote-stash-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		remote-stash-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME remote-stash-policy
+		COMMAND remote-stash-policy-tests
 	)
 endif()

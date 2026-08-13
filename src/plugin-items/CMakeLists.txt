@@ -18,7 +18,26 @@ list(REMOVE_ITEM PLUGIN_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/extended-item-stats-tooltip.cpp
 )
 
-add_library(plugin-items SHARED ${PLUGIN_SOURCES} plugin.rc)
+set(COMMUNITY_PACK_VANILLA_EXCEL_DIR "" CACHE PATH
+	"D2R 3.2 vanilla data/global/excel directory used for embedded tooltip tables")
+if(NOT IS_DIRECTORY "${COMMUNITY_PACK_VANILLA_EXCEL_DIR}")
+	message(FATAL_ERROR
+		"Set COMMUNITY_PACK_VANILLA_EXCEL_DIR to the vanilla D2R 3.2 data/global/excel directory")
+endif()
+
+set(ADVANCED_ITEM_TOOLTIPS_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+set(VANILLA_EXCEL_DIR "${COMMUNITY_PACK_VANILLA_EXCEL_DIR}")
+configure_file(
+	vanilla_tables.rc.in
+	"${CMAKE_CURRENT_BINARY_DIR}/vanilla_tables.rc"
+	@ONLY
+)
+
+add_library(plugin-items SHARED
+	${PLUGIN_SOURCES}
+	plugin.rc
+	"${CMAKE_CURRENT_BINARY_DIR}/vanilla_tables.rc"
+)
 
 target_link_libraries(plugin-items PRIVATE
 	plugin-shared
@@ -182,5 +201,27 @@ if(BUILD_TESTING)
 	add_test(
 		NAME magic-find-formula-policy
 		COMMAND magic-find-formula-policy-tests ${CMAKE_SOURCE_DIR}/D2RPlugins.json
+	)
+
+	add_executable(advanced-item-tooltips-policy-tests
+		tests/advanced-item-tooltips-policy-tests.cpp
+	)
+	target_link_libraries(advanced-item-tooltips-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		advanced-item-tooltips-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME advanced-item-tooltips-policy
+		COMMAND advanced-item-tooltips-policy-tests
+	)
+
+	add_executable(potion-auto-pick-up-policy-tests
+		tests/potion-auto-pick-up-policy-tests.cpp
+	)
+	target_link_libraries(potion-auto-pick-up-policy-tests PRIVATE plugin-shared)
+	target_include_directories(
+		potion-auto-pick-up-policy-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+	add_test(
+		NAME potion-auto-pick-up-policy
+		COMMAND potion-auto-pick-up-policy-tests
 	)
 endif()

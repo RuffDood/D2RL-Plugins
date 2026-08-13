@@ -173,9 +173,7 @@ inline Config ParseConfig(const nlohmann::json& miscConfig) {
     }
     for (const auto& [key, value] : entry->items()) {
         (void)value;
-        // "consume" was a public option before Community Pack 1.0.0.
-        // Keep accepting and ignoring it so old JSON files remain loadable.
-        if (key != "enabled" && key != "hotkey" && key != "consume") {
+        if (key != "enabled" && key != "hotkey") {
             throw std::invalid_argument(
                 "misc.transmuteHotkey contains unknown key '" + key + "'");
         }

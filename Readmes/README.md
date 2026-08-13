@@ -128,9 +128,9 @@ scrolling path.
   `includeSocketedContributionsInRanges`, `rangeDisplayMode`,
   `holdToDisplayHotkey`, and `propertyRangeColor`
 
-The public configuration does not use the `Always` display mode; ranges appear
-only while the configured hold-to-display key is pressed when the feature is
-enabled.
+The pack ships disabled. With the default `HoldHotkey` mode, ranges appear only
+while the configured hold-to-display key is pressed; `Always` remains available
+for players who prefer persistent ranges.
 
 ### PotionAutoPickUp
 
@@ -229,5 +229,5 @@ Community Pack 1.0.0 is published with eezstreet's express permission.
   from it.
 
 The pack is distributed under the included [MIT License](../LICENSE). Dear
-ImGui, MinHook, and their bundled components retain the notices in
+ImGui, MinHook, and the bundled OFL fonts retain the notices in
 [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).

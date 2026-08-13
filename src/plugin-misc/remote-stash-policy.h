@@ -243,9 +243,7 @@ inline HotkeyConfig ParseHotkeyConfig(const nlohmann::json& config) {
     }
     for (const auto& [key, value] : config.items()) {
         (void)value;
-        // `consume` existed in the standalone JSON. It is deliberately ignored
-        // for migration compatibility and is no longer a public setting.
-        if (key != "enabled" && key != "hotkey" && key != "consume") {
+        if (key != "enabled" && key != "hotkey") {
             throw std::invalid_argument("unknown setting: " + key);
         }
     }

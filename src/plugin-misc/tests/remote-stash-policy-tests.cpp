@@ -33,11 +33,6 @@ int main() {
     TEST_REQUIRE(enabled.hotkey.shift);
     TEST_REQUIRE(!enabled.hotkey.control);
 
-    const auto legacy = ParseHotkeyConfig(nlohmann::json::parse(
-        R"json({"enabled":false,"hotkey":"None","consume":true})json"));
-    TEST_REQUIRE(!legacy.enabled);
-    TEST_REQUIRE(legacy.hotkeyText == "None");
-
     TEST_REQUIRE(Throws([] {
         ParseHotkeyConfig(nlohmann::json::parse(
             R"json({"enabled":true,"hotkey":"None"})json"));
