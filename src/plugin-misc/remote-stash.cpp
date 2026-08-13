@@ -25,11 +25,11 @@
 
 namespace {
 using ruffneckk::remote_stash::CompanionInventoryCloseDecision;
-using ruffneckk::remote_stash::EmbeddedMessageOwner;
 using ruffneckk::remote_stash::ExactModifiersMatch;
 using ruffneckk::remote_stash::HotkeyConfig;
 using ruffneckk::remote_stash::HotkeyDispatch;
 using ruffneckk::remote_stash::IsMouseHotkey;
+using ruffneckk::remote_stash::IsExpectedEmbeddedMessage;
 using ruffneckk::remote_stash::IsUsableLayoutOwnedButton;
 using ruffneckk::remote_stash::ParseHotkeyConfig;
 using ruffneckk::remote_stash::ResolveHotkeyDispatch;
@@ -99,7 +99,6 @@ constexpr std::uintptr_t StashPanelCloseButtonReturnRva = 0x23C150;
 constexpr std::uintptr_t GeneralUiTeardownStashReturnRva = 0x22A9FE;
 constexpr std::size_t WidgetRectOffset = 0x70;
 constexpr std::size_t WidgetVisibleOffset = 0x51;
-constexpr std::size_t WidgetParentOffset = 0x30;
 constexpr std::size_t ButtonOnClickMessageOffset = 0x558;
 constexpr std::int32_t StashInterfaceState = 0x18;
 constexpr std::int32_t InventoryInterfaceState = 1;
@@ -449,6 +448,7 @@ std::atomic<std::uint64_t> RemoteMovementInventoryCloseSuppressions{};
 std::atomic<std::uint64_t> RemoteQuickMoveWithdrawalDeadline{};
 std::atomic_bool PlacementSuccessReported{};
 std::atomic_bool PlacementFailureReported{};
+std::atomic<void*> RemoteStashMessage{};
 std::atomic<UiMessageInterceptorFn> ExternalUiMessageInterceptor{};
 std::atomic_bool BrokerReady{};
 
@@ -1477,6 +1477,7 @@ void ReportPlacementFailure(const char* reason) noexcept {
 }
 
 void __fastcall HookConfigurePlayerInventory(void* panel) noexcept {
+    RemoteStashMessage.store(nullptr, std::memory_order_release);
     OriginalConfigurePlayerInventory(panel);
     if (!panel) return;
 
@@ -1495,6 +1496,10 @@ void __fastcall HookConfigurePlayerInventory(void* panel) noexcept {
     }
 
     SetWidgetState(button, true);
+    RemoteStashMessage.store(
+        static_cast<std::uint8_t*>(button) + ButtonOnClickMessageOffset,
+        std::memory_order_release
+    );
     DynamicPlacements.fetch_add(1, std::memory_order_relaxed);
     if (Context && !PlacementSuccessReported.exchange(true, std::memory_order_relaxed)) {
         char message[220]{};
@@ -1512,22 +1517,12 @@ void __fastcall HookConfigurePlayerInventory(void* panel) noexcept {
 }
 
 bool IsCurrentRemoteStashMessage(void* message) noexcept {
-    if (!message) return false;
-    const auto buttonAddress = EmbeddedMessageOwner(
+    return IsExpectedEmbeddedMessage(
         reinterpret_cast<std::uintptr_t>(message),
-        ButtonOnClickMessageOffset
+        reinterpret_cast<std::uintptr_t>(
+            RemoteStashMessage.load(std::memory_order_acquire)
+        )
     );
-    if (buttonAddress == 0) return false;
-
-    auto* const button = reinterpret_cast<void*>(buttonAddress);
-    __try {
-        auto* const parent = *reinterpret_cast<void**>(
-            static_cast<std::uint8_t*>(button) + WidgetParentOffset
-        );
-        return parent && FindWidget(parent, "remote_stash") == button;
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        return false;
-    }
 }
 
 bool TryQueueRemoteOpenRequest(
@@ -2417,6 +2412,7 @@ bool Load(
     MarkUiDirty = nullptr;
     PlacementSuccessReported.store(false, std::memory_order_relaxed);
     PlacementFailureReported.store(false, std::memory_order_relaxed);
+    RemoteStashMessage.store(nullptr, std::memory_order_relaxed);
     ExternalUiMessageInterceptor.store(nullptr, std::memory_order_relaxed);
     BrokerReady.store(false, std::memory_order_relaxed);
     RemoteClientSessionActive.store(false, std::memory_order_relaxed);
@@ -2697,6 +2693,7 @@ bool Load(
 void Unload() noexcept {
     if (!StopInput()) return;
     BrokerReady.store(false, std::memory_order_release);
+    RemoteStashMessage.store(nullptr, std::memory_order_release);
     ExternalUiMessageInterceptor.store(nullptr, std::memory_order_release);
     DeactivateRemoteClientSession(false);
     RemoteItemScope = false;

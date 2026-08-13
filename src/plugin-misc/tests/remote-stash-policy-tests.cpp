@@ -49,13 +49,17 @@ int main() {
 
     constexpr std::uintptr_t remoteStashButton = 0x3000;
     constexpr std::size_t onClickMessageOffset = 0x558;
-    TEST_REQUIRE(EmbeddedMessageOwner(
-        remoteStashButton + onClickMessageOffset,
-        onClickMessageOffset
-    ) == remoteStashButton);
-    TEST_REQUIRE(EmbeddedMessageOwner(
-        onClickMessageOffset - 1,
-        onClickMessageOffset
-    ) == 0);
+    constexpr std::uintptr_t remoteStashMessage =
+        remoteStashButton + onClickMessageOffset;
+    TEST_REQUIRE(IsExpectedEmbeddedMessage(
+        remoteStashMessage,
+        remoteStashMessage
+    ));
+    TEST_REQUIRE(!IsExpectedEmbeddedMessage(
+        remoteStashMessage + 1,
+        remoteStashMessage
+    ));
+    TEST_REQUIRE(!IsExpectedEmbeddedMessage(0, remoteStashMessage));
+    TEST_REQUIRE(!IsExpectedEmbeddedMessage(remoteStashMessage, 0));
     return 0;
 }
