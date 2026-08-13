@@ -25,6 +25,7 @@
 
 namespace {
 using ruffneckk::remote_stash::CompanionInventoryCloseDecision;
+using ruffneckk::remote_stash::EmbeddedMessageOwner;
 using ruffneckk::remote_stash::ExactModifiersMatch;
 using ruffneckk::remote_stash::HotkeyConfig;
 using ruffneckk::remote_stash::HotkeyDispatch;
@@ -98,6 +99,7 @@ constexpr std::uintptr_t StashPanelCloseButtonReturnRva = 0x23C150;
 constexpr std::uintptr_t GeneralUiTeardownStashReturnRva = 0x22A9FE;
 constexpr std::size_t WidgetRectOffset = 0x70;
 constexpr std::size_t WidgetVisibleOffset = 0x51;
+constexpr std::size_t WidgetParentOffset = 0x30;
 constexpr std::size_t ButtonOnClickMessageOffset = 0x558;
 constexpr std::int32_t StashInterfaceState = 0x18;
 constexpr std::int32_t InventoryInterfaceState = 1;
@@ -447,8 +449,6 @@ std::atomic<std::uint64_t> RemoteMovementInventoryCloseSuppressions{};
 std::atomic<std::uint64_t> RemoteQuickMoveWithdrawalDeadline{};
 std::atomic_bool PlacementSuccessReported{};
 std::atomic_bool PlacementFailureReported{};
-std::atomic<void*> InventoryPanel{};
-std::atomic<void*> RemoteStashButton{};
 std::atomic<UiMessageInterceptorFn> ExternalUiMessageInterceptor{};
 std::atomic_bool BrokerReady{};
 
@@ -1478,8 +1478,6 @@ void ReportPlacementFailure(const char* reason) noexcept {
 
 void __fastcall HookConfigurePlayerInventory(void* panel) noexcept {
     OriginalConfigurePlayerInventory(panel);
-    InventoryPanel.store(nullptr, std::memory_order_release);
-    RemoteStashButton.store(nullptr, std::memory_order_release);
     if (!panel) return;
 
     auto* button = FindNamedWidget(panel, "remote_stash");
@@ -1497,8 +1495,6 @@ void __fastcall HookConfigurePlayerInventory(void* panel) noexcept {
     }
 
     SetWidgetState(button, true);
-    InventoryPanel.store(panel, std::memory_order_release);
-    RemoteStashButton.store(button, std::memory_order_release);
     DynamicPlacements.fetch_add(1, std::memory_order_relaxed);
     if (Context && !PlacementSuccessReported.exchange(true, std::memory_order_relaxed)) {
         char message[220]{};
@@ -1517,16 +1513,18 @@ void __fastcall HookConfigurePlayerInventory(void* panel) noexcept {
 
 bool IsCurrentRemoteStashMessage(void* message) noexcept {
     if (!message) return false;
-    const auto inventoryPanel = InventoryPanel.load(std::memory_order_acquire);
-    const auto remoteStashButton = RemoteStashButton.load(std::memory_order_acquire);
-    if (!inventoryPanel || !remoteStashButton) return false;
+    const auto buttonAddress = EmbeddedMessageOwner(
+        reinterpret_cast<std::uintptr_t>(message),
+        ButtonOnClickMessageOffset
+    );
+    if (buttonAddress == 0) return false;
 
-    const auto* expectedMessage = static_cast<const std::uint8_t*>(remoteStashButton)
-        + ButtonOnClickMessageOffset;
-    if (message != expectedMessage) return false;
-
+    auto* const button = reinterpret_cast<void*>(buttonAddress);
     __try {
-        return FindWidget(inventoryPanel, "remote_stash") == remoteStashButton;
+        auto* const parent = *reinterpret_cast<void**>(
+            static_cast<std::uint8_t*>(button) + WidgetParentOffset
+        );
+        return parent && FindWidget(parent, "remote_stash") == button;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         return false;
     }
@@ -2419,8 +2417,6 @@ bool Load(
     MarkUiDirty = nullptr;
     PlacementSuccessReported.store(false, std::memory_order_relaxed);
     PlacementFailureReported.store(false, std::memory_order_relaxed);
-    InventoryPanel.store(nullptr, std::memory_order_relaxed);
-    RemoteStashButton.store(nullptr, std::memory_order_relaxed);
     ExternalUiMessageInterceptor.store(nullptr, std::memory_order_relaxed);
     BrokerReady.store(false, std::memory_order_relaxed);
     RemoteClientSessionActive.store(false, std::memory_order_relaxed);
@@ -2737,3 +2733,11 @@ void Unload() noexcept {
 }
 
 } // namespace RuffnecKk::RemoteStash
+
+extern "C" __declspec(dllexport) bool __fastcall
+RuffneckkRemoteStashInterceptUiMessage(void* message) noexcept {
+    if (!Context || !FindWidget || !BrokerReady.load(std::memory_order_acquire)) {
+        return false;
+    }
+    return InterceptUiMessageChain(message);
+}

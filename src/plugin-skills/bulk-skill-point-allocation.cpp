@@ -29,6 +29,9 @@ constexpr std::size_t FakeStatIndexOffset = 0xB88;
 constexpr std::size_t MessagePayloadOffset = 0x110;
 constexpr char AssignAllStatPointsConfirmationKey[] = "AssignAllStatPointsConfirmation";
 constexpr char MissingStringKey[] = "strMissingString";
+constexpr wchar_t PackRemoteStashModule[] = L"plugin-misc.dll";
+constexpr char PackRemoteStashInterceptorExport[] =
+    "RuffneckkRemoteStashInterceptUiMessage";
 struct GameStringView {
     const char* data{};
     std::size_t size{};
@@ -55,6 +58,7 @@ ShowAssignAllStatsConfirmationFn ShowAssignAllStatsConfirmation{};
 UiDispatchMessageFn OriginalUiDispatchMessage{};
 std::atomic<UiMessageInterceptorFn> ExternalUiMessageInterceptor{};
 std::atomic_bool BrokerReady{};
+UiMessageInterceptorFn PackRemoteStashInterceptor{};
 
 std::mutex ConfirmationMutex;
 PendingConfirmationState PendingConfirmation{};
@@ -389,6 +393,18 @@ bool RegisterUiMessageInterceptor(
     );
 }
 
+bool TryRegisterPackRemoteStashInterceptor() noexcept {
+    if (!BrokerReady.load(std::memory_order_acquire)) return false;
+    const auto module = GetModuleHandleW(PackRemoteStashModule);
+    if (!module) return false;
+    const auto interceptor = reinterpret_cast<UiMessageInterceptorFn>(
+        GetProcAddress(module, PackRemoteStashInterceptorExport)
+    );
+    if (!interceptor || !RegisterUiMessageInterceptor(interceptor)) return false;
+    PackRemoteStashInterceptor = interceptor;
+    return true;
+}
+
 void UnregisterUiMessageInterceptor(
     UiMessageInterceptorFn interceptor
 ) noexcept {
@@ -411,6 +427,7 @@ bool Load(
     Base = reinterpret_cast<std::uint8_t*>(context->exeBase);
     ExternalUiMessageInterceptor.store(nullptr, std::memory_order_relaxed);
     BrokerReady.store(false, std::memory_order_relaxed);
+    PackRemoteStashInterceptor = nullptr;
     if (!Base) return false;
     if (context->modDataVersionBuild != 0 && context->modDataVersionBuild != SupportedBuild) {
         context->LogError(
@@ -513,6 +530,11 @@ bool Load(
         BrokerReady.store(
             Settings.confirmShiftAllocation,
             std::memory_order_release);
+        if (TryRegisterPackRemoteStashInterceptor()) {
+            context->LogInfo(
+                "plugin-skills: registered plugin-misc RemoteStash with the shared UI broker."
+            );
+        }
     }
 
 	if (!PSh_RegisterConsoleCommand(context,
@@ -543,6 +565,10 @@ bool Load(
 }
 
 void Unload() noexcept {
+    if (PackRemoteStashInterceptor) {
+        UnregisterUiMessageInterceptor(PackRemoteStashInterceptor);
+        PackRemoteStashInterceptor = nullptr;
+    }
     BrokerReady.store(false, std::memory_order_release);
     ExternalUiMessageInterceptor.store(nullptr, std::memory_order_release);
     CancelPendingConfirmation();

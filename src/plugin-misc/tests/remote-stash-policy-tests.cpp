@@ -1,4 +1,5 @@
 #include "remote-stash-policy.h"
+#include "remote-stash-layout-policy.h"
 
 #include "../../../tests/test-check.h"
 
@@ -45,5 +46,16 @@ int main() {
         ParseHotkeyConfig(nlohmann::json::parse(
             R"json({"enabled":"yes","hotkey":"S"})json"));
     }));
+
+    constexpr std::uintptr_t remoteStashButton = 0x3000;
+    constexpr std::size_t onClickMessageOffset = 0x558;
+    TEST_REQUIRE(EmbeddedMessageOwner(
+        remoteStashButton + onClickMessageOffset,
+        onClickMessageOffset
+    ) == remoteStashButton);
+    TEST_REQUIRE(EmbeddedMessageOwner(
+        onClickMessageOffset - 1,
+        onClickMessageOffset
+    ) == 0);
     return 0;
 }
