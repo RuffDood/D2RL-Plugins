@@ -46,11 +46,12 @@ int main(int argc, char** argv) {
     const auto missing = ParseConfig(nlohmann::json::object());
     TEST_REQUIRE(!missing.enabled);
     TEST_REQUIRE(missing.hotkeyText == "CTRL+SHIFT+T");
-    TEST_REQUIRE(missing.consume);
     const auto enabled = ParseConfig(nlohmann::json::parse(
         R"json({"transmuteHotkey":{"enabled":true,"hotkey":"MOUSE4","consume":false}})json"));
     TEST_REQUIRE(enabled.enabled && IsMouseHotkey(enabled.hotkey));
-    TEST_REQUIRE(!enabled.consume);
+    const auto legacyConsumeType = ParseConfig(nlohmann::json::parse(
+        R"json({"transmuteHotkey":{"enabled":true,"hotkey":"T","consume":"ignored"}})json"));
+    TEST_REQUIRE(legacyConsumeType.enabled && legacyConsumeType.hotkey.virtualKey == 'T');
     TEST_REQUIRE(Throws([] {
         ParseConfig(nlohmann::json::parse(
             R"json({"transmuteHotkey":{"enabled":true,"unknown":1}})json"));
@@ -66,6 +67,5 @@ int main(int argc, char** argv) {
     const auto shipped = ParseConfig(root.at("misc"));
     TEST_REQUIRE(!shipped.enabled);
     TEST_REQUIRE(shipped.hotkeyText == "CTRL+SHIFT+T");
-    TEST_REQUIRE(shipped.consume);
     return 0;
 }

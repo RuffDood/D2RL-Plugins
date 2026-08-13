@@ -1,35 +1,3 @@
-include(FetchContent)
-
-FetchContent_Declare(
-	imgui
-	GIT_REPOSITORY https://github.com/ocornut/imgui.git
-	# v1.91.5
-	GIT_TAG f401021d5a5d56fe2304056c391e78f81c8d4b8f
-)
-FetchContent_Declare(
-	minhook
-	GIT_REPOSITORY https://github.com/TsudaKageyu/minhook.git
-	# v1.3.4
-	GIT_TAG c3fcafdc10146beb5919319d0683e44e3c30d537
-)
-FetchContent_MakeAvailable(imgui minhook)
-
-add_library(plugin-items-extended-imgui STATIC
-	${imgui_SOURCE_DIR}/imgui.cpp
-	${imgui_SOURCE_DIR}/imgui_draw.cpp
-	${imgui_SOURCE_DIR}/imgui_tables.cpp
-	${imgui_SOURCE_DIR}/imgui_widgets.cpp
-	${imgui_SOURCE_DIR}/backends/imgui_impl_dx12.cpp
-)
-target_include_directories(plugin-items-extended-imgui PUBLIC
-	${imgui_SOURCE_DIR}
-	${imgui_SOURCE_DIR}/backends
-)
-target_compile_features(plugin-items-extended-imgui PUBLIC cxx_std_20)
-target_compile_definitions(
-	plugin-items-extended-imgui PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-target_link_libraries(plugin-items-extended-imgui PUBLIC dxgi)
-
 add_library(plugin-items-extended-transport STATIC
 	extended-item-stats-transport.cpp
 )
@@ -56,7 +24,7 @@ target_link_libraries(plugin-items PRIVATE
 	plugin-shared
 	plugin-items-extended-transport
 	plugin-items-extended-tooltip
-	plugin-items-extended-imgui
+	pluginpack-imgui
 	minhook
 	Xinput
 	dxgi

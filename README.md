@@ -38,7 +38,7 @@ CMake validates the manifest during configuration and before every build. A dupl
 ## Installation
 
 1. Copy the five DLLs to either `<D2R>/d2rloader/plugins/` or `<D2R>/mods/<mod>/d2rloader/plugins/`.
-2. Copy `D2RPlugins.json` to the active mod data directory as `<modDirectory>/D2RPlugins.json`, or beside `D2RLoader.exe` for the global fallback.
+2. Copy `D2RPlugins.json` to `<D2R>/mods/<mod>/d2rloader/config/D2RPlugins.json` for a mod-local installation, or to `<D2R>/d2rloader/config/D2RPlugins.json` for the global fallback.
 
 The shipped JSON enables four selected configurable features by default: Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube. Other newly added configurable features remain disabled. Extended Item Stats is an always-active `plugin-items.dll` patch with complete scrollable stat lists, oversized-item transport, and a visible graphical scroll bar; it has no public configuration key.
 
@@ -58,10 +58,10 @@ player test batches.
 
 ## Configuration
 
-`D2RPlugins.json` contains every public option with documented defaults. Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube are enabled in the shipped player configuration; other new configurable features remain disabled or preserve vanilla behavior. Extended Item Stats is not configurable: `plugin-items.dll` always installs its complete tooltip, oversized-item transport, scrolling input, and graphical scroll bar paths. Magic Find Formula is available as `items.magicFindFormula`; `vanilla` preserves the native curve and `linear` removes only the positive Unique, Set, and Rare diminishing returns. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Single keys and combinations are accepted; with `consume=true`, a successfully captured shortcut does not also reach the game, while the key keeps its normal behavior outside the Cube. Vendor Stock Refresh is available as `items.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels. Prevent Merc Death in Town is available as `misc.preventMercDeathInTown`; enabling it suppresses only projected-lethal persistent-damage ticks against mercenaries currently in town.
+`D2RPlugins.json` contains every public option with documented defaults. Charm Aura Trigger Fix, Enhanced Damage Min/Max Fix, Qty Display Fix, and Equipped Item to Cube are enabled in the shipped player configuration; other new configurable features remain disabled or preserve vanilla behavior. Extended Item Stats is not configurable: `plugin-items.dll` always installs its complete tooltip, oversized-item transport, scrolling input, and graphical scroll bar paths. Magic Find Formula is available as `items.magicFindFormula`; `vanilla` preserves the native curve and `linear` removes only the positive Unique, Set, and Rare diminishing returns. Transmute Hotkey is available as `misc.transmuteHotkey`; enabling it triggers the visible native Transmute action from the configured keyboard chord or mouse button. Single keys and combinations are accepted. A shortcut is captured internally only when its action is applicable; otherwise the key keeps its normal in-game behavior. Vendor Stock Refresh is available as `items.vendorStockRefresh`; enabling it exposes and dynamically positions the native refresh button in normal vendor panels. Prevent Merc Death in Town is available as `misc.preventMercDeathInTown`; enabling it suppresses only projected-lethal persistent-damage ticks against mercenaries currently in town.
 
-If the mod-local JSON is missing, the pack uses the global JSON beside
-`D2RLoader.exe`. If a configuration file exists but is malformed or contains an
+If the mod-local JSON is missing, the pack uses the global JSON under
+`<D2R>/d2rloader/config/`. If a configuration file exists but is malformed or contains an
 invalid high-risk value, the affected DLL refuses to load and writes the exact
 reason to its log instead of silently applying a different configuration.
 

@@ -10,6 +10,81 @@
 
 namespace PSh_Json_Detail {
 
+inline constexpr wchar_t ConfigFileName[] = L"D2RPlugins.json";
+
+struct ConfigPaths {
+	std::optional<std::filesystem::path> modConfig;
+	std::filesystem::path globalConfig;
+};
+
+inline bool HasPath(const wchar_t* path) noexcept
+{
+	return path != nullptr && path[0] != L'\0';
+}
+
+// D2RLoader exposes the active mod support directory as
+// <D2R>/mods/<mod>/d2rloader. Derive the game root from that runtime-owned
+// path instead of relying on the process working directory.
+inline std::filesystem::path GameRootFromModSupportDirectory(
+	const std::filesystem::path& modSupportDirectory)
+{
+	auto gameRoot = modSupportDirectory.parent_path(); // <D2R>/mods/<mod>
+	gameRoot = gameRoot.parent_path();                  // <D2R>/mods
+	gameRoot = gameRoot.parent_path();                  // <D2R>
+	if (gameRoot.empty()) {
+		throw std::runtime_error(
+			"PluginPack: D2RLoader supplied an invalid mod support directory.");
+	}
+	return gameRoot;
+}
+
+inline ConfigPaths ResolveConfigPaths(const D2RL::PluginContext* context)
+{
+	if (!context) {
+		throw std::runtime_error(
+			"PluginPack: D2RLoader did not supply a plugin context for configuration resolution.");
+	}
+
+	ConfigPaths paths;
+	std::filesystem::path gameRoot;
+
+	if (context->activeMod && context->activeMod[0] != '\0'
+		&& HasPath(context->modSupportDirectory)) {
+		const std::filesystem::path modSupportDirectory(context->modSupportDirectory);
+		paths.modConfig = modSupportDirectory / L"config" / ConfigFileName;
+		gameRoot = GameRootFromModSupportDirectory(modSupportDirectory);
+	}
+
+	if (gameRoot.empty() && HasPath(context->scopeRootDirectory)) {
+		const std::filesystem::path scopeRoot(context->scopeRootDirectory);
+		if (context->loadScope == D2RL::LoadScope::Global) {
+			gameRoot = scopeRoot;
+		}
+		else if (context->loadScope == D2RL::LoadScope::Mod) {
+			// A mod scope root is <D2R>/mods/<mod>.
+			gameRoot = scopeRoot.parent_path().parent_path();
+		}
+	}
+
+	if (gameRoot.empty() && context->loadScope == D2RL::LoadScope::Global
+		&& HasPath(context->pluginConfigPath)) {
+		// The loader's per-plugin config path lives in the global
+		// <D2R>/d2rloader/config directory.
+		paths.globalConfig =
+			std::filesystem::path(context->pluginConfigPath).parent_path()
+			/ ConfigFileName;
+	}
+	else if (!gameRoot.empty()) {
+		paths.globalConfig = gameRoot / L"d2rloader" / L"config" / ConfigFileName;
+	}
+
+	if (paths.globalConfig.empty()) {
+		throw std::runtime_error(
+			"PluginPack: D2RLoader did not supply enough path context to locate the global configuration.");
+	}
+	return paths;
+}
+
 struct FileAttempt {
 	bool found{};
 	std::optional<nlohmann::json> value;
@@ -53,33 +128,53 @@ inline FileAttempt TryLoadFile(const std::filesystem::path& path)
 
 inline std::optional<nlohmann::json> LoadConfigFromPaths(
 	const std::optional<std::filesystem::path>& modConfig,
-	const std::filesystem::path& globalConfig)
+	const std::filesystem::path& globalConfig,
+	std::filesystem::path* loadedPath = nullptr)
 {
 	if (modConfig) {
 		auto attempt = TryLoadFile(*modConfig);
 		if (attempt.found) {
+			if (loadedPath) {
+				*loadedPath = *modConfig;
+			}
 			return std::move(attempt.value);
 		}
 	}
 
 	auto attempt = TryLoadFile(globalConfig);
+	if (attempt.found && loadedPath) {
+		*loadedPath = globalConfig;
+	}
 	return attempt.found ? std::move(attempt.value) : std::nullopt;
 }
 
 } // namespace PSh_Json_Detail
 
-// Tries <modDirectory>/D2RPlugins.json, then ./D2RPlugins.json.
+// Tries <D2R>/mods/<mod>/d2rloader/config/D2RPlugins.json, then
+// <D2R>/d2rloader/config/D2RPlugins.json.
 // A missing file is allowed. A present but unreadable or invalid file is rejected,
 // and an invalid mod-local file never silently falls back to the global file.
 inline std::optional<nlohmann::json> PSh_Json_LoadConfig(const D2RL::PluginContext* context)
 {
-	std::optional<std::filesystem::path> modConfig;
-	if (context && context->modDirectory && context->modDirectory[0] != L'\0') {
-		modConfig = std::filesystem::path(context->modDirectory) / L"D2RPlugins.json";
+	const auto paths = PSh_Json_Detail::ResolveConfigPaths(context);
+	std::filesystem::path loadedPath;
+	auto config = PSh_Json_Detail::LoadConfigFromPaths(
+		paths.modConfig,
+		paths.globalConfig,
+		&loadedPath);
+	if (context) {
+		std::string message;
+		if (config) {
+			message = "PluginPack: loaded configuration from '"
+				+ loadedPath.string() + "'.";
+		}
+		else {
+			message = "PluginPack: no D2RPlugins.json found; using built-in defaults. Global path: '"
+				+ paths.globalConfig.string() + "'.";
+		}
+		context->LogInfo(message.c_str());
 	}
-	return PSh_Json_Detail::LoadConfigFromPaths(
-		modConfig,
-		std::filesystem::path(L"D2RPlugins.json"));
+	return config;
 }
 
 // Returns the named top-level section from a loaded config, or an empty object if missing.

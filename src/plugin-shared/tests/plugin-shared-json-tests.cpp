@@ -32,6 +32,34 @@ bool Throws(Callback&& callback)
 
 int main()
 {
+	{
+		D2RL::PluginContext globalContext{};
+		globalContext.contextSize = D2RL::PluginContextSize;
+		globalContext.loadScope = D2RL::LoadScope::Global;
+		globalContext.scopeRootDirectory = L"C:\\Games\\Diablo II Resurrected";
+		const auto paths = PSh_Json_Detail::ResolveConfigPaths(&globalContext);
+		TEST_REQUIRE(!paths.modConfig);
+		TEST_REQUIRE(paths.globalConfig == std::filesystem::path(
+			L"C:\\Games\\Diablo II Resurrected\\d2rloader\\config\\D2RPlugins.json"));
+	}
+
+	{
+		D2RL::PluginContext modContext{};
+		modContext.contextSize = D2RL::PluginContextSize;
+		modContext.loadScope = D2RL::LoadScope::Mod;
+		modContext.activeMod = "BKVince";
+		modContext.scopeRootDirectory =
+			L"C:\\Games\\Diablo II Resurrected\\mods\\BKVince";
+		modContext.modSupportDirectory =
+			L"C:\\Games\\Diablo II Resurrected\\mods\\BKVince\\d2rloader";
+		const auto paths = PSh_Json_Detail::ResolveConfigPaths(&modContext);
+		TEST_REQUIRE(paths.modConfig);
+		TEST_REQUIRE(*paths.modConfig == std::filesystem::path(
+			L"C:\\Games\\Diablo II Resurrected\\mods\\BKVince\\d2rloader\\config\\D2RPlugins.json"));
+		TEST_REQUIRE(paths.globalConfig == std::filesystem::path(
+			L"C:\\Games\\Diablo II Resurrected\\d2rloader\\config\\D2RPlugins.json"));
+	}
+
 	const auto unique = std::chrono::steady_clock::now().time_since_epoch().count();
 	const auto root = std::filesystem::temp_directory_path()
 		/ ("pluginpack-json-tests-" + std::to_string(unique));

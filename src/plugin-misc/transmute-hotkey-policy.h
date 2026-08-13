@@ -28,7 +28,6 @@ struct Config {
     bool enabled{};
     Hotkey hotkey{'T', InputDevice::Keyboard, true, true, false};
     std::string hotkeyText{"CTRL+SHIFT+T"};
-    bool consume{true};
 };
 
 inline std::string UpperTrim(std::string_view value) {
@@ -174,6 +173,8 @@ inline Config ParseConfig(const nlohmann::json& miscConfig) {
     }
     for (const auto& [key, value] : entry->items()) {
         (void)value;
+        // "consume" was a public option before Community Pack 1.0.0.
+        // Keep accepting and ignoring it so old JSON files remain loadable.
         if (key != "enabled" && key != "hotkey" && key != "consume") {
             throw std::invalid_argument(
                 "misc.transmuteHotkey contains unknown key '" + key + "'");
@@ -185,16 +186,12 @@ inline Config ParseConfig(const nlohmann::json& miscConfig) {
     if (entry->contains("hotkey") && !entry->at("hotkey").is_string()) {
         throw std::invalid_argument("misc.transmuteHotkey.hotkey must be a string");
     }
-    if (entry->contains("consume") && !entry->at("consume").is_boolean()) {
-        throw std::invalid_argument("misc.transmuteHotkey.consume must be a boolean");
-    }
     parsed.enabled = entry->value("enabled", false);
     parsed.hotkeyText = entry->value("hotkey", std::string("CTRL+SHIFT+T"));
     if (!ParseHotkey(parsed.hotkeyText, parsed.hotkey)) {
         throw std::invalid_argument(
             "misc.transmuteHotkey.hotkey is invalid or unsupported");
     }
-    parsed.consume = entry->value("consume", true);
     return parsed;
 }
 

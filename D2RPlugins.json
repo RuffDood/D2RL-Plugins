@@ -242,10 +242,7 @@
         // CTRL, SHIFT, and ALT are optional.
         "transmuteHotkey": {
             "enabled": false,
-            "hotkey": "CTRL+SHIFT+T",
-            // true prevents a successfully captured shortcut from also reaching the game.
-            // Outside the Cube, the key keeps its normal in-game behavior.
-            "consume": true
+            "hotkey": "CTRL+SHIFT+T"
         },
 
         // Prevent ongoing damage from killing your mercenary while in town.

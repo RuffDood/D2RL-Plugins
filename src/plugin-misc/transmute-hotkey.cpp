@@ -420,7 +420,7 @@ bool HandleInputTransition(
             false,
             std::memory_order_acq_rel
         );
-        return captured && Settings.consume && CurrentProcessOwnsForegroundWindow();
+        return captured && CurrentProcessOwnsForegroundWindow();
     }
     if (!isDown || injected || !CurrentProcessOwnsForegroundWindow()) return false;
 
@@ -429,9 +429,12 @@ bool HandleInputTransition(
         std::memory_order_acq_rel
     );
     if (!firstDown) {
-        return HotkeyCaptured.load(std::memory_order_acquire) && Settings.consume;
+        return HotkeyCaptured.load(std::memory_order_acquire);
     }
-    return QueueInputRequest() && Settings.consume;
+    // Capture only when the request is applicable now: the game owns focus,
+    // the configured modifiers match, the UI handoff is ready, and a usable
+    // Cube Transmute panel has been observed. Otherwise the key reaches D2R.
+    return QueueInputRequest();
 }
 
 LRESULT CALLBACK KeyboardHook(
@@ -606,12 +609,11 @@ auto Status(
     std::snprintf(
         message,
         sizeof(message),
-        "Transmute Hotkey 0.2.0: enabled=%s; hotkey=%s; input=%s; UI dispatch=%s; consume=%s; config=misc.transmuteHotkey; accepted=%llu; dispatched=%llu; refused=%llu; stale=%llu; failed=%llu.",
+        "Transmute Hotkey 0.2.0: enabled=%s; hotkey=%s; input=%s; UI dispatch=%s; config=misc.transmuteHotkey; accepted=%llu; dispatched=%llu; refused=%llu; stale=%llu; failed=%llu.",
         Settings.enabled ? "true" : "false",
         Settings.hotkeyText.c_str(),
         IsMouseHotkey(Settings.hotkey) ? "mouse" : "keyboard",
         UiDispatchReady.load(std::memory_order_acquire) ? "ready" : "pending",
-        Settings.consume ? "true" : "false",
         static_cast<unsigned long long>(AcceptedRequests.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(DispatchedRequests.load(std::memory_order_relaxed)),
         static_cast<unsigned long long>(RefusedRequests.load(std::memory_order_relaxed)),
@@ -730,10 +732,9 @@ bool Load(
     std::snprintf(
         message,
         sizeof(message),
-        "plugin-misc: Transmute Hotkey 0.2.0 by RuffnecKk active; hotkey=%s; input=%s; consume=%s; standalone=0x%llX; integrated=0x%llX; config=misc.transmuteHotkey.",
+        "plugin-misc: Transmute Hotkey 0.2.0 by RuffnecKk active; hotkey=%s; input=%s; standalone=0x%llX; integrated=0x%llX; config=misc.transmuteHotkey.",
         Settings.hotkeyText.c_str(),
         IsMouseHotkey(Settings.hotkey) ? "mouse" : "keyboard",
-        Settings.consume ? "true" : "false",
         static_cast<unsigned long long>(StandaloneCubeUpdateRva),
         static_cast<unsigned long long>(IntegratedCubeUpdateRva));
     context->LogInfo(message);
